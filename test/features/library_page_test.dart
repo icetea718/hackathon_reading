@@ -94,6 +94,23 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('back button returns from the reader to the library', (
+    tester,
+  ) async {
+    final source = File('${temp.path}/novel.txt')
+      ..writeAsStringSync('第一章 开始\n内容');
+    await pumpApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    await flushIo(tester, () => tester.tap(find.text('novel')));
+    expect(find.byType(ReaderPage), findsOneWidget);
+
+    await flushIo(tester, () => tester.tap(find.byType(BackButton)));
+    expect(find.byType(ReaderPage), findsNothing);
+    expect(find.text('书架'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
   testWidgets('delete removes the card and the copied file', (tester) async {
     final source = File('${temp.path}/t.txt')..writeAsStringSync('hello');
     await pumpApp(tester, source.path);

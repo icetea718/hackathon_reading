@@ -304,8 +304,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       appBar: AppBar(
         backgroundColor: background,
         foregroundColor: foreground,
+        automaticallyImplyLeading: false,
+        leading: Navigator.of(context).canPop() ? const BackButton() : null,
         title: Text(title),
         actions: [
+          if (drawer != null)
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: '目录',
+                icon: const Icon(Icons.menu),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
           IconButton(
             tooltip: '设置',
             icon: const Icon(Icons.text_fields),

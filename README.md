@@ -59,7 +59,7 @@ flutter analyze
 flutter test
 ```
 
-当前状态：`flutter analyze` 无问题；`flutter test` 51 个测试全部通过。
+当前状态：`flutter analyze` 无问题；`flutter test` 52 个测试全部通过。
 
 构建验证（2026-11-03）：
 
@@ -77,7 +77,7 @@ Android 构建备注：
 Windows（`flutter run -d windows`）或 Android 真机/模拟器：
 
 1. 导入一个 UTF-8 中文 TXT 和一个 GB18030 中文 TXT，正文与目录正常。
-2. 从目录跳到任意章节，上一章/下一章可用。
+2. 从目录跳到任意章节，上一章/下一章可用；左上角返回键能回到书架。
 3. 滚动到章节中部，关闭应用后重新打开同一本书，回到原段落。
 4. 调整字号/行距，当前阅读位置不丢失。
 5. 删除书籍后，书架条目和本地副本都消失。
