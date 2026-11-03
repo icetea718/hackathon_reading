@@ -160,15 +160,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     final location = locateAnchor(data.chapters, charOffset);
+    _pendingRestore = location;
     if (location.chapterIndex != _chapterIndex) {
       setState(() => _chapterIndex = location.chapterIndex);
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final max = _scrollController.position.maxScrollExtent;
-      _scrollController.jumpTo(max * location.fraction);
-      _restored = true;
-    });
+    _schedulePendingRestore();
   }
 
   void _goToChapter(int index, List<Chapter> chapters) {

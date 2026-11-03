@@ -143,6 +143,48 @@ void main() {
     );
   }
 
+  Future<int> seedTwoChapterBook() async {
+    String chapterText(String name) {
+      final buffer = StringBuffer();
+      for (var i = 0; i < 60; i++) {
+        buffer.writeln('$name第$i段：这是一段用来撑长页面的正文内容，确保可以滚动。');
+      }
+      return buffer.toString();
+    }
+
+    final text0 = chapterText('甲');
+    final text1 = chapterText('乙');
+    await BookRepository(db).upsert(Book(
+      id: 'jb',
+      title: '跳转测试',
+      author: '',
+      format: BookFormat.txt,
+      sourcePath: 'C:/books/jb.txt',
+      addedAt: DateTime(2026, 1, 4),
+    ));
+    await ChapterRepository(db).replaceForBook('jb', [
+      Chapter(
+        id: 'jb-c0',
+        bookId: 'jb',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: text0.length,
+        contentText: text0,
+      ),
+      Chapter(
+        id: 'jb-c1',
+        bookId: 'jb',
+        index: 1,
+        title: '第二章',
+        startOffset: text0.length,
+        endOffset: text0.length + text1.length,
+        contentText: text1,
+      ),
+    ]);
+    return text0.length + text1.length ~/ 2;
+  }
+
   ScrollController readerController(WidgetTester tester) {
     return tester
         .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
@@ -319,6 +361,35 @@ void main() {
 
     expect(await storedBookmarks(tester), isEmpty);
     expect(find.text('还没有书签'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('jumping to a bookmark in an unloaded chapter keeps its position', (
+    tester,
+  ) async {
+    final anchorStart = await seedTwoChapterBook();
+    await seedBookmark(
+      id: 'bm2',
+      bookId: 'jb',
+      chapterId: 'jb-c1',
+      anchorStart: anchorStart,
+    );
+    await pumpReader(tester, 'jb');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第二章'));
+    await tester.pumpAndSettle();
+    await settleAfterIo(tester);
+
+    final controller = readerController(tester);
+    expect(controller.position.maxScrollExtent, greaterThan(0));
+    expect(
+      controller.offset / controller.position.maxScrollExtent,
+      closeTo(0.5, 0.05),
+    );
     await disposeApp(tester);
   });
 
