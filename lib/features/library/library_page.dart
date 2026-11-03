@@ -16,6 +16,9 @@ String importErrorMessage(Object error) {
   if (error is EpubParseException) {
     return '文件无法解析，可能已损坏';
   }
+  if (error is DuplicateBookException) {
+    return '这本书已经在书架中';
+  }
   return '导入失败，请稍后重试';
 }
 

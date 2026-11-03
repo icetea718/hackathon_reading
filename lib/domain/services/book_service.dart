@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
@@ -31,6 +32,15 @@ class EmptyBookException implements Exception {
   String toString() => 'EmptyBookException: $path';
 }
 
+class DuplicateBookException implements Exception {
+  DuplicateBookException(this.existing);
+
+  final Book existing;
+
+  @override
+  String toString() => 'DuplicateBookException: ${existing.id}';
+}
+
 class BookService {
   BookService({
     required this.books,
@@ -53,9 +63,15 @@ class BookService {
     if (format == null) {
       throw UnsupportedBookFormatException(sourcePath);
     }
-    final length = await File(sourcePath).length();
-    if (length == 0) {
+    final source = File(sourcePath);
+    if (await source.length() == 0) {
       throw EmptyBookException(sourcePath);
+    }
+
+    final contentHash = (await sha256.bind(source.openRead()).first).toString();
+    final existing = await books.getByContentHash(contentHash);
+    if (existing != null) {
+      throw DuplicateBookException(existing);
     }
 
     final id = _newId();
@@ -66,6 +82,7 @@ class BookService {
       author: '',
       format: format,
       sourcePath: copiedPath,
+      contentHash: contentHash,
       addedAt: DateTime.now(),
     );
 
@@ -87,6 +104,30 @@ class BookService {
       rethrow;
     }
     return book;
+  }
+
+  Future<void> backfillContentHashes() async {
+    for (final book in await books.getAll()) {
+      if (book.contentHash != null) continue;
+      try {
+        final file = File(book.sourcePath);
+        if (!await file.exists()) continue;
+        final hash = (await sha256.bind(file.openRead()).first).toString();
+        await books.upsert(Book(
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          format: book.format,
+          sourcePath: book.sourcePath,
+          coverPath: book.coverPath,
+          contentHash: hash,
+          addedAt: book.addedAt,
+          lastOpenedAt: book.lastOpenedAt,
+        ));
+      } catch (_) {
+        // Missing or unreadable files simply stay out of deduplication.
+      }
+    }
   }
 
   Future<void> deleteBook(Book book) async {

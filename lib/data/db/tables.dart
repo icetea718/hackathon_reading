@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 @DataClassName('BookRow')
+@TableIndex(name: 'books_content_hash', columns: {#contentHash})
 class Books extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
@@ -8,6 +9,7 @@ class Books extends Table {
   TextColumn get format => text()();
   TextColumn get sourcePath => text()();
   TextColumn get coverPath => text().nullable()();
+  TextColumn get contentHash => text().nullable()();
   DateTimeColumn get addedAt => dateTime()();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();
 

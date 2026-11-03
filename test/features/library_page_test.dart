@@ -161,6 +161,20 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('importing the same TXT twice keeps a single card', (tester) async {
+    final source = File('${temp.path}/novel.txt')
+      ..writeAsStringSync('第一章 开始\n内容');
+    await pumpApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    expect(find.text('novel'), findsOneWidget);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    expect(find.text('这本书已经在书架中'), findsOneWidget);
+    expect(find.text('novel'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
   testWidgets('empty TXT shows a friendly error and leaves no book', (
     tester,
   ) async {

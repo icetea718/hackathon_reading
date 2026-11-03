@@ -17,18 +17,20 @@ void main() {
   late AppDatabase db;
   late BookRepository repo;
   late BookService service;
+  var nextId = 0;
 
   setUp(() async {
     temp = await Directory.systemTemp.createTemp('book_service_test');
     db = AppDatabase(NativeDatabase.memory());
     repo = BookRepository(db);
+    nextId = 0;
     service = BookService(
       books: repo,
       chapters: ChapterRepository(db),
       progress: ProgressRepository(db),
       annotations: AnnotationRepository(db),
       storage: BookStorage(Directory('${temp.path}/books')),
-      newId: () => 'fixed-id',
+      newId: () => 'id-${nextId++}',
     );
   });
 
@@ -45,7 +47,7 @@ void main() {
     expect(book.title, '我的 小说');
     expect(File(book.sourcePath).readAsStringSync(), contains('第一章'));
     expect((await repo.getAll()).single.id, book.id);
-    expect(book.sourcePath, endsWith('fixed-id.txt'));
+    expect(book.sourcePath, endsWith('${book.id}.txt'));
   });
 
   test('rejects unsupported extensions without recording a book', () async {
@@ -69,6 +71,57 @@ void main() {
     await service.deleteBook(book);
     expect(File(book.sourcePath).existsSync(), isFalse);
     expect(await repo.getAll(), isEmpty);
+  });
+
+  test('rejects importing the same file twice', () async {
+    final source = File('${temp.path}/same.txt')
+      ..writeAsStringSync('第一章 开始\n内容');
+    final first = await service.importFile(source.path);
+
+    await expectLater(
+      service.importFile(source.path),
+      throwsA(isA<DuplicateBookException>()),
+    );
+
+    final all = await repo.getAll();
+    expect(all, hasLength(1));
+    expect(all.single.id, first.id);
+    expect(Directory('${temp.path}/books').listSync(), hasLength(1));
+  });
+
+  test('backfills hashes for books imported before deduplication', () async {
+    final source = File('${temp.path}/legacy.txt')
+      ..writeAsStringSync('旧书内容');
+    final book = await service.importFile(source.path);
+    await repo.upsert(Book(
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      format: book.format,
+      sourcePath: book.sourcePath,
+      addedAt: book.addedAt,
+    ));
+    expect((await repo.getById(book.id))!.contentHash, isNull);
+
+    await service.backfillContentHashes();
+
+    expect((await repo.getById(book.id))!.contentHash, isNotNull);
+    await expectLater(
+      service.importFile(source.path),
+      throwsA(isA<DuplicateBookException>()),
+    );
+  });
+
+  test('does not treat different files as duplicates', () async {
+    final one = File('${temp.path}/one.txt')
+      ..writeAsStringSync('第一章 开始\n内容一');
+    final two = File('${temp.path}/two.txt')
+      ..writeAsStringSync('第一章 开始\n内容二');
+
+    await service.importFile(one.path);
+    await service.importFile(two.path);
+
+    expect(await repo.getAll(), hasLength(2));
   });
 
   test('delete removes annotations for the book', () async {

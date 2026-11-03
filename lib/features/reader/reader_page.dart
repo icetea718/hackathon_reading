@@ -131,6 +131,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           format: book.format,
           sourcePath: book.sourcePath,
           coverPath: book.coverPath,
+          contentHash: book.contentHash,
           addedAt: book.addedAt,
           lastOpenedAt: DateTime.now(),
         );

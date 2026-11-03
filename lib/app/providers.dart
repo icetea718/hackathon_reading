@@ -47,13 +47,15 @@ final bookStorageProvider = FutureProvider<BookStorage>((ref) async {
 });
 
 final bookServiceProvider = FutureProvider<BookService>((ref) async {
-  return BookService(
+  final service = BookService(
     books: ref.watch(bookRepositoryProvider),
     chapters: ref.watch(chapterRepositoryProvider),
     progress: ref.watch(progressRepositoryProvider),
     annotations: ref.watch(annotationRepositoryProvider),
     storage: await ref.watch(bookStorageProvider.future),
   );
+  await service.backfillContentHashes();
+  return service;
 });
 
 final filePickerProvider = Provider<FilePickerService>((ref) {

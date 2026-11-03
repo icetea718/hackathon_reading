@@ -27,6 +27,14 @@ class BookRepository {
     return row == null ? null : _toBook(row);
   }
 
+  Future<Book?> getByContentHash(String contentHash) async {
+    if (contentHash.isEmpty) return null;
+    final query = _db.select(_db.books)
+      ..where((t) => t.contentHash.equals(contentHash));
+    final row = await query.getSingleOrNull();
+    return row == null ? null : _toBook(row);
+  }
+
   Future<void> upsert(Book book) async {
     await _db.into(_db.books).insertOnConflictUpdate(_toRow(book));
   }
@@ -43,6 +51,7 @@ class BookRepository {
       format: BookFormat.values.byName(row.format),
       sourcePath: row.sourcePath,
       coverPath: row.coverPath,
+      contentHash: row.contentHash,
       addedAt: row.addedAt,
       lastOpenedAt: row.lastOpenedAt,
     );
@@ -56,6 +65,7 @@ class BookRepository {
       format: book.format.name,
       sourcePath: book.sourcePath,
       coverPath: Value(book.coverPath),
+      contentHash: Value(book.contentHash),
       addedAt: book.addedAt,
       lastOpenedAt: Value(book.lastOpenedAt),
     );

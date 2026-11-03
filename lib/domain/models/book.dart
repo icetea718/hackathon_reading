@@ -25,6 +25,7 @@ class Book {
     required this.sourcePath,
     required this.addedAt,
     this.coverPath,
+    this.contentHash,
     this.lastOpenedAt,
   });
 
@@ -34,6 +35,7 @@ class Book {
   final BookFormat format;
   final String sourcePath;
   final String? coverPath;
+  final String? contentHash;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
 }

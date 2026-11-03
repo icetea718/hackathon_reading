@@ -67,6 +67,17 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _contentHashMeta = const VerificationMeta(
+    'contentHash',
+  );
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+    'content_hash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _addedAtMeta = const VerificationMeta(
     'addedAt',
   );
@@ -97,6 +108,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     format,
     sourcePath,
     coverPath,
+    contentHash,
     addedAt,
     lastOpenedAt,
   ];
@@ -153,6 +165,15 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
       );
     }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+        _contentHashMeta,
+        contentHash.isAcceptableOrUnknown(
+          data['content_hash']!,
+          _contentHashMeta,
+        ),
+      );
+    }
     if (data.containsKey('added_at')) {
       context.handle(
         _addedAtMeta,
@@ -203,6 +224,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         DriftSqlType.string,
         data['${effectivePrefix}cover_path'],
       ),
+      contentHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_hash'],
+      ),
       addedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}added_at'],
@@ -227,6 +252,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
   final String format;
   final String sourcePath;
   final String? coverPath;
+  final String? contentHash;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
   const BookRow({
@@ -236,6 +262,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     required this.format,
     required this.sourcePath,
     this.coverPath,
+    this.contentHash,
     required this.addedAt,
     this.lastOpenedAt,
   });
@@ -249,6 +276,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     map['source_path'] = Variable<String>(sourcePath);
     if (!nullToAbsent || coverPath != null) {
       map['cover_path'] = Variable<String>(coverPath);
+    }
+    if (!nullToAbsent || contentHash != null) {
+      map['content_hash'] = Variable<String>(contentHash);
     }
     map['added_at'] = Variable<DateTime>(addedAt);
     if (!nullToAbsent || lastOpenedAt != null) {
@@ -267,6 +297,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       coverPath: coverPath == null && nullToAbsent
           ? const Value.absent()
           : Value(coverPath),
+      contentHash: contentHash == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contentHash),
       addedAt: Value(addedAt),
       lastOpenedAt: lastOpenedAt == null && nullToAbsent
           ? const Value.absent()
@@ -286,6 +319,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       format: serializer.fromJson<String>(json['format']),
       sourcePath: serializer.fromJson<String>(json['sourcePath']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
+      contentHash: serializer.fromJson<String?>(json['contentHash']),
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       lastOpenedAt: serializer.fromJson<DateTime?>(json['lastOpenedAt']),
     );
@@ -300,6 +334,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       'format': serializer.toJson<String>(format),
       'sourcePath': serializer.toJson<String>(sourcePath),
       'coverPath': serializer.toJson<String?>(coverPath),
+      'contentHash': serializer.toJson<String?>(contentHash),
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'lastOpenedAt': serializer.toJson<DateTime?>(lastOpenedAt),
     };
@@ -312,6 +347,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     String? format,
     String? sourcePath,
     Value<String?> coverPath = const Value.absent(),
+    Value<String?> contentHash = const Value.absent(),
     DateTime? addedAt,
     Value<DateTime?> lastOpenedAt = const Value.absent(),
   }) => BookRow(
@@ -321,6 +357,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     format: format ?? this.format,
     sourcePath: sourcePath ?? this.sourcePath,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
+    contentHash: contentHash.present ? contentHash.value : this.contentHash,
     addedAt: addedAt ?? this.addedAt,
     lastOpenedAt: lastOpenedAt.present ? lastOpenedAt.value : this.lastOpenedAt,
   );
@@ -334,6 +371,9 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ? data.sourcePath.value
           : this.sourcePath,
       coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
+      contentHash: data.contentHash.present
+          ? data.contentHash.value
+          : this.contentHash,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
       lastOpenedAt: data.lastOpenedAt.present
           ? data.lastOpenedAt.value
@@ -350,6 +390,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ..write('format: $format, ')
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
+          ..write('contentHash: $contentHash, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt')
           ..write(')'))
@@ -364,6 +405,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     format,
     sourcePath,
     coverPath,
+    contentHash,
     addedAt,
     lastOpenedAt,
   );
@@ -377,6 +419,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           other.format == this.format &&
           other.sourcePath == this.sourcePath &&
           other.coverPath == this.coverPath &&
+          other.contentHash == this.contentHash &&
           other.addedAt == this.addedAt &&
           other.lastOpenedAt == this.lastOpenedAt);
 }
@@ -388,6 +431,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   final Value<String> format;
   final Value<String> sourcePath;
   final Value<String?> coverPath;
+  final Value<String?> contentHash;
   final Value<DateTime> addedAt;
   final Value<DateTime?> lastOpenedAt;
   final Value<int> rowid;
@@ -398,6 +442,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.format = const Value.absent(),
     this.sourcePath = const Value.absent(),
     this.coverPath = const Value.absent(),
+    this.contentHash = const Value.absent(),
     this.addedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -409,6 +454,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     required String format,
     required String sourcePath,
     this.coverPath = const Value.absent(),
+    this.contentHash = const Value.absent(),
     required DateTime addedAt,
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -424,6 +470,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Expression<String>? format,
     Expression<String>? sourcePath,
     Expression<String>? coverPath,
+    Expression<String>? contentHash,
     Expression<DateTime>? addedAt,
     Expression<DateTime>? lastOpenedAt,
     Expression<int>? rowid,
@@ -435,6 +482,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       if (format != null) 'format': format,
       if (sourcePath != null) 'source_path': sourcePath,
       if (coverPath != null) 'cover_path': coverPath,
+      if (contentHash != null) 'content_hash': contentHash,
       if (addedAt != null) 'added_at': addedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
       if (rowid != null) 'rowid': rowid,
@@ -448,6 +496,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Value<String>? format,
     Value<String>? sourcePath,
     Value<String?>? coverPath,
+    Value<String?>? contentHash,
     Value<DateTime>? addedAt,
     Value<DateTime?>? lastOpenedAt,
     Value<int>? rowid,
@@ -459,6 +508,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       format: format ?? this.format,
       sourcePath: sourcePath ?? this.sourcePath,
       coverPath: coverPath ?? this.coverPath,
+      contentHash: contentHash ?? this.contentHash,
       addedAt: addedAt ?? this.addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
       rowid: rowid ?? this.rowid,
@@ -486,6 +536,9 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     if (coverPath.present) {
       map['cover_path'] = Variable<String>(coverPath.value);
     }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
     if (addedAt.present) {
       map['added_at'] = Variable<DateTime>(addedAt.value);
     }
@@ -507,6 +560,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
           ..write('format: $format, ')
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
+          ..write('contentHash: $contentHash, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt, ')
           ..write('rowid: $rowid')
@@ -2238,6 +2292,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ReadingProgressEntriesTable(this);
   late final $AnnotationsTable annotations = $AnnotationsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final Index booksContentHash = Index(
+    'books_content_hash',
+    'CREATE INDEX books_content_hash ON books (content_hash)',
+  );
   late final Index chaptersBookIndex = Index(
     'chapters_book_index',
     'CREATE INDEX chapters_book_index ON chapters (book_id, chapter_index)',
@@ -2256,6 +2314,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     readingProgressEntries,
     annotations,
     settings,
+    booksContentHash,
     chaptersBookIndex,
     annotationsBookId,
   ];
@@ -2268,6 +2327,7 @@ typedef $$BooksTableCreateCompanionBuilder = BooksCompanion Function({
   required String format,
   required String sourcePath,
   Value<String?> coverPath,
+  Value<String?> contentHash,
   required DateTime addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -2279,6 +2339,7 @@ typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
   Value<String> format,
   Value<String> sourcePath,
   Value<String?> coverPath,
+  Value<String?> contentHash,
   Value<DateTime> addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -2319,6 +2380,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get coverPath => $composableBuilder(
     column: $table.coverPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2372,6 +2438,11 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get addedAt => $composableBuilder(
     column: $table.addedAt,
     builder: (column) => ColumnOrderings(column),
@@ -2411,6 +2482,11 @@ class $$BooksTableAnnotationComposer
 
   GeneratedColumn<String> get coverPath =>
       $composableBuilder(column: $table.coverPath, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
@@ -2455,6 +2531,7 @@ class $$BooksTableTableManager
                 Value<String> format = const Value.absent(),
                 Value<String> sourcePath = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> contentHash = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2465,6 +2542,7 @@ class $$BooksTableTableManager
                 format: format,
                 sourcePath: sourcePath,
                 coverPath: coverPath,
+                contentHash: contentHash,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,
@@ -2477,6 +2555,7 @@ class $$BooksTableTableManager
                 required String format,
                 required String sourcePath,
                 Value<String?> coverPath = const Value.absent(),
+                Value<String?> contentHash = const Value.absent(),
                 required DateTime addedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2487,6 +2566,7 @@ class $$BooksTableTableManager
                 format: format,
                 sourcePath: sourcePath,
                 coverPath: coverPath,
+                contentHash: contentHash,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,
