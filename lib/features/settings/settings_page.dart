@@ -110,13 +110,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _testVoice() async {
     if (_testingVoice) return;
     setState(() => _testingVoice = true);
+    final config = _voiceFromForm();
     await _save(announce: false);
-    final reachable = await ref.read(ttsClientProvider).ping();
+    // Use the values on screen: the shared client still holds the previous
+    // snapshot until the settings provider has reloaded from the database.
+    final client = ref.read(ttsClientFactoryProvider)(config);
+    bool reachable;
+    try {
+      reachable = await client.ping();
+    } finally {
+      client.dispose();
+    }
     if (!mounted) return;
     setState(() => _testingVoice = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(reachable ? '语音服务可用' : '语音服务不可用，请确认 GPT-SoVITS 已启动'),
+        content: Text(
+          reachable
+              ? '语音服务可用（${config.baseUrl}）'
+              : '语音服务不可用：连不上 ${config.baseUrl}/health',
+        ),
       ),
     );
   }
@@ -125,15 +138,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (_testing) return;
     setState(() => _testing = true);
     // Save first so the shared client picks up the values just typed.
+    final config = _configFromForm();
     await _save(announce: false);
     String message;
+    final client = ref.read(llmClientFactoryProvider)(config);
     try {
-      await ref
-          .read(llmClientProvider)
-          .completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
+      await client.completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
       message = '连接成功';
     } catch (error) {
       message = '连接失败：$error';
+    } finally {
+      client.dispose();
     }
     if (!mounted) return;
     setState(() => _testing = false);

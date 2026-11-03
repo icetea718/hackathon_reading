@@ -58,14 +58,18 @@ void main() {
     WidgetTester tester,
     LlmClient client, {
     TtsClient? ttsClient,
+    void Function(TtsConfig config)? onTtsClientRequested,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
-          llmClientProvider.overrideWithValue(client),
+          llmClientFactoryProvider.overrideWithValue((config) => client),
           if (ttsClient != null)
-            ttsClientProvider.overrideWithValue(ttsClient),
+            ttsClientFactoryProvider.overrideWithValue((config) {
+              onTtsClientRequested?.call(config);
+              return ttsClient;
+            }),
         ],
         child: const MaterialApp(home: SettingsPage()),
       ),
@@ -198,7 +202,30 @@ void main() {
 
     await tapAt(tester, find.byKey(const Key('tts-test')));
 
-    expect(find.text('语音服务可用'), findsOneWidget);
+    expect(find.textContaining('语音服务可用'), findsOneWidget);
+  });
+
+  testWidgets('the voice test pings the address that is on screen',
+      (tester) async {
+    TtsConfig? requested;
+    await pumpPage(
+      tester,
+      _FakeClient(),
+      ttsClient: FakeTtsClient(pingResult: true),
+      onTtsClientRequested: (config) => requested = config,
+    );
+
+    await reveal(tester, find.byKey(const Key('tts-base-url')));
+    await tester.enterText(
+      find.byKey(const Key('tts-base-url')),
+      'http://127.0.0.1:8766',
+    );
+    await tapAt(tester, find.byKey(const Key('tts-test')));
+
+    // Regression: the client used to be built from the provider snapshot,
+    // which still held the defaults on the first save.
+    expect(requested?.baseUrl, 'http://127.0.0.1:8766');
+    expect(find.text('语音服务可用（http://127.0.0.1:8766）'), findsOneWidget);
   });
 
   testWidgets('the voice test reports an unreachable service', (tester) async {

@@ -116,6 +116,17 @@ final llmClientProvider = Provider<LlmClient>((ref) {
   return client;
 });
 
+/// Builds a short-lived client from an explicit config.
+///
+/// The settings page's "test connection" button needs the values currently in
+/// the form, which are not in [llmConfigSourceProvider] yet: that snapshot only
+/// refreshes once [llmConfigProvider] has reloaded from the database.
+typedef LlmClientFactory = LlmClient Function(LlmConfig config);
+
+final llmClientFactoryProvider = Provider<LlmClientFactory>((ref) {
+  return (config) => OpenAiLlmClient(config: () => config);
+});
+
 final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {
   return TtsConfigStore(ref.watch(settingsRepositoryProvider));
 });
@@ -147,6 +158,16 @@ final ttsClientProvider = Provider<TtsClient>((ref) {
   final client = OpenAiTtsClient(config: () => source.value);
   ref.onDispose(client.dispose);
   return client;
+});
+
+/// Builds a short-lived voice client from an explicit config.
+///
+/// Same reason as [llmClientFactoryProvider]: the "test voice" button must ping
+/// the address that is on screen, not the snapshot that lags behind it.
+typedef TtsClientFactory = TtsClient Function(TtsConfig config);
+
+final ttsClientFactoryProvider = Provider<TtsClientFactory>((ref) {
+  return (config) => OpenAiTtsClient(config: () => config);
 });
 
 final audioOutputProvider = Provider<AudioOutput>((ref) {
