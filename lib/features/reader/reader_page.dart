@@ -11,6 +11,7 @@ import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
+import '../companion/companion_panel.dart';
 import 'annotation_spans.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
@@ -418,8 +419,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _reanchorAfterLayout(anchor);
   }
 
-  Future<String?> _pickHighlightColor() {
-    return showModalBottomSheet<String>(
+  Future<void> _openCompanion() async {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return;
+    final index = _chapterIndex.clamp(0, data.chapters.length - 1);
+    final chapter = data.chapters[index];
+    final text = await ref.read(
+      chapterContentProvider((bookId: widget.bookId, index: index)).future,
+    );
+    if (!mounted) return;
+    final offset =
+        (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+            chapter.startOffset;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => CompanionPanel(
+        bookId: widget.bookId,
+        chapterIndex: index,
+        chapterTitle: chapter.title,
+        chapterText: text,
+        chapterCharOffset: offset < 0 ? 0 : offset,
+        bookTitle: data.book?.title ?? '',
+        author: data.book?.author ?? '',
+      ),
+    );
+  }
+
+  Future<String?> _pickHighlightColor() {    return showModalBottomSheet<String>(
       context: context,
       builder: (sheetContext) {
         return SafeArea(
@@ -648,6 +675,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 onPressed: () => Scaffold.of(context).openDrawer(),
               ),
             ),
+          IconButton(
+            tooltip: '陪读',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: _openCompanion,
+          ),
           IconButton(
             tooltip: '设置',
             icon: const Icon(Icons.text_fields),
