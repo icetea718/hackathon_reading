@@ -5,6 +5,7 @@ import '../../domain/models/distill.dart';
 import '../../distill/distill_pipeline.dart';
 import '../../distill/distill_planner.dart';
 import '../../distill/llm/llm_client.dart';
+import '../../distill/stale_guard.dart';
 
 /// UI-facing state of one book's distillation.
 class DistillState {
@@ -12,25 +13,32 @@ class DistillState {
     this.job,
     this.progress,
     this.error,
+    this.notice,
     this.isRunning = false,
   });
 
   final DistillJob? job;
   final DistillProgress? progress;
   final String? error;
+
+  /// Non-fatal hint, e.g. that the book changed and was re-distilled.
+  final String? notice;
   final bool isRunning;
 
   DistillState copyWith({
     DistillJob? job,
     DistillProgress? progress,
     String? error,
+    String? notice,
     bool clearError = false,
+    bool clearNotice = false,
     bool? isRunning,
   }) {
     return DistillState(
       job: job ?? this.job,
       progress: progress ?? this.progress,
       error: clearError ? null : (error ?? this.error),
+      notice: clearNotice ? null : (notice ?? this.notice),
       isRunning: isRunning ?? this.isRunning,
     );
   }
@@ -80,6 +88,7 @@ class DistillController extends Notifier<DistillState> {
               totalUnits: job.totalUnits,
             ),
       error: state.error,
+      notice: state.notice,
       isRunning: state.isRunning,
     );
   }
@@ -104,14 +113,24 @@ class DistillController extends Notifier<DistillState> {
       return;
     }
 
+    final check = await DistillStaleGuard(
+      books: ref.read(bookRepositoryProvider),
+      artifacts: ref.read(distillArtifactRepositoryProvider),
+    ).ensureFresh(book);
+
     final token = CancelToken();
     _cancel = token;
     _pauseRequested = false;
-    state = state.copyWith(isRunning: true, clearError: true);
+    state = state.copyWith(
+      isRunning: true,
+      clearError: true,
+      notice: check.changed ? '书籍内容已变化，已按新内容重新蒸馏' : null,
+      clearNotice: !check.changed,
+    );
 
     final pipeline = DistillPipeline(
       bookId: bookId,
-      contentHash: book.contentHash ?? '',
+      contentHash: check.hash ?? book.contentHash ?? '',
       chapters: chapters,
       client: ref.read(llmClientProvider),
       planner: DistillPlanner(),
@@ -146,6 +165,7 @@ class DistillController extends Notifier<DistillState> {
         job: job,
         progress: state.progress,
         error: job?.errorText ?? state.error,
+        notice: state.notice,
         isRunning: false,
       );
       if (job?.status == DistillStatus.completed) {

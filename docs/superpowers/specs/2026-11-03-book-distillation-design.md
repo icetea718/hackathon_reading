@@ -302,3 +302,16 @@ abstract class LlmClient {
 
 顺带修掉 spec 里与当前 checkout 不符的表述：不存在的 `features/settings/settings_page.dart`、划词 AI 入口、以及"41 个测试文件"的旧基线；设置页在 P1 新建，作为本功能的依赖而非既有设施。
 
+## 20. 实施结果（完工记录）
+
+按计划 12 个任务全部落地，分支 `feat/book-distillation`，184 个测试全绿、`flutter analyze` 干净。与设计稿的差异只有下面这些，均已随代码提交：
+
+1. **stale 的实际语义**：`DistillStaleGuard`（`lib/distill/stale_guard.dart`）在 `DistillController.start()/resume()` 里、真正发起模型调用前重算书籍文件 SHA-256。变化时把该书的产物全部标 `stale`、刷新 `Books.contentHash`，然后按新内容直接重跑；界面显示一句非致命的 `DistillState.notice`「书籍内容已变化，已按新内容重新蒸馏」，而不是中止等用户确认——否则用户没有任何出口能重新开始。文件缺失或读不出来时视为未变化，不误伤。
+2. **暂停=取消在途单元**：`pause()` 只是置标志，`onProgress` 里检测到就把 `CancelToken` 取消；流水线以 `canceled` 收尾后，控制器把它改回 `paused` 再存库，这样"暂停"和"取消"共用一个出口，区别只在最后写回的状态。
+3. **`LlmClient.streamChat` 多了可选 `cancel` 参数**（计划里没有）：没有它无法在暂停/取消时中止在途 HTTP 流。
+4. **蒸馏页不依赖仓储**：`DistillView` 是纯展示组件（state + artifacts + 四个回调），`DistillPage` 才接 provider；测试可以完全绕开数据库。
+5. **陪读面板的判断依据是 `AssistantService.isConfigured`**，而不是 `assistantServiceProvider` 是不是 `AsyncLoading`：面板在 loading 时显示转圈，未配置时给「去设置」入口。
+6. **PDF 入口**：书架卡片的「蒸馏」菜单项对 PDF 直接 `enabled: false`（PDF 无章节表，见第 19 节第 1 条）。
+7. **卡片与章节摘要不再另建表**：两者都是 `DistillArtifacts` 的行（`kind=card` / `kind=chapterGist`），`chapterStart/chapterEnd` 记录覆盖的阅读章节区间，`stale` 标记失效。
+8. **调用预算没有做成硬断言**：e2e 用 fake client 断言"每个单元恰好一次调用"，真实次数与花费留给 Windows 手动验收（见 CONTRIBUTING 手动验收清单第 12–14 条）。
+

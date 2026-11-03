@@ -166,6 +166,13 @@ class DistillView extends StatelessWidget {
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ],
+        if (state.notice != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            state.notice!,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 24),
         Wrap(
           spacing: 12,

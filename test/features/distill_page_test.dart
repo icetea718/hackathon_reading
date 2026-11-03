@@ -65,6 +65,18 @@ void main() {
     expect(resumed, 1);
   });
 
+  testWidgets('a changed book shows a stale notice', (tester) async {
+    await tester.pumpWidget(_host(DistillView(
+      state: DistillState(
+        job: _job(status: DistillStatus.paused),
+        notice: '书籍内容已变化，已按新内容重新蒸馏',
+      ),
+      artifacts: const [],
+    )));
+
+    expect(find.textContaining('书籍内容已变化'), findsOneWidget);
+  });
+
   testWidgets('a completed job shows the four artifact tabs', (tester) async {
     await tester.pumpWidget(_host(DistillView(
       state: DistillState(
