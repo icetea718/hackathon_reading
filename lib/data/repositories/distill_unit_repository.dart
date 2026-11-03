@@ -30,6 +30,26 @@ class DistillUnitRepository {
     return rows.map((row) => row.unitKey).toSet();
   }
 
+  Future<List<DistillUnit>> listByJob(String jobId) async {
+    final query = _db.select(_db.distillUnits)
+      ..where((t) => t.jobId.equals(jobId));
+    final rows = await query.get();
+    return rows
+        .map(
+          (row) => DistillUnit(
+            id: row.id,
+            jobId: row.jobId,
+            unitKey: row.unitKey,
+            kind: row.kind,
+            status: row.status,
+            resultJson: row.resultJson,
+            attempts: row.attempts,
+            updatedAt: row.updatedAt,
+          ),
+        )
+        .toList();
+  }
+
   Future<void> deleteForJob(String jobId) async {
     await (_db.delete(_db.distillUnits)
           ..where((t) => t.jobId.equals(jobId)))
