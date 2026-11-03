@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../assistant/assistant_service.dart';
+import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
@@ -40,6 +42,10 @@ final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
 
 final annotationServiceProvider = Provider<AnnotationService>((ref) {
   return AnnotationService(ref.watch(annotationRepositoryProvider));
+});
+
+final assistantServiceProvider = Provider<AssistantService>((ref) {
+  return const UnconfiguredAssistantService();
 });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {

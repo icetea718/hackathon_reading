@@ -21,9 +21,10 @@
 - 正文按章节懒加载。
 - PDF 阅读：pdfrx 渲染、缩放、翻页/页码跳转、内嵌目录（无目录时按页跳转）、按页码续读、按页书签；PDF 不写入章节表。
 - 重复导入保护：按文件内容 SHA-256 去重，旧书在首次导入时自动补算哈希。
-- 117 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
+- AI 骨架：`AssistantService` 定义翻译/解读/章节总结/陪读对话四个流式接口，`ReadingContextBuilder` 组装书名、作者、章节与选中文字并截断；默认未配置实现返回「未配置 AI 服务」。划词入口和设置页尚未实现。
+- 128 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
 
-尚未实现：PDF 高亮/笔记（按页书签已支持，用户确认本轮不做 PDF 标注）、标注内容编辑、EPUB 排版还原（CSS/图片/封面）、阅读设置持久化、任何 AI 调用。扫描版 PDF 不做 OCR。
+尚未实现：PDF 高亮/笔记（按页书签已支持，用户确认本轮不做 PDF 标注）、标注内容编辑、EPUB 排版还原（CSS/图片/封面）、阅读设置持久化、真实 AI 调用与划词入口。扫描版 PDF 不做 OCR。
 
 ## 产品方向
 
@@ -62,9 +63,10 @@ lib/
     library/           书架、导入、删除
     reader/            阅读视图、目录、设置、进度定位、高亮渲染
     annotations/       高亮/笔记列表页
+  assistant/           AssistantService、阅读上下文构建、未来的模型适配器
 ```
 
-标注的模型、表和仓储已经存在（当前用于书签），但 UI 仍放在 `features/reader`；`assistant/` 目录还没有，是设计文档中后续里程碑的位置。新增功能时请按“UI / domain / data”分层，不要把这些逻辑直接塞进 `features/reader`。
+标注的模型、表和仓储已经存在（当前用于书签），但 UI 仍放在 `features/reader`。新增功能时请按“UI / domain / data”分层，不要把这些逻辑直接塞进 `features/reader`。
 
 ## 环境准备
 
@@ -101,7 +103,7 @@ flutter test
 flutter build apk --debug
 ```
 
-提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 117 个测试全部通过；新增功能后数量会增长，以全绿为准。
+提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 128 个测试全部通过；新增功能后数量会增长，以全绿为准。
 
 PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。GitHub 不可达时构建钩子会失败；先按 README 的说明用镜像预置 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/` 下的原生库再构建。
 
@@ -150,7 +152,7 @@ PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。Git
 
 严格按设计文档第 11 节：
 
-1. 实现 `AssistantService` 的 `translate` / `explain` / `summarizeChapter` / `chat`，统一返回 `Stream`。
+1. `AssistantService` 接口已定义在 `lib/assistant/assistant_service.dart`（`translate` / `explain` / `summarizeChapter` / `chat`，统一返回 `Stream`）；接入真实模型时实现它，并把 `assistantServiceProvider` 默认的 `UnconfiguredAssistantService` 换掉。
 2. 用 `ReadingContextBuilder` 组装书名、作者、当前章节与选中文本，并做长度截断。
 3. 模型厂商适配器放在 `assistant/`，API Key 走安全存储，不写进代码或日志。
 4. 未配置时 UI 显示明确提示，不能阻断阅读。
