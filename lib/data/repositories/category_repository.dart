@@ -33,9 +33,7 @@ class CategoryRepository {
         (t) => OrderingTerm.asc(t.sortOrder),
         (t) => OrderingTerm.asc(t.createdAt),
       ]);
-    return query.watch().map(
-          (rows) => rows.map(_toModel).toList(),
-        );
+    return query.watch().map((rows) => rows.map(_toModel).toList());
   }
 
   Future<List<Category>> getAll() async {
@@ -55,14 +53,16 @@ class CategoryRepository {
     }
 
     final maxSort = _db.categories.sortOrder.max();
-    final max = await (_db.selectOnly(_db.categories)..addColumns([maxSort]))
-        .map((row) => row.read(maxSort))
-        .getSingleOrNull();
+    final max = await (_db.selectOnly(
+      _db.categories,
+    )..addColumns([maxSort])).map((row) => row.read(maxSort)).getSingleOrNull();
     final sortOrder = (max ?? -1) + 1;
     final createdAt = DateTime.now();
 
     final id = const Uuid().v4();
-    await _db.into(_db.categories).insert(
+    await _db
+        .into(_db.categories)
+        .insert(
           CategoriesCompanion.insert(
             id: id,
             name: trimmed,
@@ -91,9 +91,9 @@ class CategoryRepository {
 
   Future<void> delete(String id) async {
     await _db.transaction(() async {
-      await (_db.delete(_db.bookCategories)
-            ..where((t) => t.categoryId.equals(id)))
-          .go();
+      await (_db.delete(
+        _db.bookCategories,
+      )..where((t) => t.categoryId.equals(id))).go();
       await (_db.delete(_db.categories)..where((t) => t.id.equals(id))).go();
     });
   }
@@ -104,11 +104,13 @@ class CategoryRepository {
 
   Future<void> setBookCategories(String bookId, Set<String> categoryIds) async {
     await _db.transaction(() async {
-      await (_db.delete(_db.bookCategories)
-            ..where((t) => t.bookId.equals(bookId)))
-          .go();
+      await (_db.delete(
+        _db.bookCategories,
+      )..where((t) => t.bookId.equals(bookId))).go();
       for (final categoryId in categoryIds) {
-        await _db.into(_db.bookCategories).insert(
+        await _db
+            .into(_db.bookCategories)
+            .insert(
               BookCategoriesCompanion.insert(
                 bookId: bookId,
                 categoryId: categoryId,
@@ -119,19 +121,21 @@ class CategoryRepository {
   }
 
   Future<void> addBook(String bookId, String categoryId) async {
-    await _db.into(_db.bookCategories).insertOnConflictUpdate(
+    await _db
+        .into(_db.bookCategories)
+        .insert(
           BookCategoriesCompanion.insert(
             bookId: bookId,
             categoryId: categoryId,
           ),
+          mode: InsertMode.insertOrIgnore,
         );
   }
 
   Future<void> removeBook(String bookId, String categoryId) async {
-    await (_db.delete(_db.bookCategories)
-          ..where(
-            (t) => t.bookId.equals(bookId) & t.categoryId.equals(categoryId),
-          ))
+    await (_db.delete(_db.bookCategories)..where(
+          (t) => t.bookId.equals(bookId) & t.categoryId.equals(categoryId),
+        ))
         .go();
   }
 
@@ -140,24 +144,21 @@ class CategoryRepository {
     Set<String> bookIds,
   ) async {
     if (bookIds.isEmpty) return;
-    await (_db.delete(_db.bookCategories)
-          ..where(
-            (t) =>
-                t.categoryId.equals(categoryId) &
-                t.bookId.isIn(bookIds.toList()),
-          ))
+    await (_db.delete(_db.bookCategories)..where(
+          (t) =>
+              t.categoryId.equals(categoryId) & t.bookId.isIn(bookIds.toList()),
+        ))
         .go();
   }
 
   Future<void> deleteForBook(String bookId) async {
-    await (_db.delete(_db.bookCategories)
-          ..where((t) => t.bookId.equals(bookId)))
-        .go();
+    await (_db.delete(
+      _db.bookCategories,
+    )..where((t) => t.bookId.equals(bookId))).go();
   }
 
   Future<CategoryRecord?> _findByName(String name) {
-    final query = _db.select(_db.categories)
-      ..where((t) => t.name.equals(name));
+    final query = _db.select(_db.categories)..where((t) => t.name.equals(name));
     return query.getSingleOrNull();
   }
 

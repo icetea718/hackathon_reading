@@ -44,12 +44,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   }
 
-  testWidgets('bookshelf is the default section and companion switches',
-      (tester) async {
+  testWidgets('bookshelf is the default section and companion switches', (
+    tester,
+  ) async {
     await pumpApp(tester);
     expect(find.byTooltip('书架'), findsOneWidget);
     expect(find.byTooltip('陪读'), findsOneWidget);
-    expect(find.text('还没有书，点右上角导入'), findsOneWidget);
+    expect(find.text('还没有书'), findsOneWidget);
 
     await tester.tap(find.byTooltip('陪读'));
     await tester.pumpAndSettle();
@@ -57,7 +58,7 @@ void main() {
 
     await tester.tap(find.byTooltip('书架'));
     await tester.pumpAndSettle();
-    expect(find.text('还没有书，点右上角导入'), findsOneWidget);
+    expect(find.text('还没有书'), findsOneWidget);
     await disposeApp(tester);
   });
 

@@ -35,7 +35,7 @@ Widget _fakePdfViewer(
   required int initialPageNumber,
   required ValueChanged<int?> onPageChanged,
   required void Function(PdfDocument document, PdfViewerController controller)
-      onViewerReady,
+  onViewerReady,
 }) {
   return const SizedBox.expand(key: Key('pdf-viewer'));
 }
@@ -54,12 +54,36 @@ void main() {
     await temp.delete(recursive: true);
   });
 
-  Future<void> flushIo(WidgetTester tester, Future<void> Function() action) async {
+  Future<void> flushIo(
+    WidgetTester tester,
+    Future<void> Function() action,
+  ) async {
     await tester.runAsync(() async {
       await action();
       await Future<void>.delayed(const Duration(milliseconds: 300));
     });
     await tester.pumpAndSettle();
+  }
+
+  /// Drift stream notifications hold the executor until the fake clock
+  /// advances, so multi-write actions need frames between real-time slices.
+  Future<void> tapAndSettle(WidgetTester tester, Finder finder) async {
+    await tester.runAsync(() => tester.tap(finder));
+    for (var round = 0; round < 6; round++) {
+      await tester.pumpAndSettle(
+        const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate,
+        const Duration(seconds: 10),
+      );
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 80)),
+      );
+    }
+    await tester.pumpAndSettle(
+      const Duration(milliseconds: 100),
+      EnginePhase.sendSemanticsUpdate,
+      const Duration(seconds: 10),
+    );
   }
 
   Future<void> disposeApp(WidgetTester tester) async {
@@ -68,6 +92,10 @@ void main() {
   }
 
   Future<void> pumpApp(WidgetTester tester, String? pickedPath) async {
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -84,6 +112,10 @@ void main() {
   }
 
   Future<void> pumpPdfApp(WidgetTester tester, String? pickedPath) async {
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -105,7 +137,8 @@ void main() {
 
   testWidgets('shows the empty state initially', (tester) async {
     await pumpApp(tester, null);
-    expect(find.text('还没有书，点右上角导入'), findsOneWidget);
+    expect(find.text('还没有书'), findsOneWidget);
+    expect(find.text('导入第一本书'), findsOneWidget);
     await disposeApp(tester);
   });
 
@@ -141,8 +174,7 @@ void main() {
       ],
       toc: const {'text/chapter1.xhtml': '第一章'},
     );
-    final source = File('${temp.path}/novel.epub')
-      ..writeAsBytesSync(bytes);
+    final source = File('${temp.path}/novel.epub')..writeAsBytesSync(bytes);
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
@@ -161,11 +193,8 @@ void main() {
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
 
     expect(find.text('paper'), findsOneWidget);
-    expect(find.text('PDF'), findsOneWidget);
 
-    final stored = await tester.runAsync(
-      () => BookRepository(db).getAll(),
-    );
+    final stored = await tester.runAsync(() => BookRepository(db).getAll());
     expect(stored, hasLength(1));
     expect(stored!.single.format, BookFormat.pdf);
     final chapters = await tester.runAsync(
@@ -214,17 +243,30 @@ void main() {
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
     expect(find.text('t'), findsOneWidget);
 
-    await flushIo(tester, () => tester.tap(find.byTooltip('删除')));
+    final stored = await tester.runAsync(() => BookRepository(db).getAll());
+    final id = stored!.single.id;
+    final menu = find.descendant(
+      of: find.byKey(Key('book-card-$id')),
+      matching: find.byTooltip('更多'),
+    );
+
+    await tester.tap(menu);
     await tester.pumpAndSettle();
-    await flushIo(tester, () => tester.tap(find.widgetWithText(TextButton, '删除')));
+    await tester.tap(find.text('删除'));
     await tester.pumpAndSettle();
+    await tapAndSettle(
+      tester,
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('删除')),
+    );
 
     expect(find.text('t'), findsNothing);
     expect(Directory('${temp.path}/books').listSync(), isEmpty);
     await disposeApp(tester);
   });
 
-  testWidgets('unsupported file shows a friendly error message', (tester) async {
+  testWidgets('unsupported file shows a friendly error message', (
+    tester,
+  ) async {
     final source = File('${temp.path}/a.doc')..writeAsStringSync('x');
     await pumpApp(tester, source.path);
 
@@ -236,7 +278,9 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('importing the same TXT twice keeps a single card', (tester) async {
+  testWidgets('importing the same TXT twice keeps a single card', (
+    tester,
+  ) async {
     final source = File('${temp.path}/novel.txt')
       ..writeAsStringSync('第一章 开始\n内容');
     await pumpApp(tester, source.path);
