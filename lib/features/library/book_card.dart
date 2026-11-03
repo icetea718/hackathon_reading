@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../domain/models/book.dart';
+import '../reader/reader_page.dart';
 
 class BookCard extends ConsumerWidget {
   const BookCard({super.key, required this.book});
@@ -15,11 +16,17 @@ class BookCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          final message = book.format == BookFormat.txt
-              ? '阅读器将在下一步实现'
-              : '该格式将在后续里程碑支持';
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(message)));
+          if (book.format != BookFormat.txt) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('该格式将在后续里程碑支持')),
+            );
+            return;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ReaderPage(bookId: book.id),
+            ),
+          );
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

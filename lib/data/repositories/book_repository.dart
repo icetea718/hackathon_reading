@@ -27,12 +27,12 @@ class BookRepository {
     return row == null ? null : _toBook(row);
   }
 
-  Future<void> upsert(Book book) {
-    return _db.into(_db.books).insertOnConflictUpdate(_toRow(book));
+  Future<void> upsert(Book book) async {
+    await _db.into(_db.books).insertOnConflictUpdate(_toRow(book));
   }
 
-  Future<void> delete(String id) {
-    return (_db.delete(_db.books)..where((t) => t.id.equals(id))).go();
+  Future<void> delete(String id) async {
+    await (_db.delete(_db.books)..where((t) => t.id.equals(id))).go();
   }
 
   Book _toBook(BookRow row) {

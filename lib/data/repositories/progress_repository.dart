@@ -23,8 +23,8 @@ class ProgressRepository {
     );
   }
 
-  Future<void> save(ReadingProgress progress) {
-    return _db.into(_db.readingProgressEntries).insertOnConflictUpdate(
+  Future<void> save(ReadingProgress progress) async {
+    await _db.into(_db.readingProgressEntries).insertOnConflictUpdate(
           ReadingProgressEntriesCompanion.insert(
             bookId: progress.bookId,
             anchorJson: jsonEncode(progress.anchor.toJson()),
@@ -34,8 +34,8 @@ class ProgressRepository {
         );
   }
 
-  Future<void> delete(String bookId) {
-    return (_db.delete(_db.readingProgressEntries)
+  Future<void> delete(String bookId) async {
+    await (_db.delete(_db.readingProgressEntries)
           ..where((t) => t.bookId.equals(bookId)))
         .go();
   }

@@ -1,0 +1,314 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../app/providers.dart';
+import '../../data/repositories/progress_repository.dart';
+import '../../domain/models/book.dart';
+import '../../domain/models/chapter.dart';
+import '../../domain/models/reading_progress.dart';
+import 'reader_position.dart';
+import 'reader_providers.dart';
+import 'reader_settings_sheet.dart';
+import 'toc_drawer.dart';
+
+class ReaderPage extends ConsumerStatefulWidget {
+  const ReaderPage({super.key, required this.bookId});
+
+  final String bookId;
+
+  @override
+  ConsumerState<ReaderPage> createState() => _ReaderPageState();
+}
+
+class _ReaderPageState extends ConsumerState<ReaderPage> {
+  final ScrollController _scrollController = ScrollController();
+  int _chapterIndex = 0;
+  double _fontSize = 18;
+  double _lineHeight = 1.6;
+  ReaderBackground _background = ReaderBackground.light;
+  bool _restoreScheduled = false;
+  bool _restored = false;
+  Timer? _saveTimer;
+  ReaderData? _cachedData;
+  ProgressRepository? _progressRepository;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    _persistProgress();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 500), _persistProgress);
+  }
+
+  void _persistProgress() {
+    if (!_restored) return;
+    final repository = _progressRepository;
+    if (repository == null) return;
+    final progress = _currentProgress();
+    if (progress == null) return;
+    repository.save(progress).catchError((Object _) {});
+  }
+
+  ReadingProgress? _currentProgress() {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return null;
+
+    final chapters = data.chapters;
+    final index = _chapterIndex < 0
+        ? 0
+        : (_chapterIndex >= chapters.length
+            ? chapters.length - 1
+            : _chapterIndex);
+    final chapter = chapters[index];
+    final max = _scrollController.hasClients
+        ? _scrollController.position.maxScrollExtent
+        : 0.0;
+    final fraction = max <= 0
+        ? 0.0
+        : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    final charOffset = offsetForPosition(chapter, fraction);
+    final total = chapters.last.endOffset;
+    final percent =
+        total <= 0 ? 0.0 : (charOffset / total).clamp(0.0, 1.0).toDouble();
+
+    return ReadingProgress(
+      bookId: widget.bookId,
+      anchor: ReadingAnchor(charOffset: charOffset),
+      percent: percent,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  void _scheduleRestore(ReaderData data) {
+    if (_restoreScheduled) return;
+    _restoreScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      if (data.chapters.isNotEmpty) {
+        final anchor = data.progress?.anchor.charOffset ?? 0;
+        final location = locateAnchor(data.chapters, anchor);
+        setState(() => _chapterIndex = location.chapterIndex);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_scrollController.hasClients) {
+            final max = _scrollController.position.maxScrollExtent;
+            _scrollController.jumpTo(max * location.fraction);
+          }
+          _restored = true;
+        });
+      } else {
+        _restored = true;
+      }
+
+      final book = data.book;
+      if (book != null) {
+        final opened = Book(
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          format: book.format,
+          sourcePath: book.sourcePath,
+          coverPath: book.coverPath,
+          addedAt: book.addedAt,
+          lastOpenedAt: DateTime.now(),
+        );
+        ref
+            .read(bookRepositoryProvider)
+            .upsert(opened)
+            .catchError((Object _) {});
+      }
+    });
+  }
+
+  void _goToChapter(int index, List<Chapter> chapters) {
+    if (index < 0 || index >= chapters.length) return;
+    setState(() => _chapterIndex = index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+      _restored = true;
+      _persistProgress();
+    });
+  }
+
+  (Color, Color) get _colors {
+    return switch (_background) {
+      ReaderBackground.light => (
+          const Color(0xFFFAFAF7),
+          const Color(0xFF1B1B1B),
+        ),
+      ReaderBackground.sepia => (
+          const Color(0xFFF4ECD8),
+          const Color(0xFF3B2F1E),
+        ),
+      ReaderBackground.dark => (
+          const Color(0xFF15161A),
+          const Color(0xFFE4E4E4),
+        ),
+    };
+  }
+
+  void _openSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            return ReaderSettingsSheet(
+              fontSize: _fontSize,
+              lineHeight: _lineHeight,
+              background: _background,
+              onChanged: (fontSize, lineHeight, background) {
+                setState(() {
+                  _fontSize = fontSize;
+                  _lineHeight = lineHeight;
+                  _background = background;
+                });
+                setSheet(() {});
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = ref.watch(readerDataProvider(widget.bookId));
+    return data.when(
+      loading: () => _scaffold(
+        title: '阅读',
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => _scaffold(
+        title: '阅读',
+        body: Center(child: Text('加载失败：$error')),
+      ),
+      data: (readerData) {
+        _cachedData = readerData;
+        _progressRepository ??= ref.read(progressRepositoryProvider);
+        _scheduleRestore(readerData);
+        final title = readerData.book?.title ?? '阅读';
+        if (readerData.chapters.isEmpty) {
+          return _scaffold(
+            title: title,
+            body: const Center(child: Text('这本书暂时没有可显示的章节')),
+          );
+        }
+
+        final chapters = readerData.chapters;
+        final index = _chapterIndex < 0
+            ? 0
+            : (_chapterIndex >= chapters.length
+                ? chapters.length - 1
+                : _chapterIndex);
+        final chapter = chapters[index];
+
+        return _scaffold(
+          title: title,
+          drawer: TocDrawer(
+            chapters: chapters,
+            currentIndex: index,
+            onSelect: (selected) => _goToChapter(selected, chapters),
+          ),
+          body: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Text(
+              chapter.contentText,
+              style: TextStyle(
+                fontSize: _fontSize,
+                height: _lineHeight,
+                color: _colors.$2,
+              ),
+            ),
+          ),
+          bottomNavigationBar: _navigationBar(index, chapters),
+        );
+      },
+    );
+  }
+
+  Widget _scaffold({
+    required String title,
+    Widget? body,
+    Widget? drawer,
+    Widget? bottomNavigationBar,
+  }) {
+    final (background, foreground) = _colors;
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: background,
+        foregroundColor: foreground,
+        title: Text(title),
+        actions: [
+          IconButton(
+            tooltip: '设置',
+            icon: const Icon(Icons.text_fields),
+            onPressed: _openSettings,
+          ),
+        ],
+      ),
+      drawer: drawer,
+      body: body,
+      bottomNavigationBar: bottomNavigationBar,
+    );
+  }
+
+  Widget _navigationBar(int index, List<Chapter> chapters) {
+    final (background, foreground) = _colors;
+    return Container(
+      color: background,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            TextButton.icon(
+              onPressed: index > 0
+                  ? () => _goToChapter(index - 1, chapters)
+                  : null,
+              icon: const Icon(Icons.chevron_left),
+              label: const Text('上一章'),
+              style: TextButton.styleFrom(foregroundColor: foreground),
+            ),
+            Expanded(
+              child: Text(
+                '${index + 1} / ${chapters.length}',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: foreground),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: index < chapters.length - 1
+                  ? () => _goToChapter(index + 1, chapters)
+                  : null,
+              icon: const Icon(Icons.chevron_right),
+              label: const Text('下一章'),
+              style: TextButton.styleFrom(foregroundColor: foreground),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

@@ -9,6 +9,7 @@ import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/services/file_picker_service.dart';
+import 'package:hackathon_reading/features/reader/reader_page.dart';
 
 class FakeFilePicker implements FilePickerService {
   FakeFilePicker(this.path);
@@ -77,6 +78,19 @@ void main() {
 
     expect(find.text('我的 小说'), findsOneWidget);
     expect(Directory('${temp.path}/books').listSync(), hasLength(1));
+    await disposeApp(tester);
+  });
+
+  testWidgets('tapping a TXT book opens the reader', (tester) async {
+    final source = File('${temp.path}/novel.txt')
+      ..writeAsStringSync('第一章 开始\n内容');
+    await pumpApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    expect(find.text('novel'), findsOneWidget);
+
+    await flushIo(tester, () => tester.tap(find.text('novel')));
+    expect(find.byType(ReaderPage), findsOneWidget);
     await disposeApp(tester);
   });
 
