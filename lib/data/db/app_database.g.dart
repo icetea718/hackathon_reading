@@ -1310,6 +1310,925 @@ class ReadingProgressEntriesCompanion extends UpdateCompanion<ProgressRow> {
   }
 }
 
+class $AnnotationsTable extends Annotations
+    with TableInfo<$AnnotationsTable, AnnotationRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AnnotationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chapterIdMeta = const VerificationMeta(
+    'chapterId',
+  );
+  @override
+  late final GeneratedColumn<String> chapterId = GeneratedColumn<String>(
+    'chapter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _anchorStartMeta = const VerificationMeta(
+    'anchorStart',
+  );
+  @override
+  late final GeneratedColumn<int> anchorStart = GeneratedColumn<int>(
+    'anchor_start',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _anchorEndMeta = const VerificationMeta(
+    'anchorEnd',
+  );
+  @override
+  late final GeneratedColumn<int> anchorEnd = GeneratedColumn<int>(
+    'anchor_end',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _selectedTextMeta = const VerificationMeta(
+    'selectedText',
+  );
+  @override
+  late final GeneratedColumn<String> selectedText = GeneratedColumn<String>(
+    'selected_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteTextMeta = const VerificationMeta(
+    'noteText',
+  );
+  @override
+  late final GeneratedColumn<String> noteText = GeneratedColumn<String>(
+    'note_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _anchorVersionMeta = const VerificationMeta(
+    'anchorVersion',
+  );
+  @override
+  late final GeneratedColumn<int> anchorVersion = GeneratedColumn<int>(
+    'anchor_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    chapterId,
+    type,
+    anchorStart,
+    anchorEnd,
+    selectedText,
+    color,
+    noteText,
+    anchorVersion,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'annotations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AnnotationRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('chapter_id')) {
+      context.handle(
+        _chapterIdMeta,
+        chapterId.isAcceptableOrUnknown(data['chapter_id']!, _chapterIdMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_typeMeta);
+    }
+    if (data.containsKey('anchor_start')) {
+      context.handle(
+        _anchorStartMeta,
+        anchorStart.isAcceptableOrUnknown(
+          data['anchor_start']!,
+          _anchorStartMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_anchorStartMeta);
+    }
+    if (data.containsKey('anchor_end')) {
+      context.handle(
+        _anchorEndMeta,
+        anchorEnd.isAcceptableOrUnknown(data['anchor_end']!, _anchorEndMeta),
+      );
+    }
+    if (data.containsKey('selected_text')) {
+      context.handle(
+        _selectedTextMeta,
+        selectedText.isAcceptableOrUnknown(
+          data['selected_text']!,
+          _selectedTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('note_text')) {
+      context.handle(
+        _noteTextMeta,
+        noteText.isAcceptableOrUnknown(data['note_text']!, _noteTextMeta),
+      );
+    }
+    if (data.containsKey('anchor_version')) {
+      context.handle(
+        _anchorVersionMeta,
+        anchorVersion.isAcceptableOrUnknown(
+          data['anchor_version']!,
+          _anchorVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AnnotationRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AnnotationRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      chapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chapter_id'],
+      ),
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      anchorStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_start'],
+      )!,
+      anchorEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_end'],
+      ),
+      selectedText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}selected_text'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      ),
+      noteText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note_text'],
+      )!,
+      anchorVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}anchor_version'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AnnotationsTable createAlias(String alias) {
+    return $AnnotationsTable(attachedDatabase, alias);
+  }
+}
+
+class AnnotationRecord extends DataClass
+    implements Insertable<AnnotationRecord> {
+  final String id;
+  final String bookId;
+  final String? chapterId;
+  final String type;
+  final int anchorStart;
+  final int? anchorEnd;
+  final String selectedText;
+  final String? color;
+  final String noteText;
+  final int anchorVersion;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const AnnotationRecord({
+    required this.id,
+    required this.bookId,
+    this.chapterId,
+    required this.type,
+    required this.anchorStart,
+    this.anchorEnd,
+    required this.selectedText,
+    this.color,
+    required this.noteText,
+    required this.anchorVersion,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    if (!nullToAbsent || chapterId != null) {
+      map['chapter_id'] = Variable<String>(chapterId);
+    }
+    map['type'] = Variable<String>(type);
+    map['anchor_start'] = Variable<int>(anchorStart);
+    if (!nullToAbsent || anchorEnd != null) {
+      map['anchor_end'] = Variable<int>(anchorEnd);
+    }
+    map['selected_text'] = Variable<String>(selectedText);
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<String>(color);
+    }
+    map['note_text'] = Variable<String>(noteText);
+    map['anchor_version'] = Variable<int>(anchorVersion);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AnnotationsCompanion toCompanion(bool nullToAbsent) {
+    return AnnotationsCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      chapterId: chapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chapterId),
+      type: Value(type),
+      anchorStart: Value(anchorStart),
+      anchorEnd: anchorEnd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(anchorEnd),
+      selectedText: Value(selectedText),
+      color: color == null && nullToAbsent
+          ? const Value.absent()
+          : Value(color),
+      noteText: Value(noteText),
+      anchorVersion: Value(anchorVersion),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AnnotationRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AnnotationRecord(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      chapterId: serializer.fromJson<String?>(json['chapterId']),
+      type: serializer.fromJson<String>(json['type']),
+      anchorStart: serializer.fromJson<int>(json['anchorStart']),
+      anchorEnd: serializer.fromJson<int?>(json['anchorEnd']),
+      selectedText: serializer.fromJson<String>(json['selectedText']),
+      color: serializer.fromJson<String?>(json['color']),
+      noteText: serializer.fromJson<String>(json['noteText']),
+      anchorVersion: serializer.fromJson<int>(json['anchorVersion']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'chapterId': serializer.toJson<String?>(chapterId),
+      'type': serializer.toJson<String>(type),
+      'anchorStart': serializer.toJson<int>(anchorStart),
+      'anchorEnd': serializer.toJson<int?>(anchorEnd),
+      'selectedText': serializer.toJson<String>(selectedText),
+      'color': serializer.toJson<String?>(color),
+      'noteText': serializer.toJson<String>(noteText),
+      'anchorVersion': serializer.toJson<int>(anchorVersion),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AnnotationRecord copyWith({
+    String? id,
+    String? bookId,
+    Value<String?> chapterId = const Value.absent(),
+    String? type,
+    int? anchorStart,
+    Value<int?> anchorEnd = const Value.absent(),
+    String? selectedText,
+    Value<String?> color = const Value.absent(),
+    String? noteText,
+    int? anchorVersion,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => AnnotationRecord(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    chapterId: chapterId.present ? chapterId.value : this.chapterId,
+    type: type ?? this.type,
+    anchorStart: anchorStart ?? this.anchorStart,
+    anchorEnd: anchorEnd.present ? anchorEnd.value : this.anchorEnd,
+    selectedText: selectedText ?? this.selectedText,
+    color: color.present ? color.value : this.color,
+    noteText: noteText ?? this.noteText,
+    anchorVersion: anchorVersion ?? this.anchorVersion,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AnnotationRecord copyWithCompanion(AnnotationsCompanion data) {
+    return AnnotationRecord(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      chapterId: data.chapterId.present ? data.chapterId.value : this.chapterId,
+      type: data.type.present ? data.type.value : this.type,
+      anchorStart: data.anchorStart.present
+          ? data.anchorStart.value
+          : this.anchorStart,
+      anchorEnd: data.anchorEnd.present ? data.anchorEnd.value : this.anchorEnd,
+      selectedText: data.selectedText.present
+          ? data.selectedText.value
+          : this.selectedText,
+      color: data.color.present ? data.color.value : this.color,
+      noteText: data.noteText.present ? data.noteText.value : this.noteText,
+      anchorVersion: data.anchorVersion.present
+          ? data.anchorVersion.value
+          : this.anchorVersion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AnnotationRecord(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('type: $type, ')
+          ..write('anchorStart: $anchorStart, ')
+          ..write('anchorEnd: $anchorEnd, ')
+          ..write('selectedText: $selectedText, ')
+          ..write('color: $color, ')
+          ..write('noteText: $noteText, ')
+          ..write('anchorVersion: $anchorVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bookId,
+    chapterId,
+    type,
+    anchorStart,
+    anchorEnd,
+    selectedText,
+    color,
+    noteText,
+    anchorVersion,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AnnotationRecord &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.chapterId == this.chapterId &&
+          other.type == this.type &&
+          other.anchorStart == this.anchorStart &&
+          other.anchorEnd == this.anchorEnd &&
+          other.selectedText == this.selectedText &&
+          other.color == this.color &&
+          other.noteText == this.noteText &&
+          other.anchorVersion == this.anchorVersion &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AnnotationsCompanion extends UpdateCompanion<AnnotationRecord> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<String?> chapterId;
+  final Value<String> type;
+  final Value<int> anchorStart;
+  final Value<int?> anchorEnd;
+  final Value<String> selectedText;
+  final Value<String?> color;
+  final Value<String> noteText;
+  final Value<int> anchorVersion;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AnnotationsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.chapterId = const Value.absent(),
+    this.type = const Value.absent(),
+    this.anchorStart = const Value.absent(),
+    this.anchorEnd = const Value.absent(),
+    this.selectedText = const Value.absent(),
+    this.color = const Value.absent(),
+    this.noteText = const Value.absent(),
+    this.anchorVersion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AnnotationsCompanion.insert({
+    required String id,
+    required String bookId,
+    this.chapterId = const Value.absent(),
+    required String type,
+    required int anchorStart,
+    this.anchorEnd = const Value.absent(),
+    this.selectedText = const Value.absent(),
+    this.color = const Value.absent(),
+    this.noteText = const Value.absent(),
+    this.anchorVersion = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bookId = Value(bookId),
+       type = Value(type),
+       anchorStart = Value(anchorStart),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AnnotationRecord> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<String>? chapterId,
+    Expression<String>? type,
+    Expression<int>? anchorStart,
+    Expression<int>? anchorEnd,
+    Expression<String>? selectedText,
+    Expression<String>? color,
+    Expression<String>? noteText,
+    Expression<int>? anchorVersion,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (chapterId != null) 'chapter_id': chapterId,
+      if (type != null) 'type': type,
+      if (anchorStart != null) 'anchor_start': anchorStart,
+      if (anchorEnd != null) 'anchor_end': anchorEnd,
+      if (selectedText != null) 'selected_text': selectedText,
+      if (color != null) 'color': color,
+      if (noteText != null) 'note_text': noteText,
+      if (anchorVersion != null) 'anchor_version': anchorVersion,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AnnotationsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bookId,
+    Value<String?>? chapterId,
+    Value<String>? type,
+    Value<int>? anchorStart,
+    Value<int?>? anchorEnd,
+    Value<String>? selectedText,
+    Value<String?>? color,
+    Value<String>? noteText,
+    Value<int>? anchorVersion,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AnnotationsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      chapterId: chapterId ?? this.chapterId,
+      type: type ?? this.type,
+      anchorStart: anchorStart ?? this.anchorStart,
+      anchorEnd: anchorEnd ?? this.anchorEnd,
+      selectedText: selectedText ?? this.selectedText,
+      color: color ?? this.color,
+      noteText: noteText ?? this.noteText,
+      anchorVersion: anchorVersion ?? this.anchorVersion,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (chapterId.present) {
+      map['chapter_id'] = Variable<String>(chapterId.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (anchorStart.present) {
+      map['anchor_start'] = Variable<int>(anchorStart.value);
+    }
+    if (anchorEnd.present) {
+      map['anchor_end'] = Variable<int>(anchorEnd.value);
+    }
+    if (selectedText.present) {
+      map['selected_text'] = Variable<String>(selectedText.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (noteText.present) {
+      map['note_text'] = Variable<String>(noteText.value);
+    }
+    if (anchorVersion.present) {
+      map['anchor_version'] = Variable<int>(anchorVersion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AnnotationsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('type: $type, ')
+          ..write('anchorStart: $anchorStart, ')
+          ..write('anchorEnd: $anchorEnd, ')
+          ..write('selectedText: $selectedText, ')
+          ..write('color: $color, ')
+          ..write('noteText: $noteText, ')
+          ..write('anchorVersion: $anchorVersion, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SettingsTable extends Settings
+    with TableInfo<$SettingsTable, SettingRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SettingRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  SettingRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SettingRecord(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SettingsTable createAlias(String alias) {
+    return $SettingsTable(attachedDatabase, alias);
+  }
+}
+
+class SettingRecord extends DataClass implements Insertable<SettingRecord> {
+  final String key;
+  final String value;
+  const SettingRecord({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SettingsCompanion toCompanion(bool nullToAbsent) {
+    return SettingsCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory SettingRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SettingRecord(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  SettingRecord copyWith({String? key, String? value}) =>
+      SettingRecord(key: key ?? this.key, value: value ?? this.value);
+  SettingRecord copyWithCompanion(SettingsCompanion data) {
+    return SettingRecord(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingRecord(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SettingRecord &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class SettingsCompanion extends UpdateCompanion<SettingRecord> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SettingsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SettingsCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<SettingRecord> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SettingsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SettingsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1317,9 +2236,15 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ChaptersTable chapters = $ChaptersTable(this);
   late final $ReadingProgressEntriesTable readingProgressEntries =
       $ReadingProgressEntriesTable(this);
+  late final $AnnotationsTable annotations = $AnnotationsTable(this);
+  late final $SettingsTable settings = $SettingsTable(this);
   late final Index chaptersBookIndex = Index(
     'chapters_book_index',
     'CREATE INDEX chapters_book_index ON chapters (book_id, chapter_index)',
+  );
+  late final Index annotationsBookId = Index(
+    'annotations_book_id',
+    'CREATE INDEX annotations_book_id ON annotations (book_id)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -1329,7 +2254,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     books,
     chapters,
     readingProgressEntries,
+    annotations,
+    settings,
     chaptersBookIndex,
+    annotationsBookId,
   ];
 }
 
@@ -2056,6 +2984,494 @@ typedef $$ReadingProgressEntriesTableProcessedTableManager =
       ProgressRow,
       PrefetchHooks Function()
     >;
+typedef $$AnnotationsTableCreateCompanionBuilder =
+    AnnotationsCompanion Function({
+      required String id,
+      required String bookId,
+      Value<String?> chapterId,
+      required String type,
+      required int anchorStart,
+      Value<int?> anchorEnd,
+      Value<String> selectedText,
+      Value<String?> color,
+      Value<String> noteText,
+      Value<int> anchorVersion,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AnnotationsTableUpdateCompanionBuilder =
+    AnnotationsCompanion Function({
+      Value<String> id,
+      Value<String> bookId,
+      Value<String?> chapterId,
+      Value<String> type,
+      Value<int> anchorStart,
+      Value<int?> anchorEnd,
+      Value<String> selectedText,
+      Value<String?> color,
+      Value<String> noteText,
+      Value<int> anchorVersion,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AnnotationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get chapterId => $composableBuilder(
+    column: $table.chapterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get anchorStart => $composableBuilder(
+    column: $table.anchorStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get anchorEnd => $composableBuilder(
+    column: $table.anchorEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get selectedText => $composableBuilder(
+    column: $table.selectedText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get noteText => $composableBuilder(
+    column: $table.noteText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get anchorVersion => $composableBuilder(
+    column: $table.anchorVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AnnotationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get chapterId => $composableBuilder(
+    column: $table.chapterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get anchorStart => $composableBuilder(
+    column: $table.anchorStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get anchorEnd => $composableBuilder(
+    column: $table.anchorEnd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get selectedText => $composableBuilder(
+    column: $table.selectedText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get noteText => $composableBuilder(
+    column: $table.noteText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get anchorVersion => $composableBuilder(
+    column: $table.anchorVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AnnotationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterId =>
+      $composableBuilder(column: $table.chapterId, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<int> get anchorStart => $composableBuilder(
+    column: $table.anchorStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get anchorEnd =>
+      $composableBuilder(column: $table.anchorEnd, builder: (column) => column);
+
+  GeneratedColumn<String> get selectedText => $composableBuilder(
+    column: $table.selectedText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get noteText =>
+      $composableBuilder(column: $table.noteText, builder: (column) => column);
+
+  GeneratedColumn<int> get anchorVersion => $composableBuilder(
+    column: $table.anchorVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AnnotationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AnnotationsTable,
+          AnnotationRecord,
+          $$AnnotationsTableFilterComposer,
+          $$AnnotationsTableOrderingComposer,
+          $$AnnotationsTableAnnotationComposer,
+          $$AnnotationsTableCreateCompanionBuilder,
+          $$AnnotationsTableUpdateCompanionBuilder,
+          (
+            AnnotationRecord,
+            BaseReferences<_$AppDatabase, $AnnotationsTable, AnnotationRecord>,
+          ),
+          AnnotationRecord,
+          PrefetchHooks Function()
+        > {
+  $$AnnotationsTableTableManager(_$AppDatabase db, $AnnotationsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AnnotationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AnnotationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AnnotationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<String?> chapterId = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<int> anchorStart = const Value.absent(),
+                Value<int?> anchorEnd = const Value.absent(),
+                Value<String> selectedText = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<String> noteText = const Value.absent(),
+                Value<int> anchorVersion = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AnnotationsCompanion(
+                id: id,
+                bookId: bookId,
+                chapterId: chapterId,
+                type: type,
+                anchorStart: anchorStart,
+                anchorEnd: anchorEnd,
+                selectedText: selectedText,
+                color: color,
+                noteText: noteText,
+                anchorVersion: anchorVersion,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bookId,
+                Value<String?> chapterId = const Value.absent(),
+                required String type,
+                required int anchorStart,
+                Value<int?> anchorEnd = const Value.absent(),
+                Value<String> selectedText = const Value.absent(),
+                Value<String?> color = const Value.absent(),
+                Value<String> noteText = const Value.absent(),
+                Value<int> anchorVersion = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AnnotationsCompanion.insert(
+                id: id,
+                bookId: bookId,
+                chapterId: chapterId,
+                type: type,
+                anchorStart: anchorStart,
+                anchorEnd: anchorEnd,
+                selectedText: selectedText,
+                color: color,
+                noteText: noteText,
+                anchorVersion: anchorVersion,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AnnotationsTable, AnnotationRecord>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AnnotationsTable,
+                    AnnotationRecord
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AnnotationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AnnotationsTable,
+      AnnotationRecord,
+      $$AnnotationsTableFilterComposer,
+      $$AnnotationsTableOrderingComposer,
+      $$AnnotationsTableAnnotationComposer,
+      $$AnnotationsTableCreateCompanionBuilder,
+      $$AnnotationsTableUpdateCompanionBuilder,
+      (
+        AnnotationRecord,
+        BaseReferences<_$AppDatabase, $AnnotationsTable, AnnotationRecord>,
+      ),
+      AnnotationRecord,
+      PrefetchHooks Function()
+    >;
+typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
+  required String key,
+  required String value,
+  Value<int> rowid,
+});
+typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
+  Value<String> key,
+  Value<String> value,
+  Value<int> rowid,
+});
+
+class $$SettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$SettingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SettingsTable,
+          SettingRecord,
+          $$SettingsTableFilterComposer,
+          $$SettingsTableOrderingComposer,
+          $$SettingsTableAnnotationComposer,
+          $$SettingsTableCreateCompanionBuilder,
+          $$SettingsTableUpdateCompanionBuilder,
+          (
+            SettingRecord,
+            BaseReferences<_$AppDatabase, $SettingsTable, SettingRecord>,
+          ),
+          SettingRecord,
+          PrefetchHooks Function()
+        > {
+  $$SettingsTableTableManager(_$AppDatabase db, $SettingsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> key = const Value.absent(),
+            Value<String> value = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => SettingsCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback: ({
+            required String key,
+            required String value,
+            Value<int> rowid = const Value.absent(),
+          }) => SettingsCompanion.insert(key: key, value: value, rowid: rowid),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SettingsTable, SettingRecord>(table),
+                  BaseReferences<_$AppDatabase, $SettingsTable, SettingRecord>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SettingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SettingsTable,
+      SettingRecord,
+      $$SettingsTableFilterComposer,
+      $$SettingsTableOrderingComposer,
+      $$SettingsTableAnnotationComposer,
+      $$SettingsTableCreateCompanionBuilder,
+      $$SettingsTableUpdateCompanionBuilder,
+      (
+        SettingRecord,
+        BaseReferences<_$AppDatabase, $SettingsTable, SettingRecord>,
+      ),
+      SettingRecord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2069,4 +3485,8 @@ class $AppDatabaseManager {
         _db,
         _db.readingProgressEntries,
       );
+  $$AnnotationsTableTableManager get annotations =>
+      $$AnnotationsTableTableManager(_db, _db.annotations);
+  $$SettingsTableTableManager get settings =>
+      $$SettingsTableTableManager(_db, _db.settings);
 }

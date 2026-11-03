@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import '../../data/repositories/annotation_repository.dart';
 import '../../data/repositories/book_repository.dart';
 import '../../data/repositories/chapter_repository.dart';
 import '../../data/repositories/progress_repository.dart';
@@ -34,6 +35,7 @@ class BookService {
     required this.books,
     required this.chapters,
     required this.progress,
+    required this.annotations,
     required this.storage,
     String Function()? newId,
   }) : _newId = newId ?? const Uuid().v4;
@@ -41,6 +43,7 @@ class BookService {
   final BookRepository books;
   final ChapterRepository chapters;
   final ProgressRepository progress;
+  final AnnotationRepository annotations;
   final BookStorage storage;
   final String Function() _newId;
 
@@ -84,6 +87,7 @@ class BookService {
   Future<void> deleteBook(Book book) async {
     await chapters.replaceForBook(book.id, const []);
     await progress.delete(book.id);
+    await annotations.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteFile(book.sourcePath);
   }

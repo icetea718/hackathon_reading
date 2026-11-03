@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
+import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/services/book_service.dart';
 
@@ -24,6 +26,7 @@ void main() {
       books: repo,
       chapters: ChapterRepository(db),
       progress: ProgressRepository(db),
+      annotations: AnnotationRepository(db),
       storage: BookStorage(Directory('${temp.path}/books')),
       newId: () => 'fixed-id',
     );
@@ -66,5 +69,22 @@ void main() {
     await service.deleteBook(book);
     expect(File(book.sourcePath).existsSync(), isFalse);
     expect(await repo.getAll(), isEmpty);
+  });
+
+  test('delete removes annotations for the book', () async {
+    final source = File('${temp.path}/t.txt')..writeAsStringSync('x');
+    final book = await service.importFile(source.path);
+    final annotations = AnnotationRepository(db);
+    await annotations.upsert(Annotation(
+      id: 'a1',
+      bookId: book.id,
+      type: AnnotationType.bookmark,
+      anchorStart: 0,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    ));
+
+    await service.deleteBook(book);
+    expect(await annotations.getForBook(book.id), isEmpty);
   });
 }

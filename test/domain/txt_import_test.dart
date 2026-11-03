@@ -4,6 +4,7 @@ import 'package:chinese_codec/chinese_codec.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
@@ -30,6 +31,7 @@ void main() {
       books: books,
       chapters: chapters,
       progress: progress,
+      annotations: AnnotationRepository(db),
       storage: BookStorage(Directory('${temp.path}/books')),
       newId: () => 'id-${nextId++}',
     );

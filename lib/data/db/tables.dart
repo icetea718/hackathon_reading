@@ -30,6 +30,35 @@ class Chapters extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('AnnotationRecord')
+@TableIndex(name: 'annotations_book_id', columns: {#bookId})
+class Annotations extends Table {
+  TextColumn get id => text()();
+  TextColumn get bookId => text()();
+  TextColumn get chapterId => text().nullable()();
+  TextColumn get type => text()();
+  IntColumn get anchorStart => integer()();
+  IntColumn get anchorEnd => integer().nullable()();
+  TextColumn get selectedText => text().withDefault(const Constant(''))();
+  TextColumn get color => text().nullable()();
+  TextColumn get noteText => text().withDefault(const Constant(''))();
+  IntColumn get anchorVersion => integer().withDefault(const Constant(1))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('SettingRecord')
+class Settings extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
 @DataClassName('ProgressRow')
 class ReadingProgressEntries extends Table {
   TextColumn get bookId => text()();
