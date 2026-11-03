@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/models/annotation.dart';
 import '../../domain/models/pdf_outline.dart';
 
 class PdfOutlineDrawer extends StatelessWidget {
@@ -8,29 +9,44 @@ class PdfOutlineDrawer extends StatelessWidget {
     required this.pageCount,
     required this.outline,
     required this.currentPage,
+    required this.bookmarks,
     required this.onSelectPage,
+    required this.onSelectBookmark,
+    required this.onDeleteBookmark,
   });
 
   final int pageCount;
   final List<PdfOutlineEntry> outline;
   final int currentPage;
+  final List<Annotation> bookmarks;
   final void Function(int pageNumber) onSelectPage;
+  final void Function(int pageNumber) onSelectBookmark;
+  final void Function(Annotation bookmark) onDeleteBookmark;
 
   @override
   Widget build(BuildContext context) {
     return Drawer(
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-              child: Text('目录', style: Theme.of(context).textTheme.titleMedium),
-            ),
-            Expanded(
-              child: outline.isEmpty ? _pageList() : _outlineList(context),
-            ),
-          ],
+        child: DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              const TabBar(
+                tabs: [
+                  Tab(text: '目录'),
+                  Tab(text: '书签'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    outline.isEmpty ? _pageList() : _outlineList(context),
+                    _bookmarkList(context),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -82,6 +98,33 @@ class PdfOutlineDrawer extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _bookmarkList(BuildContext context) {
+    if (bookmarks.isEmpty) {
+      return const Center(child: Text('还没有书签'));
+    }
+
+    return ListView.builder(
+      itemCount: bookmarks.length,
+      itemBuilder: (context, index) {
+        final bookmark = bookmarks[index];
+        final page = bookmark.anchorStart;
+        return ListTile(
+          title: Text('第 $page 页'),
+          selected: page == currentPage,
+          onTap: () {
+            Navigator.of(context).pop();
+            onSelectBookmark(page);
+          },
+          trailing: IconButton(
+            tooltip: '删除书签',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () => onDeleteBookmark(bookmark),
+          ),
+        );
+      },
     );
   }
 }

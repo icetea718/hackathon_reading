@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/progress_repository.dart';
+import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/reading_progress.dart';
 import 'pdf_outline_drawer.dart';
@@ -113,6 +115,62 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
     ref.read(bookRepositoryProvider).upsert(opened).catchError((Object _) {});
   }
 
+  Future<void> _toggleBookmark(int page) async {
+    final repository = ref.read(annotationRepositoryProvider);
+    try {
+      final existing = (await repository.getForBook(
+        widget.bookId,
+        type: AnnotationType.bookmark,
+      ))
+          .where((bookmark) => bookmark.anchorStart == page)
+          .toList();
+      if (existing.isNotEmpty) {
+        for (final bookmark in existing) {
+          await repository.delete(bookmark.id);
+        }
+        _refreshBookmarks();
+        _showSnackBar('已取消书签');
+        return;
+      }
+
+      final now = DateTime.now();
+      await repository.upsert(Annotation(
+        id: const Uuid().v4(),
+        bookId: widget.bookId,
+        type: AnnotationType.bookmark,
+        anchorStart: page,
+        createdAt: now,
+        updatedAt: now,
+      ));
+      _refreshBookmarks();
+      _showSnackBar('已添加书签');
+    } catch (_) {
+      _showSnackBar('书签操作失败，请重试');
+    }
+  }
+
+  Future<void> _deleteBookmark(Annotation bookmark) async {
+    try {
+      await ref.read(annotationRepositoryProvider).delete(bookmark.id);
+      _refreshBookmarks();
+      _showSnackBar('已取消书签');
+    } catch (_) {
+      _showSnackBar('删除书签失败，请重试');
+    }
+  }
+
+  void _refreshBookmarks() {
+    if (!mounted) return;
+    ref.invalidate(bookmarkListProvider(widget.bookId));
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _showPageJump(int pageCount, int currentPage) async {
     final target = await showDialog<int>(
       context: context,
@@ -166,6 +224,11 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
             }
 
             final currentPage = _currentPage(bookInfo);
+            final bookmarks =
+                ref.watch(bookmarkListProvider(widget.bookId)).value ??
+                    const <Annotation>[];
+            final bookmarked =
+                bookmarks.any((bookmark) => bookmark.anchorStart == currentPage);
             final viewer = ref.watch(pdfViewerBuilderProvider);
             return Scaffold(
               appBar: AppBar(
@@ -174,6 +237,13 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
                     Navigator.of(context).canPop() ? const BackButton() : null,
                 title: Text(book.title),
                 actions: [
+                  IconButton(
+                    tooltip: '书签',
+                    icon: Icon(
+                      bookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    ),
+                    onPressed: () => _toggleBookmark(currentPage),
+                  ),
                   IconButton(
                     tooltip: '缩小',
                     icon: const Icon(Icons.zoom_out),
@@ -200,7 +270,10 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
                 pageCount: bookInfo.pageCount,
                 outline: bookInfo.outline,
                 currentPage: currentPage,
+                bookmarks: bookmarks,
                 onSelectPage: _goToPage,
+                onSelectBookmark: _goToPage,
+                onDeleteBookmark: _deleteBookmark,
               ),
               body: viewer(
                 context,

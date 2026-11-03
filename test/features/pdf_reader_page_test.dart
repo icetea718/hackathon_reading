@@ -154,6 +154,50 @@ void main() {
     expect(find.text('3 / 5'), findsOneWidget);
   });
 
+  testWidgets('adds and removes a bookmark for the current page', (
+    tester,
+  ) async {
+    await pumpPage(tester, progressPage: 2);
+
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    await tester.tap(find.byTooltip('书签'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已添加书签'), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+    await tester.tap(find.byTooltip('目录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    expect(find.text('第 2 页'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('删除书签'));
+    await tester.pumpAndSettle();
+    expect(find.text('还没有书签'), findsOneWidget);
+  });
+
+  testWidgets('tapping a bookmark jumps back to its page', (tester) async {
+    await pumpPage(tester, progressPage: 2);
+
+    await tester.tap(find.byTooltip('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('下一页'));
+    await tester.pump();
+    await tester.tap(find.text('下一页'));
+    await tester.pump();
+    expect(find.text('4 / 5'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('目录'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第 2 页'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 / 5'), findsOneWidget);
+  });
+
   testWidgets('saves the current page as progress', (tester) async {
     await pumpPage(tester, progressPage: 1);
 
