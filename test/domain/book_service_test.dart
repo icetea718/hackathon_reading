@@ -4,6 +4,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
+import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
+import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/services/book_service.dart';
@@ -20,6 +22,8 @@ void main() {
     repo = BookRepository(db);
     service = BookService(
       books: repo,
+      chapters: ChapterRepository(db),
+      progress: ProgressRepository(db),
       storage: BookStorage(Directory('${temp.path}/books')),
       newId: () => 'fixed-id',
     );
