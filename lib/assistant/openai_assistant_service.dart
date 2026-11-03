@@ -88,6 +88,9 @@ class OpenAiAssistantService implements AssistantService {
     if (context.chapterTitle.isNotEmpty) {
       lines.add('当前章节：${context.chapterTitle}');
     }
+    if (context.bookBrief.isNotEmpty) {
+      lines.add('【全书蒸馏】\n${context.bookBrief}');
+    }
     if (context.chapterText.isNotEmpty) {
       lines.add('【当前章节内容】\n${context.chapterText}');
     }

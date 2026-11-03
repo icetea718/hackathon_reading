@@ -5,6 +5,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../assistant/assistant_service.dart';
+import '../assistant/digest_aware_assistant_service.dart';
+import '../assistant/openai_assistant_service.dart';
 import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
@@ -16,6 +18,7 @@ import '../data/repositories/distill_unit_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/storage/book_storage.dart';
+import '../distill/distill_digest.dart';
 import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
@@ -51,8 +54,23 @@ final annotationServiceProvider = Provider<AnnotationService>((ref) {
   return AnnotationService(ref.watch(annotationRepositoryProvider));
 });
 
-final assistantServiceProvider = Provider<AssistantService>((ref) {
-  return const UnconfiguredAssistantService();
+final distillDigestSourceProvider = Provider<DistillDigestSource>((ref) {
+  return RepositoryDistillDigestSource(
+    ref.watch(distillArtifactRepositoryProvider),
+  );
+});
+
+/// Assistant that always carries the book's distilled brief when one exists.
+final assistantServiceProvider = FutureProvider<AssistantService>((ref) async {
+  final config = await ref.watch(llmConfigStoreProvider).load();
+  if (!config.isConfigured) return const UnconfiguredAssistantService();
+  return DigestAwareAssistantService(
+    inner: OpenAiAssistantService(
+      client: ref.watch(llmClientProvider),
+      config: () => ref.read(llmConfigSourceProvider).value,
+    ),
+    source: ref.watch(distillDigestSourceProvider),
+  );
 });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
