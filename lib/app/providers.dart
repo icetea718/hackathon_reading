@@ -12,6 +12,7 @@ import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/storage/book_storage.dart';
 import '../domain/models/book.dart';
+import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
 
@@ -35,6 +36,10 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
 
 final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
   return AnnotationRepository(ref.watch(appDatabaseProvider));
+});
+
+final annotationServiceProvider = Provider<AnnotationService>((ref) {
+  return AnnotationService(ref.watch(annotationRepositoryProvider));
 });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {

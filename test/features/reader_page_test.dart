@@ -12,6 +12,7 @@ import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 
 void main() {
@@ -127,6 +128,37 @@ void main() {
       createdAt: DateTime(2026, 1, 1),
       updatedAt: DateTime(2026, 1, 1),
     ));
+  }
+
+  Future<void> seedHighlight({
+    String id = 'hl1',
+    required String chapterId,
+    required int anchorStart,
+    required int anchorEnd,
+    AnnotationType type = AnnotationType.highlight,
+    String? color = 'green',
+    String selectedText = '',
+    String noteText = '',
+  }) async {
+    await AnnotationRepository(db).upsert(Annotation(
+      id: id,
+      bookId: 'b1',
+      chapterId: chapterId,
+      type: type,
+      anchorStart: anchorStart,
+      anchorEnd: anchorEnd,
+      selectedText: selectedText,
+      color: color,
+      noteText: noteText,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    ));
+  }
+
+  List<TextSpan> renderedSpans(WidgetTester tester) {
+    final selectable =
+        tester.widget<SelectableText>(find.byType(SelectableText));
+    return selectable.textSpan!.children!.cast<TextSpan>().toList();
   }
 
   Future<void> settleAfterIo(WidgetTester tester) async {
@@ -400,6 +432,89 @@ void main() {
     await pumpReader(tester, 'b1');
 
     expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('renders a stored highlight with its colour', (tester) async {
+    await seedHighlight(
+      chapterId: 'c1',
+      anchorStart: 8,
+      anchorEnd: 10,
+      color: 'green',
+    );
+    await pumpReader(tester, 'b1');
+
+    final highlighted = renderedSpans(tester)
+        .where((span) => span.style?.backgroundColor != null)
+        .toList();
+    expect(highlighted, hasLength(1));
+    expect(highlighted.single.text, '章的');
+    expect(
+      highlighted.single.style!.backgroundColor,
+      highlightColorFor('green'),
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('renders a stored note with a dotted underline', (tester) async {
+    await seedHighlight(
+      chapterId: 'c1',
+      anchorStart: 8,
+      anchorEnd: 10,
+      type: AnnotationType.note,
+      color: null,
+      noteText: '这里要再想想',
+    );
+    await pumpReader(tester, 'b1');
+
+    final note = renderedSpans(tester)
+        .where((span) => span.style?.decorationStyle == TextDecorationStyle.dotted)
+        .single;
+    expect(note.text, '章的');
+    expect(note.style!.decoration, TextDecoration.underline);
+    expect(note.style!.backgroundColor, isNull);
+    await disposeApp(tester);
+  });
+
+  testWidgets('ignores highlights that belong to another chapter', (
+    tester,
+  ) async {
+    await seedHighlight(
+      chapterId: 'c0',
+      anchorStart: 1,
+      anchorEnd: 3,
+      color: 'pink',
+    );
+    await pumpReader(tester, 'b1');
+
+    final highlighted = renderedSpans(tester)
+        .where((span) => span.style?.backgroundColor != null)
+        .toList();
+    expect(highlighted, isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('opens the annotations page and jumps to a selected item', (
+    tester,
+  ) async {
+    await seedHighlight(
+      chapterId: 'c0',
+      anchorStart: 2,
+      anchorEnd: 5,
+      selectedText: '章的内',
+    );
+    await pumpReader(tester, 'b1');
+    expect(find.textContaining('第二章的内容'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('标注'));
+    await tester.pumpAndSettle();
+    expect(find.text('章的内'), findsOneWidget);
+    expect(find.text('第1章'), findsOneWidget);
+
+    await tester.tap(find.text('章的内'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('第一章的内容'), findsOneWidget);
     await disposeApp(tester);
   });
 }

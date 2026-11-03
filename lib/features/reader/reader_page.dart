@@ -10,6 +10,8 @@ import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
+import '../annotations/annotations_page.dart';
+import 'annotation_spans.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
 import 'reader_settings_sheet.dart';
@@ -22,6 +24,72 @@ class ReaderPage extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
+}
+
+class _NoteDialog extends StatefulWidget {
+  const _NoteDialog({required this.selectedText});
+
+  final String selectedText;
+
+  @override
+  State<_NoteDialog> createState() => _NoteDialogState();
+}
+
+class _NoteDialogState extends State<_NoteDialog> {
+  final TextEditingController _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final note = _controller.text.trim();
+    if (note.isEmpty) {
+      setState(() => _error = '笔记内容不能为空');
+      return;
+    }
+    Navigator.of(context).pop(note);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('添加笔记'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.selectedText,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: 4,
+            minLines: 2,
+            decoration: InputDecoration(
+              hintText: '写下你的想法',
+              errorText: _error,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(onPressed: _submit, child: const Text('保存')),
+      ],
+    );
+  }
 }
 
 class _ReaderPageState extends ConsumerState<ReaderPage>
@@ -251,11 +319,168 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     ref.invalidate(bookmarkListProvider(widget.bookId));
   }
 
+  void _refreshAnnotations() {
+    if (!mounted) return;
+    ref.invalidate(readerAnnotationListProvider(widget.bookId));
+  }
+
+  Future<void> _highlightSelection(
+    Chapter chapter,
+    TextSelection selection,
+    String text,
+  ) async {
+    final color = await _pickHighlightColor();
+    if (color == null || !mounted) return;
+    await _saveSelectionAnnotation(
+      chapter,
+      selection,
+      text,
+      (anchorStart, anchorEnd, selectedText) =>
+          ref.read(annotationServiceProvider).addHighlight(
+                bookId: widget.bookId,
+                chapterId: chapter.id,
+                anchorStart: anchorStart,
+                anchorEnd: anchorEnd,
+                selectedText: selectedText,
+                color: color,
+              ),
+      successMessage: '已添加高亮',
+    );
+  }
+
+  Future<void> _addNote(
+    Chapter chapter,
+    TextSelection selection,
+    String text,
+  ) async {
+    final selectedText = _selectedText(selection, text);
+    final noteText = await showDialog<String>(
+      context: context,
+      builder: (_) => _NoteDialog(selectedText: selectedText),
+    );
+    if (noteText == null || !mounted) return;
+    await _saveSelectionAnnotation(
+      chapter,
+      selection,
+      text,
+      (anchorStart, anchorEnd, text) =>
+          ref.read(annotationServiceProvider).addNote(
+                bookId: widget.bookId,
+                chapterId: chapter.id,
+                anchorStart: anchorStart,
+                anchorEnd: anchorEnd,
+                selectedText: text,
+                noteText: noteText,
+              ),
+      successMessage: '已添加笔记',
+    );
+  }
+
+  Future<void> _saveSelectionAnnotation(
+    Chapter chapter,
+    TextSelection selection,
+    String text,
+    Future<void> Function(int anchorStart, int anchorEnd, String selectedText)
+        save, {
+    required String successMessage,
+  }) async {
+    if (!selection.isValid || selection.isCollapsed) return;
+    try {
+      await save(
+        chapter.startOffset + selection.start,
+        chapter.startOffset + selection.end,
+        _selectedText(selection, text),
+      );
+      _refreshAnnotations();
+      _showSnackBar(successMessage);
+    } catch (_) {
+      _showSnackBar('标注失败，请重试');
+    }
+  }
+
+  String _selectedText(TextSelection selection, String text) {
+    final start = selection.start.clamp(0, text.length);
+    final end = selection.end.clamp(0, text.length);
+    return text.substring(start, end);
+  }
+
+  Future<void> _openAnnotations(List<Chapter> chapters) async {
+    final anchor = await Navigator.of(context).push<int>(
+      MaterialPageRoute<int>(
+        builder: (_) => AnnotationsPage(
+          bookId: widget.bookId,
+          chapters: chapters,
+        ),
+      ),
+    );
+    if (anchor == null || !mounted) return;
+    _refreshAnnotations();
+    _reanchorAfterLayout(anchor);
+  }
+
+  Future<String?> _pickHighlightColor() {
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('选择高亮颜色'),
+              ),
+              for (final entry in highlightColorLabels.entries)
+                ListTile(
+                  leading: CircleAvatar(
+                    radius: 12,
+                    backgroundColor: highlightColorFor(entry.key),
+                  ),
+                  title: Text(entry.value),
+                  onTap: () => Navigator.of(sheetContext).pop(entry.key),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _selectionToolbar(
+    EditableTextState editableTextState,
+    String text,
+    Chapter chapter,
+  ) {
+    final selection = editableTextState.textEditingValue.selection;
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: [
+        if (selection.isValid && !selection.isCollapsed) ...[
+          ContextMenuButtonItem(
+            label: '高亮',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _highlightSelection(chapter, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '笔记',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _addNote(chapter, selection, text);
+            },
+          ),
+        ],
+        ...editableTextState.contextMenuButtonItems,
+      ],
+    );
   }
 
   void _openSettings() {
@@ -321,14 +546,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final bookmarks =
             ref.watch(bookmarkListProvider(widget.bookId)).value ??
                 const <Annotation>[];
+        final annotations =
+            ref.watch(readerAnnotationListProvider(widget.bookId)).value ??
+                const <Annotation>[];
         final currentChapter = chapters[index];
         final chapterBookmarked =
             bookmarks.any((bookmark) => bookmark.chapterId == currentChapter.id);
+        final chapterAnnotations = annotations
+            .where((annotation) => annotation.chapterId == currentChapter.id)
+            .toList();
 
         return _scaffold(
           title: title,
           bookmarked: chapterBookmarked,
           onToggleBookmark: () => _toggleBookmark(currentChapter),
+          onOpenAnnotations: () => _openAnnotations(chapters),
           drawer: TocDrawer(
             chapters: chapters,
             currentIndex: index,
@@ -343,15 +575,27 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             error: (error, _) => Center(child: Text('章节加载失败：$error')),
             data: (text) {
               _schedulePendingRestore();
+              final baseStyle = TextStyle(
+                fontSize: _fontSize,
+                height: _lineHeight,
+                color: _colors.$2,
+              );
+              final spans = buildAnnotationSpans(
+                text: text,
+                chapterStart: currentChapter.startOffset,
+                annotations: chapterAnnotations,
+                baseStyle: baseStyle,
+              );
               return SingleChildScrollView(
                 controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: _fontSize,
-                    height: _lineHeight,
-                    color: _colors.$2,
+                child: SelectableText.rich(
+                  TextSpan(children: spans),
+                  contextMenuBuilder: (context, editableTextState) =>
+                      _selectionToolbar(
+                    editableTextState,
+                    text,
+                    currentChapter,
                   ),
                 ),
               );
@@ -370,6 +614,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     Widget? bottomNavigationBar,
     bool? bookmarked,
     VoidCallback? onToggleBookmark,
+    VoidCallback? onOpenAnnotations,
   }) {
     final (background, foreground) = _colors;
     return Scaffold(
@@ -388,6 +633,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 bookmarked ? Icons.bookmark : Icons.bookmark_border,
               ),
               onPressed: onToggleBookmark,
+            ),
+          if (onOpenAnnotations != null)
+            IconButton(
+              tooltip: '标注',
+              icon: const Icon(Icons.format_list_bulleted),
+              onPressed: onOpenAnnotations,
             ),
           if (drawer != null)
             Builder(

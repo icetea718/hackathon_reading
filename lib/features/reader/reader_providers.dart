@@ -34,6 +34,11 @@ final bookmarkListProvider =
       .getForBook(bookId, type: AnnotationType.bookmark);
 });
 
+final readerAnnotationListProvider =
+    FutureProvider.family<List<Annotation>, String>((ref, bookId) async {
+  return ref.watch(annotationServiceProvider).getHighlightsAndNotes(bookId);
+});
+
 typedef ChapterContentKey = ({String bookId, int index});
 
 final chapterContentProvider =
