@@ -6,7 +6,16 @@ import 'tables.dart';
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [Books, Chapters, ReadingProgressEntries, Annotations, Settings],
+  tables: [
+    Books,
+    Chapters,
+    ReadingProgressEntries,
+    Annotations,
+    Settings,
+    DistillJobs,
+    DistillUnits,
+    DistillArtifacts,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
@@ -14,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -30,6 +39,11 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await m.addColumn(books, books.contentHash);
+          }
+          if (from < 5) {
+            await m.createTable(distillJobs);
+            await m.createTable(distillUnits);
+            await m.createTable(distillArtifacts);
           }
         },
       );

@@ -71,3 +71,57 @@ class ReadingProgressEntries extends Table {
   @override
   Set<Column> get primaryKey => {bookId};
 }
+
+@DataClassName('DistillJobRow')
+@TableIndex(name: 'distill_jobs_book', columns: {#bookId})
+class DistillJobs extends Table {
+  TextColumn get id => text()();
+  TextColumn get bookId => text()();
+  TextColumn get contentHash => text()();
+  TextColumn get status => text()();
+  TextColumn get stage => text()();
+  IntColumn get pipelineVersion => integer()();
+  IntColumn get totalUnits => integer().withDefault(const Constant(0))();
+  IntColumn get doneUnits => integer().withDefault(const Constant(0))();
+  TextColumn get errorText => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('DistillUnitRow')
+@TableIndex(name: 'distill_units_job_key', columns: {#jobId, #unitKey}, unique: true)
+class DistillUnits extends Table {
+  TextColumn get id => text()();
+  TextColumn get jobId => text()();
+  TextColumn get unitKey => text()();
+  TextColumn get kind => text()();
+  TextColumn get status => text()();
+  TextColumn get resultJson => text().nullable()();
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('DistillArtifactRow')
+@TableIndex(name: 'distill_artifacts_book_kind', columns: {#bookId, #kind})
+class DistillArtifacts extends Table {
+  TextColumn get id => text()();
+  TextColumn get bookId => text()();
+  TextColumn get kind => text()();
+  TextColumn get unitKey => text()();
+  TextColumn get title => text()();
+  TextColumn get body => text()();
+  TextColumn get dataJson => text()();
+  IntColumn get chapterStart => integer().nullable()();
+  IntColumn get chapterEnd => integer().nullable()();
+  BoolColumn get stale => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
