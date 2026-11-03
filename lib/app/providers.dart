@@ -10,6 +10,9 @@ import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
 import '../data/repositories/chapter_repository.dart';
+import '../data/repositories/distill_artifact_repository.dart';
+import '../data/repositories/distill_job_repository.dart';
+import '../data/repositories/distill_unit_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/storage/book_storage.dart';
@@ -17,6 +20,7 @@ import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
 import '../domain/models/book.dart';
+import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
@@ -88,6 +92,25 @@ final llmClientProvider = Provider<LlmClient>((ref) {
   return client;
 });
 
+final distillJobRepositoryProvider = Provider<DistillJobRepository>((ref) {
+  return DistillJobRepository(ref.watch(appDatabaseProvider));
+});
+
+final distillUnitRepositoryProvider = Provider<DistillUnitRepository>((ref) {
+  return DistillUnitRepository(ref.watch(appDatabaseProvider));
+});
+
+final distillArtifactRepositoryProvider =
+    Provider<DistillArtifactRepository>((ref) {
+  return DistillArtifactRepository(ref.watch(appDatabaseProvider));
+});
+
+/// Artifacts written by a finished (or in-progress) distillation.
+final distillArtifactsProvider =
+    FutureProvider.family<List<DistillArtifact>, String>((ref, bookId) {
+  return ref.watch(distillArtifactRepositoryProvider).listByBook(bookId);
+});
+
 final bookStorageProvider = FutureProvider<BookStorage>((ref) async {
   final support = await getApplicationSupportDirectory();
   return BookStorage(Directory(p.join(support.path, 'books')));
@@ -100,6 +123,9 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     progress: ref.watch(progressRepositoryProvider),
     annotations: ref.watch(annotationRepositoryProvider),
     storage: await ref.watch(bookStorageProvider.future),
+    distillJobs: ref.watch(distillJobRepositoryProvider),
+    distillUnits: ref.watch(distillUnitRepositoryProvider),
+    distillArtifacts: ref.watch(distillArtifactRepositoryProvider),
   );
   await service.backfillContentHashes();
   return service;
