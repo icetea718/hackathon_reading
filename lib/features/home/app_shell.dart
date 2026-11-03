@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../library/category_pane.dart';
 import '../library/library_page.dart';
 import '../settings/settings_page.dart';
 import 'home_providers.dart';
@@ -21,15 +22,19 @@ class AppShell extends ConsumerWidget {
                 ref.read(selectedSectionProvider.notifier).select(value),
             onSettings: () {
               Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsPage(),
-                ),
+                MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
               );
             },
           ),
           Expanded(
             child: switch (section) {
-              AppSection.bookshelf => const BookshelfView(),
+              AppSection.bookshelf => const Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CategoryPane(),
+                  Expanded(child: BookshelfView()),
+                ],
+              ),
               AppSection.companion => const _CompanionPlaceholder(),
             },
           ),
@@ -55,10 +60,7 @@ class _CompanionPlaceholder extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 12),
-          Text(
-            '陪读对话工作区即将上线',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('陪读对话工作区即将上线', style: theme.textTheme.titleMedium),
           const SizedBox(height: 6),
           Text(
             '可以从阅读页的陪读按钮打开对话面板',
