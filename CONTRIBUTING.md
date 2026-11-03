@@ -1,6 +1,6 @@
 # 参与贡献
 
-这是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT 阅读闭环**。
+这是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT / EPUB 阅读与书签**。
 
 - 仓库：<https://github.com/icetea718/hackathon_reading>
 - 设计文档：[docs/superpowers/specs/2026-11-03-reader-app-design.md](docs/superpowers/specs/2026-11-03-reader-app-design.md)
@@ -13,12 +13,14 @@
 - 书架：导入、展示、删除书籍，本地保存副本。
 - TXT 编码识别：UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）、GB18030/GBK/GB2312，严格解码失败时降级而不崩溃。
 - 章节识别：行首标题规则（`第X章/节/卷/回/部/篇/集`、序章、楔子、前言、番外、`Chapter N` 等）；无标题时整本书作为一章。
+- EPUB 解析：EPUB3 nav / EPUB2 NCX 目录、spine 顺序、纯文本提取、统一字符偏移；损坏文件干净失败。
 - 阅读器：目录抽屉、上一章/下一章、字号与行距调整、三种背景色。
+- 书签：当前章节添加/取消，抽屉“书签”栏跳转和删除。
 - 阅读进度：以全书字符偏移为锚点，滚动防抖保存，重新打开回到原位置；调整字号或窗口大小不丢位置。
 - 正文按章节懒加载。
-- 52 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
+- 76 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
 
-尚未实现：EPUB/PDF 阅读、标注/书签/高亮、阅读设置持久化、任何 AI 调用。扫描版 PDF 不做 OCR。
+尚未实现：PDF 阅读、EPUB 排版还原（CSS/图片/封面）、高亮/笔记、重复导入去重、阅读设置持久化、任何 AI 调用。扫描版 PDF 不做 OCR。
 
 ## 产品方向
 
@@ -37,6 +39,7 @@ MVP 的非目标：账号体系、云同步、书架社区、复杂排版引擎�
 | 本地存储 | Drift（SQLite）+ drift_flutter |
 | 文件选择 | file_picker |
 | 中文编码 | chinese_codec（GB18030/GBK/GB2312） |
+| EPUB 解析 | archive + xml（纯 Dart，自行解析 OPF/nav/NCX） |
 | 平台 | Windows、Android |
 
 ## 目录结构
@@ -46,7 +49,7 @@ lib/
   app/                 入口、主题、全局 provider
   data/
     db/                Drift 表结构与数据库（含生成的 app_database.g.dart）
-    repositories/      书籍、章节、阅读进度仓储
+    repositories/      书籍、章节、阅读进度、标注、设置仓储
     storage/           书籍副本等文件存储
   domain/
     models/            Book、Chapter、ReadingProgress 等模型
@@ -56,7 +59,7 @@ lib/
     reader/            阅读视图、目录、设置、进度定位
 ```
 
-现有代码里还没有 `annotations/`、`assistant/` 目录，它们是设计文档中后续里程碑的位置；新增功能时请按“UI / domain / data”分层，不要把这些逻辑直接塞进 `features/reader`。
+标注的模型、表和仓储已经存在（当前用于书签），但 UI 仍放在 `features/reader`；`assistant/` 目录还没有，是设计文档中后续里程碑的位置。新增功能时请按“UI / domain / data”分层，不要把这些逻辑直接塞进 `features/reader`。
 
 ## 环境准备
 
@@ -93,7 +96,7 @@ flutter test
 flutter build apk --debug
 ```
 
-提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 52 个测试全部通过；新增功能后数量会增长，以全绿为准。
+提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 76 个测试全部通过；新增功能后数量会增长，以全绿为准。
 
 ## 开发流程
 
@@ -121,7 +124,7 @@ flutter build apk --debug
 
 ## 如何扩展
 
-### 新增输入格式（例如 EPUB / PDF）
+### 新增输入格式（例如 PDF）
 
 1. 在 `domain/models/book.dart` 的 `BookFormat` 中确认格式枚举。
 2. 在 `domain/services/` 增加解析器，输出统一的 `List<Chapter>`（标题 + 偏移 + 正文）。
@@ -150,11 +153,13 @@ flutter build apk --debug
 自动化测试之外，合入前建议在 Windows 或 Android 上走一遍：
 
 1. 导入 UTF-8 中文 TXT 和 GB18030 中文 TXT，正文与目录正常。
-2. 从目录跳章，上一章/下一章可用；左上角返回键能回到书架。
-3. 滚到章节中部，关闭应用重开同一本书，回到原段落。
-4. 调整字号/行距、改变窗口大小，当前位置不丢。
-5. 删除书籍后，书架条目和本地副本都消失。
-6. 导入不支持格式或空文件，出现中文错误提示且书架不残留脏数据。
+2. 导入 EPUB，章节顺序与目录正常，正文可读。
+3. 从目录跳章，上一章/下一章可用；左上角返回键能回到书架。
+4. 添加/取消书签，在抽屉“书签”栏跳转和删除。
+5. 滚到章节中部，关闭应用重开同一本书，回到原段落。
+6. 调整字号/行距、改变窗口大小，当前位置不丢。
+7. 删除书籍后，书架条目和本地副本都消失。
+8. 导入不支持格式或空文件，出现中文错误提示且书架不残留脏数据。
 
 ## 沟通
 
