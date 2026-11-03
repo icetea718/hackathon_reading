@@ -29,6 +29,10 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../tts/audio_output.dart';
+import '../tts/tts_client.dart';
+import '../tts/tts_config.dart';
+import '../tts/tts_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase.defaults();
@@ -110,6 +114,62 @@ final llmClientProvider = Provider<LlmClient>((ref) {
   final client = OpenAiLlmClient(config: () => source.value);
   ref.onDispose(client.dispose);
   return client;
+});
+
+final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {
+  return TtsConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+/// The stored voice settings; invalidated whenever the settings page saves.
+final ttsConfigProvider = FutureProvider<TtsConfig>((ref) {
+  return ref.watch(ttsConfigStoreProvider).load();
+});
+
+/// Synchronous snapshot of [ttsConfigProvider] for the client's callback.
+class TtsConfigSource {
+  TtsConfig value = TtsConfig.defaults;
+}
+
+final ttsConfigSourceProvider = Provider<TtsConfigSource>((ref) {
+  final source = TtsConfigSource();
+  ref.listen<AsyncValue<TtsConfig>>(
+    ttsConfigProvider,
+    (previous, next) {
+      if (next is AsyncData<TtsConfig>) source.value = next.value;
+    },
+    fireImmediately: true,
+  );
+  return source;
+});
+
+final ttsClientProvider = Provider<TtsClient>((ref) {
+  final source = ref.watch(ttsConfigSourceProvider);
+  final client = OpenAiTtsClient(config: () => source.value);
+  ref.onDispose(client.dispose);
+  return client;
+});
+
+final audioOutputProvider = Provider<AudioOutput>((ref) {
+  final output = Platform.isWindows ? WinmmAudioOutput() : NoopAudioOutput();
+  ref.onDispose(output.dispose);
+  return output;
+});
+
+/// Speaks assistant replies; one instance serves every companion panel.
+final ttsServiceProvider = Provider<TtsService>((ref) {
+  final service = TtsService(
+    client: ref.watch(ttsClientProvider),
+    output: ref.watch(audioOutputProvider),
+    config: () => ref.read(ttsConfigSourceProvider).value,
+    tempDirectory: () async {
+      final base = await getTemporaryDirectory();
+      final dir = Directory(p.join(base.path, 'tts'));
+      if (!await dir.exists()) await dir.create(recursive: true);
+      return dir;
+    },
+  );
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final distillJobRepositoryProvider = Provider<DistillJobRepository>((ref) {

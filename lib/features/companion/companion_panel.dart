@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../assistant/assistant_service.dart';
 import '../../assistant/reading_context.dart';
+import '../../tts/tts_config.dart';
+import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
 
 /// Bottom-sheet companion chat for the chapter the reader is looking at.
@@ -39,11 +43,51 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   bool _busy = false;
   String? _error;
 
+  late final TtsService _tts;
+  StreamSubscription<TtsStatus>? _ttsSubscription;
+  TtsStatus _ttsStatus = const TtsStatus();
+
+  /// History entry currently being spoken; null when nothing is playing.
+  int? _speakingIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _tts = ref.read(ttsServiceProvider);
+    _ttsSubscription = _tts.statuses.listen(_onTtsStatus);
+  }
+
   @override
   void dispose() {
+    _ttsSubscription?.cancel();
+    unawaited(_tts.stop());
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onTtsStatus(TtsStatus status) {
+    if (!mounted) return;
+    setState(() {
+      _ttsStatus = status;
+      if (status.phase == TtsPhase.idle) _speakingIndex = null;
+    });
+    final error = status.error;
+    if (error != null) {
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  Future<void> _speak(String text, int? index) async {
+    setState(() => _speakingIndex = index);
+    await _tts.speak(text);
+    if (mounted) setState(() => _speakingIndex = null);
+  }
+
+  void _hush() {
+    setState(() => _speakingIndex = null);
+    unawaited(_tts.stop());
   }
 
   ReadingContext get _context => ReadingContext(
@@ -79,14 +123,18 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         _scrollToEnd();
       }
       if (!mounted) return;
+      final reply = buffer.toString();
       setState(() {
-        if (buffer.isNotEmpty) {
+        if (reply.isNotEmpty) {
           _history.add(
-            ChatMessage(role: ChatRole.assistant, content: buffer.toString()),
+            ChatMessage(role: ChatRole.assistant, content: reply),
           );
         }
         _streaming = '';
       });
+      if (reply.isNotEmpty && _autoSpeak) {
+        unawaited(_speak(reply, _history.length - 1));
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = '出错了：$error');
@@ -104,6 +152,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   }
 
   Future<void> _summarize() => _stream((service) => service.summarizeChapter(_context));
+
+  bool get _autoSpeak {
+    final config = ref.read(ttsConfigProvider);
+    return config is AsyncData<TtsConfig> && config.value.autoSpeak;
+  }
+
+  bool get _voiceOn => _ttsStatus.phase != TtsPhase.idle;
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -138,6 +193,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (_voiceOn)
+                    IconButton(
+                      key: const Key('companion-hush'),
+                      tooltip: '停止朗读',
+                      icon: const Icon(Icons.stop_circle_outlined),
+                      onPressed: _hush,
+                    ),
                   TextButton(
                     onPressed: configured && !_busy ? _summarize : null,
                     child: const Text('总结本章'),
@@ -177,10 +239,16 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                   controller: _scroll,
                   padding: const EdgeInsets.all(16),
                   children: [
-                    for (final message in _history)
+                    for (var index = 0; index < _history.length; index++)
                       _Bubble(
-                        text: message.content,
-                        isUser: message.role == ChatRole.user,
+                        text: _history[index].content,
+                        isUser: _history[index].role == ChatRole.user,
+                        speaking: _speakingIndex == index,
+                        onSpeak: _history[index].role == ChatRole.user
+                            ? null
+                            : () => unawaited(
+                                  _speak(_history[index].content, index),
+                                ),
                       ),
                     if (_streaming.isNotEmpty)
                       _Bubble(text: _streaming, isUser: false),
@@ -235,14 +303,26 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.text, required this.isUser});
+  const _Bubble({
+    required this.text,
+    required this.isUser,
+    this.onSpeak,
+    this.speaking = false,
+  });
 
   final String text;
   final bool isUser;
 
+  /// Set for assistant replies: reads this bubble aloud.
+  final VoidCallback? onSpeak;
+
+  /// Whether this bubble is the one being spoken right now.
+  final bool speaking;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final speak = onSpeak;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -253,7 +333,26 @@ class _Bubble extends StatelessWidget {
           color: isUser ? scheme.primaryContainer : scheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(text),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(text),
+            if (speak != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  tooltip: speaking ? '正在朗读' : '朗读',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  icon: Icon(
+                    speaking ? Icons.graphic_eq : Icons.volume_up_outlined,
+                  ),
+                  onPressed: speak,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

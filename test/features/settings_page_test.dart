@@ -8,6 +8,10 @@ import 'package:hackathon_reading/data/repositories/settings_repository.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
 import 'package:hackathon_reading/features/settings/settings_page.dart';
+import 'package:hackathon_reading/tts/tts_client.dart';
+import 'package:hackathon_reading/tts/tts_config.dart';
+
+import '../support/fake_tts.dart';
 
 class _FakeClient implements LlmClient {
   _FakeClient({this.failWith});
@@ -50,17 +54,54 @@ void main() {
 
   tearDown(() => db.close());
 
-  Future<void> pumpPage(WidgetTester tester, LlmClient client) async {
+  Future<void> pumpPage(
+    WidgetTester tester,
+    LlmClient client, {
+    TtsClient? ttsClient,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           llmClientProvider.overrideWithValue(client),
+          if (ttsClient != null)
+            ttsClientProvider.overrideWithValue(ttsClient),
         ],
         child: const MaterialApp(home: SettingsPage()),
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  /// The form is taller than the viewport, so reach for widgets by scrolling.
+  Future<void> reveal(WidgetTester tester, Finder finder) async {
+    await tester.scrollUntilVisible(
+      finder,
+      120,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tapAt(WidgetTester tester, Finder finder) async {
+    await reveal(tester, finder);
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  String textOf(WidgetTester tester, Key key) =>
+      tester.widget<TextField>(find.byKey(key)).controller!.text;
+
+  Future<void> fillTts(WidgetTester tester, {String? voice}) async {
+    await reveal(tester, find.byKey(const Key('tts-base-url')));
+    await tester.enterText(
+      find.byKey(const Key('tts-base-url')),
+      'http://127.0.0.1:9880',
+    );
+    if (voice != null) {
+      await tester.enterText(find.byKey(const Key('tts-voice')), voice);
+    }
   }
 
   testWidgets('tests the connection and saves the typed values', (tester) async {
@@ -74,14 +115,16 @@ void main() {
       'http://localhost:8080/v1',
     );
 
-    await tester.tap(find.text('测试连接'));
-    await tester.pumpAndSettle();
+    await tapAt(tester, find.text('测试连接'));
 
     expect(find.text('连接成功'), findsOneWidget);
     expect(fake.calls, 1);
 
-    await tester.tap(find.text('保存'));
+    // Let the snack bar clear, otherwise it covers the button row.
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
+
+    await tapAt(tester, find.text('保存'));
 
     final saved = await LlmConfigStore(SettingsRepository(db)).load();
     expect(saved.apiKey, 'sk-test');
@@ -93,8 +136,7 @@ void main() {
     await pumpPage(tester, _FakeClient(failWith: 'HTTP 401: bad key'));
 
     await tester.enterText(find.byKey(const Key('llm-api-key')), 'sk-bad');
-    await tester.tap(find.text('测试连接'));
-    await tester.pumpAndSettle();
+    await tapAt(tester, find.text('测试连接'));
 
     expect(find.textContaining('连接失败'), findsOneWidget);
   });
@@ -112,5 +154,62 @@ void main() {
 
     expect(find.text('https://example.test/v1'), findsOneWidget);
     expect(find.text('stored-model'), findsOneWidget);
+  });
+
+  testWidgets('saves the voice settings next to the model settings',
+      (tester) async {
+    await pumpPage(tester, _FakeClient());
+
+    await fillTts(tester, voice: 'dfy');
+    await tapAt(tester, find.text('保存'));
+
+    final saved = await TtsConfigStore(SettingsRepository(db)).load();
+    expect(saved.baseUrl, 'http://127.0.0.1:9880');
+    expect(saved.voice, 'dfy');
+    expect(saved.enabled, isTrue);
+  });
+
+  testWidgets('loads stored voice settings into the form', (tester) async {
+    await TtsConfigStore(SettingsRepository(db)).save(
+      const TtsConfig(
+        baseUrl: 'http://192.168.1.5:9880',
+        voice: 'female',
+        speed: 1.25,
+        volume: 0.8,
+        enabled: false,
+        autoSpeak: true,
+      ),
+    );
+
+    await pumpPage(tester, _FakeClient());
+    await reveal(tester, find.byKey(const Key('tts-base-url')));
+
+    expect(textOf(tester, const Key('tts-base-url')), 'http://192.168.1.5:9880');
+    expect(textOf(tester, const Key('tts-voice')), 'female');
+    expect(textOf(tester, const Key('tts-speed')), '1.25');
+  });
+
+  testWidgets('the voice test reports a reachable service', (tester) async {
+    await pumpPage(
+      tester,
+      _FakeClient(),
+      ttsClient: FakeTtsClient(pingResult: true),
+    );
+
+    await tapAt(tester, find.byKey(const Key('tts-test')));
+
+    expect(find.text('语音服务可用'), findsOneWidget);
+  });
+
+  testWidgets('the voice test reports an unreachable service', (tester) async {
+    await pumpPage(
+      tester,
+      _FakeClient(),
+      ttsClient: FakeTtsClient(pingResult: false),
+    );
+
+    await tapAt(tester, find.byKey(const Key('tts-test')));
+
+    expect(find.textContaining('语音服务不可用'), findsOneWidget);
   });
 }
