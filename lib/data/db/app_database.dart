@@ -50,6 +50,8 @@ class AppDatabase extends _$AppDatabase {
           if (from < 6) {
             await m.createTable(categories);
             await m.createTable(bookCategories);
+            await m.create(categoriesName);
+            await m.create(bookCategoriesCategory);
           }
         },
       );

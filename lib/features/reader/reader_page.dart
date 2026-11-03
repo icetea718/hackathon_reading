@@ -109,8 +109,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
   double _percent = 0;
+  double _lastFraction = 0;
   bool _railPinned = false;
   bool _railVisible = false;
+  bool _suppressHotzone = false;
   bool _restoreScheduled = false;
   bool _restored = false;
   bool _restoreInFlight = false;
@@ -221,6 +223,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   void _onScroll() {
+    if (_scrollController.hasClients) {
+      final max = _scrollController.position.maxScrollExtent;
+      _lastFraction = max <= 0
+          ? 0
+          : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    }
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 500), _persistProgress);
     _percentTimer?.cancel();
@@ -255,12 +263,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               ? chapters.length - 1
               : _chapterIndex);
     final chapter = chapters[index];
-    final max = _scrollController.hasClients
-        ? _scrollController.position.maxScrollExtent
-        : 0.0;
-    final fraction = max <= 0
-        ? 0.0
-        : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    final double fraction;
+    if (_scrollController.hasClients) {
+      final max = _scrollController.position.maxScrollExtent;
+      fraction = max <= 0
+          ? 0.0
+          : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    } else {
+      fraction = _lastFraction;
+    }
     final charOffset = anchorOffsetForFraction(chapter, fraction);
     final total = chapters.last.endOffset;
     final percent = total <= 0
@@ -382,19 +393,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _settingsRepository
         ?.set(_railPinnedKey, _railPinned.toString())
         .catchError((Object _) {});
-    if (_railPinned) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || anchor == null) return;
-        _reanchorAfterLayout(anchor);
-      });
-    } else {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || anchor == null) return;
+      _reanchorAfterLayout(anchor);
+    });
+    if (!_railPinned) {
       _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
     }
   }
 
   void _showRail() {
     _hideTimer?.cancel();
-    if (_railPinned || _railVisible) return;
+    if (_railPinned || _railVisible || _suppressHotzone) return;
     setState(() => _railVisible = true);
   }
 
@@ -404,8 +414,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
   }
 
-  void _hideRailNow() {
+  void _hideRailNow({bool suppressHotzone = false}) {
     _hideTimer?.cancel();
+    if (suppressHotzone) _suppressHotzone = true;
     if (!mounted || !_railVisible || _railPinned) return;
     setState(() => _railVisible = false);
   }
@@ -814,6 +825,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 child: MouseRegion(
                   key: const Key('reader-rail-hotzone'),
                   onEnter: (_) => _showRail(),
+                  onExit: (_) => _suppressHotzone = false,
                   child: const SizedBox(width: 12),
                 ),
               ),
@@ -884,9 +896,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           ),
           body: CallbackShortcuts(
             bindings: {
-              const SingleActivator(LogicalKeyboardKey.escape): _hideRailNow,
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  _hideRailNow(suppressHotzone: true),
             },
-            child: Focus(autofocus: false, child: body),
+            child: Focus(autofocus: true, child: body),
           ),
           bottomNavigationBar: _navigationBar(index, chapters),
         );

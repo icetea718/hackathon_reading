@@ -1,12 +1,14 @@
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
+import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/repositories/settings_repository.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
@@ -207,6 +209,44 @@ void main() {
 
     expect(find.byType(ReaderPage), findsNothing);
     expect(find.text('打开阅读'), findsOneWidget);
+  });
+
+  testWidgets('unpinning keeps the reading position', (tester) async {
+    await SettingsRepository(db).set('reader.railPinned', 'true');
+    await pumpReader(tester, 'long');
+    final controller = readerController(tester);
+    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
+    await tester.pump();
+    final before = controller.offset / controller.position.maxScrollExtent;
+
+    await tester.tap(find.text('已固定'));
+    await tester.pumpAndSettle();
+
+    final after = controller.offset / controller.position.maxScrollExtent;
+    expect(after, closeTo(before, 0.02));
+
+    await disposeApp(tester);
+    await settleAfterIo(tester);
+    final progress = await tester.runAsync(
+      () => ProgressRepository(db).get('long'),
+    );
+    expect(progress!.percent, closeTo(before, 0.05));
+  });
+
+  testWidgets('escape hides the floating rail', (tester) async {
+    await pumpReader(tester, 'long');
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(5, 300));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const Key('reader-rail-overlay')), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reader-rail-overlay')), findsNothing);
+    await disposeApp(tester);
   });
 
   testWidgets('a corrupt pin value stays safe in mode A', (tester) async {

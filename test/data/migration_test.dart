@@ -15,6 +15,15 @@ void main() {
     final names = rows.map((row) => row.read<String>('name')).toSet();
     expect(names, containsAll(['categories', 'book_categories']));
 
+    final indexes = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+        .get();
+    final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
+    expect(
+      indexNames,
+      containsAll(['categories_name', 'book_categories_category']),
+    );
+
     await db.close();
   });
 }
