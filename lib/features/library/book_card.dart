@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../domain/models/book.dart';
+import '../distill/distill_page.dart';
 import '../reader/pdf_reader_page.dart';
 import '../reader/reader_page.dart';
 
@@ -60,6 +61,21 @@ class BookCard extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '更多',
+                    onSelected: (value) {
+                      if (value == 'distill') {
+                        openDistillPage(context, book.id);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: 'distill',
+                        enabled: book.format != BookFormat.pdf,
+                        child: const Text('蒸馏'),
+                      ),
+                    ],
                   ),
                   IconButton(
                     tooltip: '删除',

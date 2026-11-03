@@ -21,10 +21,14 @@
 - 正文按章节懒加载。
 - PDF 阅读：pdfrx 渲染、缩放、翻页/页码跳转、内嵌目录（无目录时按页跳转）、按页码续读、按页书签；PDF 不写入章节表。
 - 重复导入保护：按文件内容 SHA-256 去重，旧书在首次导入时自动补算哈希。
-- AI 骨架：`AssistantService` 定义翻译/解读/章节总结/陪读对话四个流式接口，`ReadingContextBuilder` 组装书名、作者、章节与选中文字并截断；默认未配置实现返回「未配置 AI 服务」。划词入口和设置页尚未实现。
-- 131 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
+- AI 骨架：`AssistantService` 定义翻译/解读/章节总结/陪读对话四个流式接口，`ReadingContextBuilder` 组装书名、作者、章节与选中文字并截断；默认未配置实现返回「未配置 AI 服务」。
+- AI 接入：设置页可填 OpenAI 兼容接口（Base URL / 模型 / API Key / 温度 / 分段字数）并测试连接；`OpenAiAssistantService` 实现四个接口（SSE 流式）。
+- 书籍蒸馏：借鉴 cangjie-skill 的 RIA-TV++ 方法论，按「分段提炼 → 分部合并 → 全书总览/语气 → 卡片」流水线蒸馏 TXT/EPUB，结果落 `DistillArtifacts`；任务可暂停/继续/取消，失败单元重试一次后停在 `paused`。
+- 陪读：阅读页「陪读」按钮打开底部对话面板，上下文 = 全书蒸馏摘要 + 当前章按阅读位置开窗的摘录（首 800 + 锚点前后 2400 + 尾 800 字），并支持一键「总结本章」。
+- 阅读设置持久化：字号、行距、背景色写入本地设置表，重开应用沿用上次选择。
+- 187 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
 
-尚未实现：PDF 高亮/笔记（按页书签已支持，用户确认本轮不做 PDF 标注）、标注内容编辑、EPUB 排版还原（CSS/图片/封面）、真实 AI 调用与划词入口。扫描版 PDF 不做 OCR。
+尚未实现：PDF 蒸馏（PDF 不写章节表，入口禁用并提示）、PDF 高亮/笔记（按页书签已支持，用户确认本轮不做 PDF 标注）、标注内容编辑、EPUB 排版还原（CSS/图片/封面）、API Key 安全存储（当前随设置明文存于本地库）、划词 AI 入口。扫描版 PDF 不做 OCR。
 
 ## 产品方向
 
@@ -54,16 +58,20 @@ lib/
   app/                 入口、主题、全局 provider
   data/
     db/                Drift 表结构与数据库（含生成的 app_database.g.dart）
-    repositories/      书籍、章节、阅读进度、标注、设置仓储
+    repositories/      书籍、章节、阅读进度、标注、设置、蒸馏仓储
     storage/           书籍副本等文件存储
   domain/
-    models/            Book、Chapter、ReadingProgress 等模型
+    models/            Book、Chapter、ReadingProgress、DistillJob 等模型
     services/         导入、编码识别、章节识别等纯逻辑
+  distill/             分段规划、提示词与解析、引用校验、蒸馏流水线、摘要装配
   features/
     library/           书架、导入、删除
     reader/            阅读视图、目录、设置、进度定位、高亮渲染
     annotations/       高亮/笔记列表页
-  assistant/           AssistantService、阅读上下文构建、未来的模型适配器
+    settings/          AI 服务配置
+    distill/           蒸馏进度页与任务控制器
+    companion/         陪读对话面板
+  assistant/           AssistantService、阅读上下文构建、模型适配器与蒸馏感知装饰器
 ```
 
 标注的模型、表和仓储已经存在（当前用于书签），但 UI 仍放在 `features/reader`。新增功能时请按“UI / domain / data”分层，不要把这些逻辑直接塞进 `features/reader`。
@@ -103,7 +111,7 @@ flutter test
 flutter build apk --debug
 ```
 
-提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 131 个测试全部通过；新增功能后数量会增长，以全绿为准。
+提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 187 个测试全部通过；新增功能后数量会增长，以全绿为准。
 
 PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。GitHub 不可达时构建钩子会失败；先按 README 的说明用镜像预置 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/` 下的原生库再构建。
 
@@ -154,8 +162,21 @@ PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。Git
 
 1. `AssistantService` 接口已定义在 `lib/assistant/assistant_service.dart`（`translate` / `explain` / `summarizeChapter` / `chat`，统一返回 `Stream`）；接入真实模型时实现它，并把 `assistantServiceProvider` 默认的 `UnconfiguredAssistantService` 换掉。
 2. 用 `ReadingContextBuilder` 组装书名、作者、当前章节与选中文本，并做长度截断。
-3. 模型厂商适配器放在 `assistant/`，API Key 走安全存储，不写进代码或日志。
+3. 模型厂商适配器放在 `assistant/`，API Key 不写进代码或日志；当前随用户设置在本地库明文保存，后续接入系统安全存储。
 4. 未配置时 UI 显示明确提示，不能阻断阅读。
+
+现有实现：`OpenAiLlmClient`（`lib/distill/llm/`）走 OpenAI 兼容的 `/chat/completions`，`OpenAiAssistantService` 在其之上实现四个接口；`DigestAwareAssistantService` 是装饰层，把蒸馏摘要和按阅读位置开窗的章节摘录塞进 `ReadingContext`，`assistant` 层不直接访问数据库。
+
+### 书籍蒸馏
+
+设计见 [docs/superpowers/specs/2026-11-03-book-distillation-design.md](docs/superpowers/specs/2026-11-03-book-distillation-design.md)。要点：
+
+1. 流水线在 `lib/distill/distill_pipeline.dart`，单元按 `unitKey` 落 `DistillUnits`（`seg-0007` / `part-02` / `overview` / `tone` / `cards-01` / `gist-0003` / `card-<slug>`），重跑时已完成的单元直接复用。
+2. 分段规则在 `distill_planner.dart`（段 ≤6000 字，按段落边界切；部分 ≤60000 字、至少 2 章）；改 `pipelineVersion` 会让旧产物失效并重建。
+3. 提示词与解析在 `distill_prompts.dart` / `distill_models.dart`；模型必须返回严格 JSON，解析失败重试一次后把任务停在 `paused`，错误写进 `job.errorText`。
+4. 引用必须逐字出现在原文且 ≤150 字，由 `QuoteVerifier` 校验；不通过的卡片保留但丢掉引用。
+5. 启动蒸馏前会重算书籍文件 SHA-256：内容变化则把旧产物标 `stale` 并按新内容重跑（`lib/distill/stale_guard.dart`）。
+6. 调用次数是软预算（每本 ≤80 次），改提示词时注意别把分段数放大。
 
 ## 手动验收清单
 
@@ -171,6 +192,10 @@ PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。Git
 8. 重复导入同一本书，出现「这本书已经在书架中」提示，书架不会多出一条。
 9. 删除书籍后，书架条目和本地副本都消失。
 10. 导入不支持格式或空文件，出现中文错误提示且书架不残留脏数据。
+11. 在设置页填入 OpenAI 兼容接口，点「测试连接」成功；清空 Key 后陪读面板显示「未配置 AI 服务」并能跳到设置页。
+12. 对一本 TXT 书执行蒸馏：进度按单元推进，中途可暂停/继续、可取消；完成后四个标签页有总览、章节摘要、卡片与语气。
+13. 打开该书阅读页点「陪读」，提问能得到结合全书梗概与当前章节的回答；「总结本章」只谈当前章。
+14. 替换书籍文件内容后再次蒸馏，出现「书籍内容已变化」提示且旧产物被标为过期；PDF 书籍的「蒸馏」入口为禁用。
 
 ## 沟通
 

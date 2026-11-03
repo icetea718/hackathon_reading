@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../domain/services/book_service.dart';
 import '../../domain/services/epub_book_parser.dart';
+import '../settings/settings_page.dart';
 import 'book_card.dart';
 
 String importErrorMessage(Object error) {
@@ -49,6 +50,17 @@ class LibraryPage extends ConsumerWidget {
             onPressed: () => _import(context, ref),
             icon: const Icon(Icons.add),
             tooltip: '导入',
+          ),
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SettingsPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '设置',
           ),
         ],
       ),
