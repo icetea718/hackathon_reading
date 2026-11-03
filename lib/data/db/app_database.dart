@@ -15,6 +15,8 @@ part 'app_database.g.dart';
     DistillJobs,
     DistillUnits,
     DistillArtifacts,
+    Categories,
+    BookCategories,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -23,7 +25,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +46,10 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(distillJobs);
             await m.createTable(distillUnits);
             await m.createTable(distillArtifacts);
+          }
+          if (from < 6) {
+            await m.createTable(categories);
+            await m.createTable(bookCategories);
           }
         },
       );

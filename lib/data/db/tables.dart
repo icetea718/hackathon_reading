@@ -107,6 +107,28 @@ class DistillUnits extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('CategoryRecord')
+@TableIndex(name: 'categories_name', columns: {#name}, unique: true)
+class Categories extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('BookCategoryRecord')
+@TableIndex(name: 'book_categories_category', columns: {#categoryId})
+class BookCategories extends Table {
+  TextColumn get bookId => text()();
+  TextColumn get categoryId => text()();
+
+  @override
+  Set<Column> get primaryKey => {bookId, categoryId};
+}
+
 @DataClassName('DistillArtifactRow')
 @TableIndex(name: 'distill_artifacts_book_kind', columns: {#bookId, #kind})
 class DistillArtifacts extends Table {
