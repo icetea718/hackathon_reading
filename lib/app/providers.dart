@@ -11,6 +11,7 @@ import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
+import '../data/repositories/category_repository.dart';
 import '../data/repositories/chapter_repository.dart';
 import '../data/repositories/distill_artifact_repository.dart';
 import '../data/repositories/distill_job_repository.dart';
@@ -23,6 +24,7 @@ import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
 import '../domain/models/book.dart';
+import '../domain/models/category.dart';
 import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
@@ -144,6 +146,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     distillJobs: ref.watch(distillJobRepositoryProvider),
     distillUnits: ref.watch(distillUnitRepositoryProvider),
     distillArtifacts: ref.watch(distillArtifactRepositoryProvider),
+    categories: ref.watch(categoryRepositoryProvider),
   );
   await service.backfillContentHashes();
   return service;
@@ -156,3 +159,20 @@ final filePickerProvider = Provider<FilePickerService>((ref) {
 final bookListProvider = StreamProvider<List<Book>>((ref) {
   return ref.watch(bookRepositoryProvider).watchAll();
 });
+
+final categoryRepositoryProvider = Provider<CategoryRepository>(
+  (ref) => CategoryRepository(ref.watch(appDatabaseProvider)),
+);
+
+final categoriesProvider = StreamProvider<List<Category>>(
+  (ref) => ref.watch(categoryRepositoryProvider).watchAll(),
+);
+
+final bookCategoryMembershipsProvider =
+    StreamProvider<List<BookCategoryRecord>>(
+  (ref) => ref.watch(categoryRepositoryProvider).watchMemberships(),
+);
+
+final progressPercentsProvider = StreamProvider<Map<String, double>>(
+  (ref) => ref.watch(progressRepositoryProvider).watchPercents(),
+);

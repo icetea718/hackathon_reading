@@ -39,4 +39,10 @@ class ProgressRepository {
           ..where((t) => t.bookId.equals(bookId)))
         .go();
   }
+
+  Stream<Map<String, double>> watchPercents() {
+    return _db.select(_db.readingProgressEntries).watch().map(
+          (rows) => {for (final row in rows) row.bookId: row.percent},
+        );
+  }
 }

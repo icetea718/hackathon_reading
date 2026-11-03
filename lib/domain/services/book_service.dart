@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../data/repositories/annotation_repository.dart';
 import '../../data/repositories/book_repository.dart';
+import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/chapter_repository.dart';
 import '../../data/repositories/distill_artifact_repository.dart';
 import '../../data/repositories/distill_job_repository.dart';
@@ -54,6 +55,7 @@ class BookService {
     this.distillJobs,
     this.distillUnits,
     this.distillArtifacts,
+    this.categories,
     String Function()? newId,
   }) : _newId = newId ?? const Uuid().v4;
 
@@ -65,6 +67,7 @@ class BookService {
   final DistillJobRepository? distillJobs;
   final DistillUnitRepository? distillUnits;
   final DistillArtifactRepository? distillArtifacts;
+  final CategoryRepository? categories;
   final String Function() _newId;
 
   Future<Book> importFile(String sourcePath) async {
@@ -146,6 +149,7 @@ class BookService {
     await distillUnits?.deleteForBook(book.id);
     await distillArtifacts?.deleteForBook(book.id);
     await distillJobs?.deleteForBook(book.id);
+    await categories?.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteFile(book.sourcePath);
   }
