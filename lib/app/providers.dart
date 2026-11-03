@@ -13,6 +13,9 @@ import '../data/repositories/chapter_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/storage/book_storage.dart';
+import '../distill/llm/llm_client.dart';
+import '../distill/llm/llm_config.dart';
+import '../distill/llm/openai_llm_client.dart';
 import '../domain/models/book.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
@@ -50,6 +53,39 @@ final assistantServiceProvider = Provider<AssistantService>((ref) {
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return SettingsRepository(ref.watch(appDatabaseProvider));
+});
+
+final llmConfigStoreProvider = Provider<LlmConfigStore>((ref) {
+  return LlmConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+/// The stored LLM settings; invalidated whenever the settings page saves.
+final llmConfigProvider = FutureProvider<LlmConfig>((ref) {
+  return ref.watch(llmConfigStoreProvider).load();
+});
+
+/// Synchronous snapshot of [llmConfigProvider] for the client's config callback.
+class LlmConfigSource {
+  LlmConfig value = LlmConfig.defaults;
+}
+
+final llmConfigSourceProvider = Provider<LlmConfigSource>((ref) {
+  final source = LlmConfigSource();
+  ref.listen<AsyncValue<LlmConfig>>(
+    llmConfigProvider,
+    (previous, next) {
+      if (next is AsyncData<LlmConfig>) source.value = next.value;
+    },
+    fireImmediately: true,
+  );
+  return source;
+});
+
+final llmClientProvider = Provider<LlmClient>((ref) {
+  final source = ref.watch(llmConfigSourceProvider);
+  final client = OpenAiLlmClient(config: () => source.value);
+  ref.onDispose(client.dispose);
+  return client;
 });
 
 final bookStorageProvider = FutureProvider<BookStorage>((ref) async {
