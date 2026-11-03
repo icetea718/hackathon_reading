@@ -50,6 +50,17 @@ void main() {
     expect(chapters[1].endOffset, text.length);
   });
 
+  test('detects parenthesized headings and 部分 variants', () {
+    const text = '第一章（上）\n甲\n第一部分 开始\n乙\n第二部分：终\n丙';
+    final chapters = detectTxtChapters(text);
+
+    expect(chapters.map((c) => c.title), [
+      '第一章（上）',
+      '第一部分 开始',
+      '第二部分：终',
+    ]);
+  });
+
   test('detects 番外 and 第123章 headings', () {
     const text = '第一章 开始\n甲\n番外 后日谈\n乙\n第123章 终\n丙';
     final chapters = detectTxtChapters(text);

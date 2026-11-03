@@ -111,7 +111,7 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('unsupported file shows an error SnackBar', (tester) async {
+  testWidgets('unsupported file shows a friendly error message', (tester) async {
     final source = File('${temp.path}/a.doc')..writeAsStringSync('x');
     await pumpApp(tester, source.path);
 
@@ -119,7 +119,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SnackBar), findsOneWidget);
-    expect(find.textContaining('UnsupportedBookFormatException'), findsOneWidget);
+    expect(find.text('不支持的文件格式，请选择 EPUB、TXT 或 PDF'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('empty TXT shows a friendly error and leaves no book', (
+    tester,
+  ) async {
+    final source = File('${temp.path}/empty.txt')..writeAsStringSync('');
+    await pumpApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+
+    expect(find.text('文件内容为空，无法导入'), findsOneWidget);
+    expect(find.text('empty'), findsNothing);
     await disposeApp(tester);
   });
 }

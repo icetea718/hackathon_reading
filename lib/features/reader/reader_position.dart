@@ -23,12 +23,13 @@ ResumeLocation locateAnchor(List<Chapter> chapters, int charOffset) {
 
   for (var i = 0; i < chapters.length; i++) {
     final chapter = chapters[i];
-    if (charOffset >= chapter.startOffset && charOffset < chapter.endOffset) {
-      final length = chapter.contentText.length;
-      final fraction = length == 0
+    if (charOffset >= chapter.startOffset &&
+        charOffset <= chapter.endOffset) {
+      final length = chapter.endOffset - chapter.startOffset;
+      final fraction = length <= 0
           ? 0.0
-          : (charOffset - chapter.startOffset) / length;
-      return ResumeLocation(chapterIndex: i, fraction: fraction);
+          : ((charOffset - chapter.startOffset) / length).clamp(0.0, 1.0);
+      return ResumeLocation(chapterIndex: i, fraction: fraction.toDouble());
     }
   }
 
@@ -37,7 +38,17 @@ ResumeLocation locateAnchor(List<Chapter> chapters, int charOffset) {
 
 int offsetForPosition(Chapter chapter, double fraction) {
   final clamped = fraction.clamp(0.0, 1.0);
-  final offset =
-      chapter.startOffset + (clamped * chapter.contentText.length).round();
+  final length = chapter.endOffset - chapter.startOffset;
+  final offset = chapter.startOffset + (clamped * length).round();
   return offset > chapter.endOffset ? chapter.endOffset : offset;
+}
+
+int anchorOffsetForFraction(Chapter chapter, double fraction) {
+  final length = chapter.endOffset - chapter.startOffset;
+  if (length <= 1) return chapter.startOffset;
+  final clamped = fraction.clamp(0.0, 1.0);
+  final offset = chapter.startOffset + (clamped * length).round();
+  if (offset <= chapter.startOffset) return chapter.startOffset + 1;
+  if (offset >= chapter.endOffset) return chapter.endOffset - 1;
+  return offset;
 }

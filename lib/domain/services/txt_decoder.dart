@@ -14,12 +14,8 @@ DecodedText decodeTxtBytes(List<int> bytes) {
     return const DecodedText(text: '', encoding: 'utf-8');
   }
 
-  if (_startsWith(bytes, _utf8Bom)) {
-    return DecodedText(
-      text: utf8.decode(bytes.sublist(_utf8Bom.length)),
-      encoding: 'utf-8',
-    );
-  }
+  final payload =
+      _startsWith(bytes, _utf8Bom) ? bytes.sublist(_utf8Bom.length) : bytes;
   if (_startsWith(bytes, _utf16LeBom)) {
     return DecodedText(
       text: _decodeUtf16(bytes.sublist(_utf16LeBom.length), Endian.little),
@@ -34,19 +30,19 @@ DecodedText decodeTxtBytes(List<int> bytes) {
   }
 
   try {
-    return DecodedText(text: utf8.decode(bytes), encoding: 'utf-8');
+    return DecodedText(text: utf8.decode(payload), encoding: 'utf-8');
   } on FormatException {
     // Not UTF-8, try the legacy Chinese encodings below.
   }
 
   try {
-    return DecodedText(text: gb18030.decode(bytes), encoding: 'gb18030');
+    return DecodedText(text: gb18030.decode(payload), encoding: 'gb18030');
   } on FormatException {
     // Neither strict UTF-8 nor GB18030; fall back to a lossy read.
   }
 
   return DecodedText(
-    text: utf8.decode(bytes, allowMalformed: true),
+    text: utf8.decode(payload, allowMalformed: true),
     encoding: 'utf-8-lossy',
   );
 }

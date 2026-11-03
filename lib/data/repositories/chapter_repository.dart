@@ -28,6 +28,41 @@ class ChapterRepository {
     return rows.map(_toChapter).toList();
   }
 
+  Future<List<Chapter>> getSummariesForBook(String bookId) async {
+    final query = _db.selectOnly(_db.chapters)
+      ..addColumns([
+        _db.chapters.id,
+        _db.chapters.bookId,
+        _db.chapters.chapterIndex,
+        _db.chapters.title,
+        _db.chapters.startOffset,
+        _db.chapters.endOffset,
+      ])
+      ..where(_db.chapters.bookId.equals(bookId))
+      ..orderBy([OrderingTerm.asc(_db.chapters.chapterIndex)]);
+    final rows = await query.get();
+    return rows
+        .map((row) => Chapter(
+              id: row.read(_db.chapters.id)!,
+              bookId: row.read(_db.chapters.bookId)!,
+              index: row.read(_db.chapters.chapterIndex)!,
+              title: row.read(_db.chapters.title)!,
+              startOffset: row.read(_db.chapters.startOffset)!,
+              endOffset: row.read(_db.chapters.endOffset)!,
+              contentText: '',
+            ))
+        .toList();
+  }
+
+  Future<String?> getContent(String bookId, int chapterIndex) async {
+    final query = _db.select(_db.chapters)
+      ..where(
+        (t) => t.bookId.equals(bookId) & t.chapterIndex.equals(chapterIndex),
+      );
+    final row = await query.getSingleOrNull();
+    return row?.contentText;
+  }
+
   Chapter _toChapter(ChapterRecord row) {
     return Chapter(
       id: row.id,

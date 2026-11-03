@@ -81,6 +81,97 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   }
 
+  Future<void> seedLongBook() async {
+    final buffer = StringBuffer();
+    for (var i = 0; i < 60; i++) {
+      buffer.writeln('第$i段：这是一段用来撑长页面的正文内容，确保可以滚动。');
+    }
+    final text = buffer.toString();
+    final books = BookRepository(db);
+    await books.upsert(Book(
+      id: 'long',
+      title: '长书',
+      author: '',
+      format: BookFormat.txt,
+      sourcePath: 'C:/books/long.txt',
+      addedAt: DateTime(2026, 1, 3),
+    ));
+    await ChapterRepository(db).replaceForBook('long', [
+      Chapter(
+        id: 'long-c0',
+        bookId: 'long',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: text.length,
+        contentText: text,
+      ),
+    ]);
+  }
+
+  ScrollController readerController(WidgetTester tester) {
+    return tester
+        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+        .controller!;
+  }
+
+  testWidgets('keeps the reading position when the font size changes', (
+    tester,
+  ) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+    final controller = readerController(tester);
+    expect(controller.position.maxScrollExtent, greaterThan(0));
+
+    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
+    await tester.pump();
+    final before = controller.offset / controller.position.maxScrollExtent;
+    final beforeOffset = controller.offset;
+    final beforeMax = controller.position.maxScrollExtent;
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+
+    final after = controller.offset / controller.position.maxScrollExtent;
+    expect(controller.position.maxScrollExtent, greaterThan(beforeMax));
+    expect(controller.offset, greaterThan(beforeOffset));
+    expect(after, closeTo(before, 0.02));
+    await disposeApp(tester);
+  });
+
+  testWidgets('keeps the reading position when the window is resized', (
+    tester,
+  ) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+    final controller = readerController(tester);
+    expect(controller.position.maxScrollExtent, greaterThan(0));
+
+    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
+    await tester.pump();
+    final before = controller.offset / controller.position.maxScrollExtent;
+    final beforeMax = controller.position.maxScrollExtent;
+
+    addTearDown(tester.view.reset);
+    final view = tester.view;
+    view.physicalSize = Size(
+      view.physicalSize.width,
+      view.physicalSize.height * 1.2,
+    );
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    expect(
+      controller.position.maxScrollExtent,
+      isNot(closeTo(beforeMax, 1)),
+    );
+    final after = controller.offset / controller.position.maxScrollExtent;
+    expect(after, closeTo(before, 0.02));
+    await disposeApp(tester);
+  });
+
   testWidgets('restores the chapter from saved progress', (tester) async {
     await pumpReader(tester, 'b1');
     expect(find.textContaining('第二章的内容'), findsOneWidget);

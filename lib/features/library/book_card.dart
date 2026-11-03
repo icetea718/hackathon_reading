@@ -101,10 +101,10 @@ class BookCard extends ConsumerWidget {
     try {
       final service = await ref.read(bookServiceProvider.future);
       await service.deleteBook(book);
-    } catch (error) {
+    } catch (_) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error.toString())));
+          .showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
     }
   }
 }

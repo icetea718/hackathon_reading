@@ -43,6 +43,44 @@ void main() {
     expect(location.fraction, 0.0);
   });
 
+  test('maps an offset at a chapter end to that chapter', () {
+    final location = locateAnchor(chapters, 6);
+    expect(location.chapterIndex, 0);
+    expect(location.fraction, 1.0);
+  });
+
+  test('uses offsets when chapter content is not loaded', () {
+    final summaries = [
+      for (var i = 0; i < chapters.length; i++)
+        Chapter(
+          id: 's$i',
+          bookId: 'b1',
+          index: i,
+          title: '第${i + 1}章',
+          startOffset: chapters[i].startOffset,
+          endOffset: chapters[i].endOffset,
+          contentText: '',
+        ),
+    ];
+    final location = locateAnchor(summaries, 8);
+    expect(location.chapterIndex, 1);
+    expect(location.fraction, closeTo(0.5, 1e-9));
+  });
+
+  test('anchor offsets stay inside the chapter at both ends', () {
+    final chapter = _chapter(0, 10, '0123456789');
+    expect(anchorOffsetForFraction(chapter, 0.0), chapter.startOffset + 1);
+    expect(anchorOffsetForFraction(chapter, 1.0), chapter.endOffset - 1);
+
+    final top = locateAnchor([chapter], anchorOffsetForFraction(chapter, 0.0));
+    expect(top.chapterIndex, 0);
+    final bottom = locateAnchor(
+      [chapter],
+      anchorOffsetForFraction(chapter, 1.0),
+    );
+    expect(bottom.chapterIndex, 0);
+  });
+
   test('offsetForPosition never exceeds chapter end', () {
     final chapter = _chapter(0, 10, '0123456789');
     expect(offsetForPosition(chapter, 1.0), chapter.startOffset + 10);

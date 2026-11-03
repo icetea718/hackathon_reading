@@ -21,7 +21,17 @@ final readerDataProvider =
     FutureProvider.family<ReaderData, String>((ref, bookId) async {
   final book = await ref.watch(bookRepositoryProvider).getById(bookId);
   final chapters =
-      await ref.watch(chapterRepositoryProvider).getForBook(bookId);
+      await ref.watch(chapterRepositoryProvider).getSummariesForBook(bookId);
   final progress = await ref.watch(progressRepositoryProvider).get(bookId);
   return ReaderData(book: book, chapters: chapters, progress: progress);
+});
+
+typedef ChapterContentKey = ({String bookId, int index});
+
+final chapterContentProvider =
+    FutureProvider.family<String, ChapterContentKey>((ref, key) async {
+  final text = await ref
+      .watch(chapterRepositoryProvider)
+      .getContent(key.bookId, key.index);
+  return text ?? '';
 });

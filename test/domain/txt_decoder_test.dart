@@ -47,6 +47,12 @@ void main() {
     expect(result.encoding, 'gb18030');
   });
 
+  test('degrades instead of throwing when a BOM file has invalid bytes', () {
+    final result = decodeTxtBytes([0xEF, 0xBB, 0xBF, 0xE4, 0xB8, 0xAD, 0xFF]);
+    expect(result.encoding, 'utf-8-lossy');
+    expect(result.text, contains('中'));
+  });
+
   test('never throws on invalid bytes', () {
     final result = decodeTxtBytes([0xFF, 0xFF, 0x00, 0xD8]);
     expect(result.encoding, 'utf-8-lossy');

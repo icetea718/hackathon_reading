@@ -22,7 +22,8 @@ class ReaderPage extends ConsumerStatefulWidget {
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends ConsumerState<ReaderPage> {
+class _ReaderPageState extends ConsumerState<ReaderPage>
+    with WidgetsBindingObserver {
   final ScrollController _scrollController = ScrollController();
   int _chapterIndex = 0;
   double _fontSize = 18;
@@ -30,6 +31,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   ReaderBackground _background = ReaderBackground.light;
   bool _restoreScheduled = false;
   bool _restored = false;
+  bool _restoreInFlight = false;
+  ResumeLocation? _pendingRestore;
   Timer? _saveTimer;
   ReaderData? _cachedData;
   ProgressRepository? _progressRepository;
@@ -37,16 +40,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _persistProgress();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!_restored) return;
+    final anchor = _currentProgress()?.anchor.charOffset;
+    if (anchor != null) _reanchorAfterLayout(anchor);
   }
 
   void _onScroll() {
@@ -80,7 +92,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final fraction = max <= 0
         ? 0.0
         : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
-    final charOffset = offsetForPosition(chapter, fraction);
+    final charOffset = anchorOffsetForFraction(chapter, fraction);
     final total = chapters.last.endOffset;
     final percent =
         total <= 0 ? 0.0 : (charOffset / total).clamp(0.0, 1.0).toDouble();
@@ -102,15 +114,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       if (data.chapters.isNotEmpty) {
         final anchor = data.progress?.anchor.charOffset ?? 0;
         final location = locateAnchor(data.chapters, anchor);
+        _pendingRestore = location;
         setState(() => _chapterIndex = location.chapterIndex);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (_scrollController.hasClients) {
-            final max = _scrollController.position.maxScrollExtent;
-            _scrollController.jumpTo(max * location.fraction);
-          }
-          _restored = true;
-        });
       } else {
         _restored = true;
       }
@@ -132,6 +137,35 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             .upsert(opened)
             .catchError((Object _) {});
       }
+    });
+  }
+
+  void _schedulePendingRestore() {
+    final pending = _pendingRestore;
+    if (pending == null || _restoreInFlight) return;
+    _restoreInFlight = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreInFlight = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      _pendingRestore = null;
+      final max = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(max * pending.fraction);
+      _restored = true;
+    });
+  }
+
+  void _reanchorAfterLayout(int charOffset) {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return;
+    final location = locateAnchor(data.chapters, charOffset);
+    if (location.chapterIndex != _chapterIndex) {
+      setState(() => _chapterIndex = location.chapterIndex);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      _scrollController.jumpTo(max * location.fraction);
+      _restored = true;
     });
   }
 
@@ -176,12 +210,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               lineHeight: _lineHeight,
               background: _background,
               onChanged: (fontSize, lineHeight, background) {
+                final anchor = _currentProgress()?.anchor.charOffset;
                 setState(() {
                   _fontSize = fontSize;
                   _lineHeight = lineHeight;
                   _background = background;
                 });
                 setSheet(() {});
+                if (anchor != null) _reanchorAfterLayout(anchor);
               },
             );
           },
@@ -220,7 +256,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             : (_chapterIndex >= chapters.length
                 ? chapters.length - 1
                 : _chapterIndex);
-        final chapter = chapters[index];
+        final content = ref.watch(
+          chapterContentProvider((bookId: widget.bookId, index: index)),
+        );
 
         return _scaffold(
           title: title,
@@ -229,17 +267,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             currentIndex: index,
             onSelect: (selected) => _goToChapter(selected, chapters),
           ),
-          body: SingleChildScrollView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-            child: Text(
-              chapter.contentText,
-              style: TextStyle(
-                fontSize: _fontSize,
-                height: _lineHeight,
-                color: _colors.$2,
-              ),
-            ),
+          body: content.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => Center(child: Text('章节加载失败：$error')),
+            data: (text) {
+              _schedulePendingRestore();
+              return SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: _fontSize,
+                    height: _lineHeight,
+                    color: _colors.$2,
+                  ),
+                ),
+              );
+            },
           ),
           bottomNavigationBar: _navigationBar(index, chapters),
         );
