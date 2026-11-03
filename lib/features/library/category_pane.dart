@@ -33,6 +33,46 @@ class CategoryPane extends ConsumerWidget {
     );
   }
 
+  Future<void> _addToCategory(
+    BuildContext context,
+    WidgetRef ref,
+    LibraryView view,
+    Category category,
+    String bookId,
+  ) async {
+    final already =
+        view.categoryIdsByBook[bookId]?.contains(category.id) ?? false;
+    if (already) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('已经在「${category.name}」中')));
+      return;
+    }
+    try {
+      await ref.read(categoryRepositoryProvider).addBook(bookId, category.id);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('分类更新失败，请重试')));
+    }
+  }
+
+  Future<void> _createWithBook(
+    BuildContext context,
+    WidgetRef ref,
+    String bookId,
+  ) {
+    return showCategoryNameDialog(
+      context,
+      title: '新建分类',
+      confirmLabel: '创建',
+      onSubmit: (name) async {
+        final repository = ref.read(categoryRepositoryProvider);
+        final category = await repository.create(name);
+        await repository.addBook(bookId, category.id);
+      },
+    );
+  }
+
   Future<void> _delete(
     BuildContext context,
     WidgetRef ref,
@@ -127,17 +167,29 @@ class CategoryPane extends ConsumerWidget {
                         onTap: () => select(null),
                       ),
                       for (final summary in data.categories)
-                        _CategoryRow(
-                          key: Key('category-row-${summary.category.id}'),
-                          label: summary.category.name,
-                          count: summary.bookCount,
-                          selected:
-                              data.effectiveCategoryId == summary.category.id,
-                          onTap: () => select(summary.category.id),
-                          onRename: () =>
-                              _rename(context, ref, summary.category),
-                          onDelete: () =>
-                              _delete(context, ref, summary.category),
+                        DragTarget<String>(
+                          key: Key('category-drop-${summary.category.id}'),
+                          onAcceptWithDetails: (details) => _addToCategory(
+                            context,
+                            ref,
+                            data,
+                            summary.category,
+                            details.data,
+                          ),
+                          builder: (context, candidate, rejected) =>
+                              _CategoryRow(
+                                key: Key('category-row-${summary.category.id}'),
+                                label: summary.category.name,
+                                count: summary.bookCount,
+                                selected:
+                                    data.effectiveCategoryId ==
+                                    summary.category.id,
+                                onTap: () => select(summary.category.id),
+                                onRename: () =>
+                                    _rename(context, ref, summary.category),
+                                onDelete: () =>
+                                    _delete(context, ref, summary.category),
+                              ),
                         ),
                       _CategoryRow(
                         key: const Key('category-row-uncategorized'),
@@ -147,11 +199,16 @@ class CategoryPane extends ConsumerWidget {
                             data.effectiveCategoryId == uncategorizedCategoryId,
                         onTap: () => select(uncategorizedCategoryId),
                       ),
-                      _CategoryRow(
-                        key: const Key('category-row-new'),
-                        label: '＋ 新建分类',
-                        accent: true,
-                        onTap: () => _create(context, ref),
+                      DragTarget<String>(
+                        key: const Key('category-drop-new'),
+                        onAcceptWithDetails: (details) =>
+                            _createWithBook(context, ref, details.data),
+                        builder: (context, candidate, rejected) => _CategoryRow(
+                          key: const Key('category-row-new'),
+                          label: '＋ 新建分类',
+                          accent: true,
+                          onTap: () => _create(context, ref),
+                        ),
                       ),
                     ],
                   ),

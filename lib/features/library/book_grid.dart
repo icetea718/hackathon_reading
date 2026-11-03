@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/book.dart';
 import 'book_card.dart';
+import 'book_cover.dart';
 
 class BookGrid extends StatelessWidget {
   const BookGrid({
@@ -40,7 +41,7 @@ class BookGrid extends StatelessWidget {
       itemCount: books.length,
       itemBuilder: (context, index) {
         final book = books[index];
-        return BookCard(
+        final card = BookCard(
           key: Key('book-card-${book.id}'),
           book: book,
           percent: progressByBook[book.id],
@@ -51,6 +52,23 @@ class BookGrid extends StatelessWidget {
           onAddToCategory: () => onAddToCategory(book),
           onDelete: () => onDelete(book),
           onDistill: () => onDistill(book),
+        );
+        if (manageMode) return card;
+        return Draggable<String>(
+          data: book.id,
+          feedback: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: 120,
+              height: 160,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: BookCover(book: book),
+              ),
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.35, child: card),
+          child: card,
         );
       },
     );

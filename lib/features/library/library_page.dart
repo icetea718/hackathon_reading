@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -11,6 +12,8 @@ import '../reader/reader_page.dart';
 import 'book_grid.dart';
 import 'category_dialogs.dart';
 import 'library_providers.dart';
+import 'library_view.dart';
+import 'manage_bar.dart';
 
 String importErrorMessage(Object error) {
   if (error is UnsupportedBookFormatException) {
@@ -93,6 +96,75 @@ class _BookshelfViewState extends ConsumerState<BookshelfView> {
     ref.read(searchQueryProvider.notifier).setQuery('');
   }
 
+  void _exitManage() {
+    ref.read(manageModeProvider.notifier).setEnabled(false);
+    ref.read(selectedBookIdsProvider.notifier).clear();
+  }
+
+  void _toggleManage(bool current) {
+    ref.read(manageModeProvider.notifier).setEnabled(!current);
+    ref.read(selectedBookIdsProvider.notifier).clear();
+  }
+
+  Future<void> _removeFromCurrentCategory() async {
+    final categoryId = ref.read(selectedCategoryProvider);
+    final ids = ref.read(selectedBookIdsProvider);
+    if (categoryId == null ||
+        categoryId == uncategorizedCategoryId ||
+        ids.isEmpty) {
+      return;
+    }
+    try {
+      await ref
+          .read(categoryRepositoryProvider)
+          .removeCategoryFromBooks(categoryId, ids);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('分类更新失败，请重试')));
+    }
+  }
+
+  Future<void> _deleteSelected() async {
+    final ids = ref.read(selectedBookIdsProvider);
+    final books = (ref.read(libraryViewProvider).value?.allBooks ?? const [])
+        .where((book) => ids.contains(book.id))
+        .toList();
+    if (books.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('删除选中的 ${books.length} 本书？'),
+        content: const Text('书籍将从书架中移除，本地副本也会删除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final service = await ref.read(bookServiceProvider.future);
+      for (final book in books) {
+        await service.deleteBook(book);
+      }
+      if (!mounted) return;
+      _exitManage();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final view = ref.watch(libraryViewProvider);
@@ -100,84 +172,105 @@ class _BookshelfViewState extends ConsumerState<BookshelfView> {
     final selectedIds = ref.watch(selectedBookIdsProvider);
     final query = ref.watch(searchQueryProvider);
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('search-field'),
-                  controller: _search,
-                  onChanged: (value) =>
-                      ref.read(searchQueryProvider.notifier).setQuery(value),
-                  decoration: const InputDecoration(
-                    hintText: '搜索书名、作者…',
-                    prefixIcon: Icon(Icons.search, size: 18),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (ref.read(manageModeProvider)) _exitManage();
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('search-field'),
+                      controller: _search,
+                      onChanged: (value) => ref
+                          .read(searchQueryProvider.notifier)
+                          .setQuery(value),
+                      decoration: const InputDecoration(
+                        hintText: '搜索书名、作者…',
+                        prefixIcon: Icon(Icons.search, size: 18),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: () => ref
-                    .read(manageModeProvider.notifier)
-                    .setEnabled(!manageMode),
-                child: const Text('管理'),
-              ),
-              const SizedBox(width: 8),
-              Tooltip(
-                message: '导入',
-                child: FilledButton.icon(
-                  onPressed: _import,
-                  icon: const Icon(Icons.add),
-                  label: const Text('导入'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: view.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('加载失败：$error')),
-            data: (data) {
-              if (data.allBooks.isEmpty) {
-                return _EmptyShelf(onImport: _import);
-              }
-              if (data.visibleBooks.isEmpty) {
-                if (query.trim().isNotEmpty) {
-                  return _Message(
-                    message: '没有找到匹配的书',
-                    action: TextButton(
-                      onPressed: _clearSearch,
-                      child: const Text('清空搜索'),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: () => _toggleManage(manageMode),
+                    child: const Text('管理'),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: '导入',
+                    child: FilledButton.icon(
+                      onPressed: _import,
+                      icon: const Icon(Icons.add),
+                      label: const Text('导入'),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: view.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(child: Text('加载失败：$error')),
+                data: (data) {
+                  if (data.allBooks.isEmpty) {
+                    return _EmptyShelf(onImport: _import);
+                  }
+                  if (data.visibleBooks.isEmpty) {
+                    if (query.trim().isNotEmpty) {
+                      return _Message(
+                        message: '没有找到匹配的书',
+                        action: TextButton(
+                          onPressed: _clearSearch,
+                          child: const Text('清空搜索'),
+                        ),
+                      );
+                    }
+                    return const _Message(message: '这个分类还没有书');
+                  }
+                  return BookGrid(
+                    books: data.visibleBooks,
+                    progressByBook: data.progressByBook,
+                    manageMode: manageMode,
+                    selectedBookIds: selectedIds,
+                    onOpen: _openBook,
+                    onToggleSelected: _toggleBook,
+                    onAddToCategory: (book) => showCategoryPickerDialog(
+                      context,
+                      ref,
+                      bookIds: {book.id},
+                    ),
+                    onDelete: _deleteBook,
+                    onDistill: (book) => openDistillPage(context, book.id),
                   );
-                }
-                return const _Message(message: '这个分类还没有书');
-              }
-              return BookGrid(
-                books: data.visibleBooks,
-                progressByBook: data.progressByBook,
-                manageMode: manageMode,
-                selectedBookIds: selectedIds,
-                onOpen: _openBook,
-                onToggleSelected: _toggleBook,
-                onAddToCategory: (book) =>
-                    showCategoryPickerDialog(context, ref, bookIds: {book.id}),
-                onDelete: _deleteBook,
-                onDistill: (book) => openDistillPage(context, book.id),
-              );
-            },
-          ),
+                },
+              ),
+            ),
+            ManageBar(
+              onAddToCategory: () => showCategoryPickerDialog(
+                context,
+                ref,
+                bookIds: ref.read(selectedBookIdsProvider),
+              ),
+              onRemoveFromCategory: _removeFromCurrentCategory,
+              onDelete: _deleteSelected,
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
