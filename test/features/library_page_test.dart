@@ -203,7 +203,7 @@ void main() {
 
     await flushIo(tester, () => tester.tap(find.byType(BackButton)));
     expect(find.byType(ReaderPage), findsNothing);
-    expect(find.text('书架'), findsOneWidget);
+    expect(find.byTooltip('书架'), findsOneWidget);
     await disposeApp(tester);
   });
 

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../domain/services/book_service.dart';
 import '../../domain/services/epub_book_parser.dart';
-import '../settings/settings_page.dart';
 import 'book_card.dart';
 
 String importErrorMessage(Object error) {
@@ -23,8 +22,8 @@ String importErrorMessage(Object error) {
   return '导入失败，请稍后重试';
 }
 
-class LibraryPage extends ConsumerWidget {
-  const LibraryPage({super.key});
+class BookshelfView extends ConsumerWidget {
+  const BookshelfView({super.key});
 
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     try {
@@ -42,48 +41,45 @@ class LibraryPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final books = ref.watch(bookListProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('书架'),
-        actions: [
-          IconButton(
-            onPressed: () => _import(context, ref),
-            icon: const Icon(Icons.add),
-            tooltip: '导入',
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                onPressed: () => _import(context, ref),
+                icon: const Icon(Icons.add),
+                tooltip: '导入',
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const SettingsPage(),
+        ),
+        Expanded(
+          child: books.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) => Center(child: Text('加载失败：$error')),
+            data: (list) {
+              if (list.isEmpty) {
+                return const Center(child: Text('还没有书，点右上角导入'));
+              }
+              return GridView.builder(
+                padding: const EdgeInsets.all(12),
+                gridDelegate:
+                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.7,
                 ),
+                itemCount: list.length,
+                itemBuilder: (context, index) => BookCard(book: list[index]),
               );
             },
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: '设置',
           ),
-        ],
-      ),
-      body: books.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('加载失败：$error')),
-        data: (list) {
-          if (list.isEmpty) {
-            return const Center(child: Text('还没有书，点右上角导入'));
-          }
-          return GridView.builder(
-            padding: const EdgeInsets.all(12),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 200,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.7,
-            ),
-            itemCount: list.length,
-            itemBuilder: (context, index) => BookCard(book: list[index]),
-          );
-        },
-      ),
+        ),
+      ],
     );
   }
 }

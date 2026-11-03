@@ -36,7 +36,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('书架'), findsOneWidget);
+    expect(find.byTooltip('书架'), findsOneWidget);
     expect(find.text('还没有书，点右上角导入'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
