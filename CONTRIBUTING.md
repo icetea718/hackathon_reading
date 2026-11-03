@@ -1,6 +1,6 @@
 # 参与贡献
 
-这是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT / EPUB 阅读与书签**。
+这是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT / EPUB / PDF 阅读与书签**。
 
 - 仓库：<https://github.com/icetea718/hackathon_reading>
 - 设计文档：[docs/superpowers/specs/2026-11-03-reader-app-design.md](docs/superpowers/specs/2026-11-03-reader-app-design.md)
@@ -18,10 +18,11 @@
 - 书签：当前章节添加/取消，抽屉“书签”栏跳转和删除。
 - 阅读进度：以全书字符偏移为锚点，滚动防抖保存，重新打开回到原位置；调整字号或窗口大小不丢位置。
 - 正文按章节懒加载。
+- PDF 阅读：pdfrx 渲染、缩放、翻页/页码跳转、内嵌目录（无目录时按页跳转）、按页码续读；PDF 不写入章节表。
 - 重复导入保护：按文件内容 SHA-256 去重，旧书在首次导入时自动补算哈希。
-- 80 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
+- 94 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
 
-尚未实现：PDF 阅读、EPUB 排版还原（CSS/图片/封面）、高亮/笔记、阅读设置持久化、任何 AI 调用。扫描版 PDF 不做 OCR。
+尚未实现：PDF 标注/高亮、EPUB 排版还原（CSS/图片/封面）、TXT/EPUB 之外的高亮/笔记、阅读设置持久化、任何 AI 调用。扫描版 PDF 不做 OCR。
 
 ## 产品方向
 
@@ -41,6 +42,7 @@ MVP 的非目标：账号体系、云同步、书架社区、复杂排版引擎�
 | 文件选择 | file_picker |
 | 中文编码 | chinese_codec（GB18030/GBK/GB2312） |
 | EPUB 解析 | archive + xml（纯 Dart，自行解析 OPF/nav/NCX） |
+| PDF 渲染 | pdfrx（PDFium 原生库由构建钩子下载） |
 | 平台 | Windows、Android |
 
 ## 目录结构
@@ -97,7 +99,9 @@ flutter test
 flutter build apk --debug
 ```
 
-提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 80 个测试全部通过；新增功能后数量会增长，以全绿为准。
+提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 94 个测试全部通过；新增功能后数量会增长，以全绿为准。
+
+PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。GitHub 不可达时构建钩子会失败；先按 README 的说明用镜像预置 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/` 下的原生库再构建。
 
 ## 开发流程
 
@@ -118,20 +122,20 @@ flutter build apk --debug
 - **分层**：`features`（UI）依赖 `domain` 的模型/服务；`data` 实现存储；UI 不直接写 Drift 查询，也不直接调用模型厂商。
 - **Riverpod 3.x**：`AsyncValue.value` 可能为 `null`，不要用 `valueOrNull`；不能在 `dispose` 阶段 `ref.read`，需要在 build 时把依赖缓存到 State 字段。
 - **Drift**：所有读写走 repository；改表结构时同步提高 `schemaVersion` 并写 `onUpgrade`；`app_database.g.dart` 随代码提交。
-- **阅读位置**：锚点是**全书字符偏移**，不是滚动像素。章节内换算用 `lib/features/reader/reader_position.dart` 的 `locateAnchor` / `anchorOffsetForFraction`，注意章节首尾边界。
+- **阅读位置**：TXT/EPUB 的锚点是**全书字符偏移**，不是滚动像素；章节内换算用 `lib/features/reader/reader_position.dart` 的 `locateAnchor` / `anchorOffsetForFraction`，注意章节首尾边界。PDF 的锚点是 1-based 页码（`ReadingAnchor.page`），不要用字符偏移。
 - **懒加载**：目录只取章节元数据（`getSummariesForBook`），正文按章取（`getContent`）。不要退回到一次性加载整本书正文。
 - **文案**：界面文案用中文；错误提示要可读，不要把 `error.toString()` 直接展示给用户。
 - **测试**：仓储测试用内存 Drift；widget 测试里的真实文件/数据库 I/O 要放进 `tester.runAsync`；临时目录在 `setUp` 创建、`tearDown` 清理。
 
 ## 如何扩展
 
-### 新增输入格式（例如 PDF）
+### 新增输入格式（例如 MOBI）
 
-1. 在 `domain/models/book.dart` 的 `BookFormat` 中确认格式枚举。
-2. 在 `domain/services/` 增加解析器，输出统一的 `List<Chapter>`（标题 + 偏移 + 正文）。
+1. 在 `domain/models/book.dart` 的 `BookFormat` 中新增格式枚举和扩展名映射。
+2. 在 `domain/services/` 增加解析器，输出统一的 `List<Chapter>`（标题 + 偏移 + 正文）；无法转成字符流的版式（如 PDF）则单独写阅读器，不进章节表。
 3. 在 `domain/services/book_service.dart` 的导入流程中调用解析器并写入章节。
-4. 更新 `features/library/book_card.dart` 的打开逻辑与 `features/reader` 的渲染方式。
-5. 为解析器写单元测试，覆盖目录缺失、编码/结构异常、大文件。
+4. 更新 `features/library/book_card.dart` 的打开逻辑与 `features/reader` 的渲染方式；PDF 的现有实现可参考 `pdf_reader_page.dart` / `pdf_reader_providers.dart`。
+5. 为解析器写单元测试，覆盖目录缺失、编码/结构异常、大文件；渲染层用可注入的 builder 隔离原生依赖，见 `pdfViewerBuilderProvider`。
 
 ### 新增标注 / 书签 / 高亮
 
@@ -159,9 +163,10 @@ flutter build apk --debug
 4. 添加/取消书签，在抽屉“书签”栏跳转和删除。
 5. 滚到章节中部，关闭应用重开同一本书，回到原段落。
 6. 调整字号/行距、改变窗口大小，当前位置不丢。
-7. 重复导入同一本书，出现「这本书已经在书架中」提示，书架不会多出一条。
-8. 删除书籍后，书架条目和本地副本都消失。
-9. 导入不支持格式或空文件，出现中文错误提示且书架不残留脏数据。
+7. 导入带内嵌目录的 PDF，目录正确、点击跳页；翻到中间页退出重开回到原页；缩放、输入页码跳转可用。
+8. 重复导入同一本书，出现「这本书已经在书架中」提示，书架不会多出一条。
+9. 删除书籍后，书架条目和本地副本都消失。
+10. 导入不支持格式或空文件，出现中文错误提示且书架不残留脏数据。
 
 ## 沟通
 

@@ -7,9 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/app.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/book_repository.dart';
+import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
+import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/services/file_picker_service.dart';
+import 'package:hackathon_reading/features/reader/pdf_reader_page.dart';
+import 'package:hackathon_reading/features/reader/pdf_reader_providers.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../support/epub_fixture.dart';
 
@@ -20,6 +26,18 @@ class FakeFilePicker implements FilePickerService {
 
   @override
   Future<String?> pickBookFile() async => path;
+}
+
+Widget _fakePdfViewer(
+  BuildContext context, {
+  required String path,
+  required PdfViewerController controller,
+  required int initialPageNumber,
+  required ValueChanged<int?> onPageChanged,
+  required void Function(PdfDocument document, PdfViewerController controller)
+      onViewerReady,
+}) {
+  return const SizedBox.expand(key: Key('pdf-viewer'));
 }
 
 void main() {
@@ -58,6 +76,26 @@ void main() {
             (ref) async => BookStorage(Directory('${temp.path}/books')),
           ),
           filePickerProvider.overrideWithValue(FakeFilePicker(pickedPath)),
+        ],
+        child: const BookApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> pumpPdfApp(WidgetTester tester, String? pickedPath) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          bookStorageProvider.overrideWith(
+            (ref) async => BookStorage(Directory('${temp.path}/books')),
+          ),
+          filePickerProvider.overrideWithValue(FakeFilePicker(pickedPath)),
+          pdfBookInfoProvider.overrideWith(
+            (ref, bookId) async => const PdfBookInfo(pageCount: 3, outline: []),
+          ),
+          pdfViewerBuilderProvider.overrideWithValue(_fakePdfViewer),
         ],
         child: const BookApp(),
       ),
@@ -112,6 +150,43 @@ void main() {
 
     await flushIo(tester, () => tester.tap(find.text('novel')));
     expect(find.byType(ReaderPage), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('importing a PDF adds a card without chapters', (tester) async {
+    final source = File('${temp.path}/paper.pdf')
+      ..writeAsStringSync('%PDF-1.4 fake');
+
+    await pumpApp(tester, source.path);
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+
+    expect(find.text('paper'), findsOneWidget);
+    expect(find.text('PDF'), findsOneWidget);
+
+    final stored = await tester.runAsync(
+      () => BookRepository(db).getAll(),
+    );
+    expect(stored, hasLength(1));
+    expect(stored!.single.format, BookFormat.pdf);
+    final chapters = await tester.runAsync(
+      () => ChapterRepository(db).getForBook(stored.single.id),
+    );
+    expect(chapters, isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('tapping a PDF book opens the PDF reader', (tester) async {
+    final source = File('${temp.path}/paper.pdf')
+      ..writeAsStringSync('%PDF-1.4 fake');
+
+    await pumpPdfApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    expect(find.text('paper'), findsOneWidget);
+
+    await flushIo(tester, () => tester.tap(find.text('paper')));
+    expect(find.byType(PdfReaderPage), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
     await disposeApp(tester);
   });
 

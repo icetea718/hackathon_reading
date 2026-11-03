@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../domain/models/book.dart';
+import '../reader/pdf_reader_page.dart';
 import '../reader/reader_page.dart';
 
 class BookCard extends ConsumerWidget {
@@ -16,15 +17,11 @@ class BookCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          if (book.format == BookFormat.pdf) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('该格式将在后续里程碑支持')),
-            );
-            return;
-          }
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) => ReaderPage(bookId: book.id),
+              builder: (_) => book.format == BookFormat.pdf
+                  ? PdfReaderPage(bookId: book.id)
+                  : ReaderPage(bookId: book.id),
             ),
           );
         },
