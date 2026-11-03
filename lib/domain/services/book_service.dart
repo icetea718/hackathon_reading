@@ -10,6 +10,7 @@ import '../../data/repositories/progress_repository.dart';
 import '../../data/storage/book_storage.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
+import 'epub_book_parser.dart';
 import 'txt_book_parser.dart';
 
 class UnsupportedBookFormatException implements Exception {
@@ -74,6 +75,10 @@ class BookService {
         final bytes = await File(copiedPath).readAsBytes();
         final document = parseTxtDocument(bytes, fallbackTitle: book.title);
         await chapters.replaceForBook(id, _toChapters(book, document));
+      } else if (format == BookFormat.epub) {
+        final bytes = await File(copiedPath).readAsBytes();
+        final document = parseEpubDocument(bytes);
+        await chapters.replaceForBook(id, _toEpubChapters(book, document));
       }
     } catch (_) {
       await chapters.replaceForBook(id, const []);
@@ -90,6 +95,21 @@ class BookService {
     await annotations.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteFile(book.sourcePath);
+  }
+
+  List<Chapter> _toEpubChapters(Book book, EpubDocument document) {
+    return [
+      for (var i = 0; i < document.chapters.length; i++)
+        Chapter(
+          id: '${book.id}-c$i',
+          bookId: book.id,
+          index: i,
+          title: document.chapters[i].title,
+          startOffset: document.chapters[i].startOffset,
+          endOffset: document.chapters[i].endOffset,
+          contentText: document.chapters[i].contentText,
+        ),
+    ];
   }
 
   List<Chapter> _toChapters(Book book, TxtDocument document) {

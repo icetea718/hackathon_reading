@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../domain/services/book_service.dart';
+import '../../domain/services/epub_book_parser.dart';
 import 'book_card.dart';
 
 String importErrorMessage(Object error) {
@@ -11,6 +12,9 @@ String importErrorMessage(Object error) {
   }
   if (error is EmptyBookException) {
     return '文件内容为空，无法导入';
+  }
+  if (error is EpubParseException) {
+    return '文件无法解析，可能已损坏';
   }
   return '导入失败，请稍后重试';
 }

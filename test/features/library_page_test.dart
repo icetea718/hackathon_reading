@@ -11,6 +11,8 @@ import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/services/file_picker_service.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 
+import '../support/epub_fixture.dart';
+
 class FakeFilePicker implements FilePickerService {
   FakeFilePicker(this.path);
 
@@ -84,6 +86,25 @@ void main() {
   testWidgets('tapping a TXT book opens the reader', (tester) async {
     final source = File('${temp.path}/novel.txt')
       ..writeAsStringSync('第一章 开始\n内容');
+    await pumpApp(tester, source.path);
+
+    await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
+    expect(find.text('novel'), findsOneWidget);
+
+    await flushIo(tester, () => tester.tap(find.text('novel')));
+    expect(find.byType(ReaderPage), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('tapping an EPUB book opens the reader', (tester) async {
+    final bytes = buildEpubBytes(
+      docs: const [
+        EpubFixtureDoc(href: 'text/chapter1.xhtml', body: '<p>正文</p>'),
+      ],
+      toc: const {'text/chapter1.xhtml': '第一章'},
+    );
+    final source = File('${temp.path}/novel.epub')
+      ..writeAsBytesSync(bytes);
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
