@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/progress_repository.dart';
+import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
@@ -199,6 +201,66 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     };
   }
 
+  Future<void> _toggleBookmark(Chapter chapter) async {
+    final repository = ref.read(annotationRepositoryProvider);
+    try {
+      final existing = (await repository.getForBook(
+        widget.bookId,
+        type: AnnotationType.bookmark,
+      ))
+          .where((bookmark) => bookmark.chapterId == chapter.id)
+          .toList();
+
+      if (existing.isNotEmpty) {
+        for (final bookmark in existing) {
+          await repository.delete(bookmark.id);
+        }
+        _refreshBookmarks();
+        _showSnackBar('已取消书签');
+        return;
+      }
+
+      final now = DateTime.now();
+      final anchorStart =
+          _currentProgress()?.anchor.charOffset ?? chapter.startOffset;
+      await repository.upsert(Annotation(
+        id: const Uuid().v4(),
+        bookId: widget.bookId,
+        chapterId: chapter.id,
+        type: AnnotationType.bookmark,
+        anchorStart: anchorStart,
+        createdAt: now,
+        updatedAt: now,
+      ));
+      _refreshBookmarks();
+      _showSnackBar('已添加书签');
+    } catch (_) {
+      _showSnackBar('书签操作失败，请重试');
+    }
+  }
+
+  Future<void> _deleteBookmark(Annotation bookmark) async {
+    try {
+      await ref.read(annotationRepositoryProvider).delete(bookmark.id);
+      _refreshBookmarks();
+      _showSnackBar('已取消书签');
+    } catch (_) {
+      _showSnackBar('删除书签失败，请重试');
+    }
+  }
+
+  void _refreshBookmarks() {
+    if (!mounted) return;
+    ref.invalidate(bookmarkListProvider(widget.bookId));
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _openSettings() {
     showModalBottomSheet<void>(
       context: context,
@@ -259,13 +321,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final content = ref.watch(
           chapterContentProvider((bookId: widget.bookId, index: index)),
         );
+        final bookmarks =
+            ref.watch(bookmarkListProvider(widget.bookId)).value ??
+                const <Annotation>[];
+        final currentChapter = chapters[index];
+        final chapterBookmarked =
+            bookmarks.any((bookmark) => bookmark.chapterId == currentChapter.id);
 
         return _scaffold(
           title: title,
+          bookmarked: chapterBookmarked,
+          onToggleBookmark: () => _toggleBookmark(currentChapter),
           drawer: TocDrawer(
             chapters: chapters,
             currentIndex: index,
+            currentChapterId: currentChapter.id,
+            bookmarks: bookmarks,
             onSelect: (selected) => _goToChapter(selected, chapters),
+            onSelectBookmark: _reanchorAfterLayout,
+            onDeleteBookmark: _deleteBookmark,
           ),
           body: content.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -297,6 +371,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     Widget? body,
     Widget? drawer,
     Widget? bottomNavigationBar,
+    bool? bookmarked,
+    VoidCallback? onToggleBookmark,
   }) {
     final (background, foreground) = _colors;
     return Scaffold(
@@ -308,6 +384,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         leading: Navigator.of(context).canPop() ? const BackButton() : null,
         title: Text(title),
         actions: [
+          if (bookmarked != null && onToggleBookmark != null)
+            IconButton(
+              tooltip: '书签',
+              icon: Icon(
+                bookmarked ? Icons.bookmark : Icons.bookmark_border,
+              ),
+              onPressed: onToggleBookmark,
+            ),
           if (drawer != null)
             Builder(
               builder: (context) => IconButton(

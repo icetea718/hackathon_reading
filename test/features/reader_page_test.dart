@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
+import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
@@ -109,6 +111,38 @@ void main() {
     ]);
   }
 
+  Future<void> seedBookmark({
+    String id = 'bm1',
+    String bookId = 'b1',
+    required String chapterId,
+    required int anchorStart,
+    AnnotationType type = AnnotationType.bookmark,
+  }) async {
+    await AnnotationRepository(db).upsert(Annotation(
+      id: id,
+      bookId: bookId,
+      chapterId: chapterId,
+      type: type,
+      anchorStart: anchorStart,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    ));
+  }
+
+  Future<void> settleAfterIo(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<List<Annotation>?> storedBookmarks(WidgetTester tester) {
+    return tester.runAsync(
+      () => AnnotationRepository(db)
+          .getForBook('b1', type: AnnotationType.bookmark),
+    );
+  }
+
   ScrollController readerController(WidgetTester tester) {
     return tester
         .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
@@ -196,6 +230,105 @@ void main() {
   testWidgets('shows a message when the book has no chapters', (tester) async {
     await pumpReader(tester, 'b2');
     expect(find.text('这本书暂时没有可显示的章节'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('bookmark icon adds a bookmark for the current chapter', (
+    tester,
+  ) async {
+    await pumpReader(tester, 'b1');
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    expect(find.text('已添加书签'), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    final stored = await storedBookmarks(tester);
+    expect(stored, hasLength(1));
+    expect(stored!.single.chapterId, 'c1');
+    expect(stored.single.type, AnnotationType.bookmark);
+    expect(stored.single.anchorStart, inInclusiveRange(6, 12));
+    await disposeApp(tester);
+  });
+
+  testWidgets('bookmark icon toggles off an existing bookmark', (tester) async {
+    await seedBookmark(chapterId: 'c1', anchorStart: 8);
+    await pumpReader(tester, 'b1');
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    expect(find.text('已取消书签'), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    expect(await storedBookmarks(tester), isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('drawer lists bookmarks and jumps to the chapter', (
+    tester,
+  ) async {
+    await seedBookmark(id: 'bm3', chapterId: 'c2', anchorStart: 13);
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+
+    final bookmarkTile = find.ancestor(
+      of: find.text('72%'),
+      matching: find.byType(ListTile),
+    );
+    expect(bookmarkTile, findsOneWidget);
+    expect(
+      find.descendant(of: bookmarkTile, matching: find.text('第3章')),
+      findsOneWidget,
+    );
+
+    await tester.tap(bookmarkTile);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('第三章的内容'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('drawer shows an empty state without bookmarks', (tester) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有书签'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('deleting a bookmark from the drawer removes it', (tester) async {
+    await seedBookmark(chapterId: 'c1', anchorStart: 8);
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('删除书签'));
+    await settleAfterIo(tester);
+
+    expect(await storedBookmarks(tester), isEmpty);
+    expect(find.text('还没有书签'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('a newly pumped reader shows a bookmark seeded in the DB', (
+    tester,
+  ) async {
+    await seedBookmark(chapterId: 'c1', anchorStart: 8);
+    await pumpReader(tester, 'b1');
+
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
     await disposeApp(tester);
   });
 }
