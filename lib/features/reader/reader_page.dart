@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,10 +14,13 @@ import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_panel.dart';
+import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
+import 'reader_rail.dart';
 import 'reader_settings_sheet.dart';
+import 'reader_top_bar.dart';
 import 'toc_drawer.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -96,13 +100,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   static const _fontSizeKey = 'reader.fontSize';
   static const _lineHeightKey = 'reader.lineHeight';
   static const _backgroundKey = 'reader.background';
+  static const _railPinnedKey = 'reader.railPinned';
 
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
   double _fontSize = 18;
   double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
   double _percent = 0;
+  bool _railPinned = false;
+  bool _railVisible = false;
   bool _restoreScheduled = false;
   bool _restored = false;
   bool _restoreInFlight = false;
@@ -111,6 +119,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Timer? _saveTimer;
   Timer? _settingsSaveTimer;
   Timer? _percentTimer;
+  Timer? _hideTimer;
   ReaderData? _cachedData;
   ProgressRepository? _progressRepository;
   SettingsRepository? _settingsRepository;
@@ -130,6 +139,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _saveTimer?.cancel();
     _settingsSaveTimer?.cancel();
     _percentTimer?.cancel();
+    _hideTimer?.cancel();
     _persistProgress();
     _persistReadingSettings();
     _scrollController.removeListener(_onScroll);
@@ -145,18 +155,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         repository.get(_fontSizeKey),
         repository.get(_lineHeightKey),
         repository.get(_backgroundKey),
+        repository.get(_railPinnedKey),
       ]);
       if (!mounted) return;
       final fontSize = double.tryParse(values[0] ?? '');
       final lineHeight = double.tryParse(values[1] ?? '');
       final background = _backgroundFromName(values[2]);
-      if (fontSize == null && lineHeight == null && background == null) return;
+      final railPinned = values[3];
+      if (fontSize == null &&
+          lineHeight == null &&
+          background == null &&
+          railPinned == null) {
+        return;
+      }
       setState(() {
         if (fontSize != null) _fontSize = fontSize.clamp(14.0, 28.0).toDouble();
         if (lineHeight != null) {
           _lineHeight = lineHeight.clamp(1.2, 2.0).toDouble();
         }
         if (background != null) _background = background;
+        if (railPinned != null) _railPinned = railPinned == 'true';
       });
       final anchor = _currentProgress()?.anchor.charOffset;
       if (_restored && anchor != null) _reanchorAfterLayout(anchor);
@@ -348,6 +366,58 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         const Color(0xFFC6CAD1),
       ),
     };
+  }
+
+  Color get _accent => _background == ReaderBackground.dark
+      ? const Color(0xFF7FA3FF)
+      : const Color(0xFF3D6AE0);
+
+  void _toggleRailPinned() {
+    final anchor = _currentProgress()?.anchor.charOffset;
+    _hideTimer?.cancel();
+    setState(() {
+      _railPinned = !_railPinned;
+      _railVisible = !_railPinned;
+    });
+    _settingsRepository
+        ?.set(_railPinnedKey, _railPinned.toString())
+        .catchError((Object _) {});
+    if (_railPinned) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || anchor == null) return;
+        _reanchorAfterLayout(anchor);
+      });
+    } else {
+      _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
+    }
+  }
+
+  void _showRail() {
+    _hideTimer?.cancel();
+    if (_railPinned || _railVisible) return;
+    setState(() => _railVisible = true);
+  }
+
+  void _scheduleHideRail() {
+    if (_railPinned) return;
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
+  }
+
+  void _hideRailNow() {
+    _hideTimer?.cancel();
+    if (!mounted || !_railVisible || _railPinned) return;
+    setState(() => _railVisible = false);
+  }
+
+  void _backToLibrary() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
+  }
+
+  void _openAppSettings() {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
   Future<void> _toggleBookmark(Chapter chapter) async {
@@ -666,11 +736,143 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             .where((annotation) => annotation.chapterId == currentChapter.id)
             .toList();
 
-        return _scaffold(
-          title: '$title · ${currentChapter.title}',
-          bookmarked: chapterBookmarked,
-          onToggleBookmark: () => _toggleBookmark(currentChapter),
-          onOpenAnnotations: () => _openAnnotations(chapters),
+        final contentBody = content.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Center(child: Text('章节加载失败：$error')),
+          data: (text) {
+            _schedulePendingRestore();
+            final baseStyle = TextStyle(
+              fontSize: _fontSize,
+              height: _lineHeight,
+              color: _colors.$2,
+              fontFamily: 'Source Han Serif SC',
+              fontFamilyFallback: const [
+                'Noto Serif CJK SC',
+                'SimSun',
+                'Georgia',
+              ],
+            );
+            final spans = buildAnnotationSpans(
+              text: text,
+              chapterStart: currentChapter.startOffset,
+              annotations: chapterAnnotations,
+              baseStyle: baseStyle,
+            );
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: SelectableText.rich(
+                    TextSpan(children: spans),
+                    contextMenuBuilder: (context, editableTextState) =>
+                        _selectionToolbar(
+                          editableTextState,
+                          text,
+                          currentChapter,
+                        ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+
+        Widget body;
+        if (_railPinned) {
+          body = AnimatedSize(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                ReaderRail(
+                  key: const Key('reader-rail-pinned'),
+                  pinned: true,
+                  onTogglePinned: _toggleRailPinned,
+                  onBackToLibrary: _backToLibrary,
+                  onOpenCompanion: _openCompanion,
+                  onOpenSettings: _openAppSettings,
+                  background: _colors.$1,
+                  foreground: _colors.$2,
+                  accent: _accent,
+                ),
+                Expanded(child: contentBody),
+              ],
+            ),
+          );
+        } else {
+          body = Stack(
+            fit: StackFit.expand,
+            children: [
+              contentBody,
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: MouseRegion(
+                  key: const Key('reader-rail-hotzone'),
+                  onEnter: (_) => _showRail(),
+                  child: const SizedBox(width: 12),
+                ),
+              ),
+              if (_railVisible)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _hideRailNow,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              if (_railVisible)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: MouseRegion(
+                    key: const Key('reader-rail-overlay'),
+                    onEnter: (_) => _showRail(),
+                    onExit: (_) => _scheduleHideRail(),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                      builder: (context, value, child) =>
+                          Opacity(opacity: value, child: child),
+                      child: ReaderRail(
+                        pinned: false,
+                        onTogglePinned: _toggleRailPinned,
+                        onBackToLibrary: _backToLibrary,
+                        onOpenCompanion: _openCompanion,
+                        onOpenSettings: _openAppSettings,
+                        background: _colors.$1,
+                        foreground: _colors.$2,
+                        accent: _accent,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: _colors.$1,
+          appBar: ReaderTopBar(
+            title: '$title · ${currentChapter.title}',
+            background: _colors.$1,
+            foreground: _colors.$2,
+            pinned: _railPinned,
+            onTogglePinned: _toggleRailPinned,
+            bookmarked: chapterBookmarked,
+            onToggleBookmark: () => _toggleBookmark(currentChapter),
+            onOpenAnnotations: () => _openAnnotations(chapters),
+            onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
+            onOpenCompanion: _openCompanion,
+            onOpenReaderSettings: _openSettings,
+          ),
           endDrawer: TocDrawer(
             chapters: chapters,
             currentIndex: index,
@@ -680,47 +882,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onSelectBookmark: _reanchorAfterLayout,
             onDeleteBookmark: _deleteBookmark,
           ),
-          body: content.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('章节加载失败：$error')),
-            data: (text) {
-              _schedulePendingRestore();
-              final baseStyle = TextStyle(
-                fontSize: _fontSize,
-                height: _lineHeight,
-                color: _colors.$2,
-                fontFamily: 'Source Han Serif SC',
-                fontFamilyFallback: const [
-                  'Noto Serif CJK SC',
-                  'SimSun',
-                  'Georgia',
-                ],
-              );
-              final spans = buildAnnotationSpans(
-                text: text,
-                chapterStart: currentChapter.startOffset,
-                annotations: chapterAnnotations,
-                baseStyle: baseStyle,
-              );
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                    child: SelectableText.rich(
-                      TextSpan(children: spans),
-                      contextMenuBuilder: (context, editableTextState) =>
-                          _selectionToolbar(
-                            editableTextState,
-                            text,
-                            currentChapter,
-                          ),
-                    ),
-                  ),
-                ),
-              );
+          body: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): _hideRailNow,
             },
+            child: Focus(autofocus: false, child: body),
           ),
           bottomNavigationBar: _navigationBar(index, chapters),
         );
@@ -787,9 +953,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _navigationBar(int index, List<Chapter> chapters) {
     final (background, foreground) = _colors;
-    final accent = _background == ReaderBackground.dark
-        ? const Color(0xFF7FA3FF)
-        : const Color(0xFF3D6AE0);
     final percent = _percent.clamp(0.0, 1.0).toDouble();
     return Container(
       color: background,
@@ -802,7 +965,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               value: percent,
               minHeight: 3,
               backgroundColor: foreground.withValues(alpha: 0.12),
-              valueColor: AlwaysStoppedAnimation<Color>(accent),
+              valueColor: AlwaysStoppedAnimation<Color>(_accent),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

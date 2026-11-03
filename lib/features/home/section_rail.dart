@@ -8,6 +8,7 @@ class SectionRail extends StatelessWidget {
     required this.activeSection,
     required this.onSelectSection,
     required this.onSettings,
+    this.settingsTooltip = '设置',
     this.footer,
     this.backgroundColor,
     this.foregroundColor,
@@ -18,6 +19,7 @@ class SectionRail extends StatelessWidget {
   final AppSection? activeSection;
   final ValueChanged<AppSection> onSelectSection;
   final VoidCallback onSettings;
+  final String settingsTooltip;
   final Widget? footer;
   final Color? backgroundColor;
   final Color? foregroundColor;
@@ -109,7 +111,7 @@ class SectionRail extends StatelessWidget {
           ?footer,
           button(
             key: const Key('rail-settings'),
-            tooltip: '设置',
+            tooltip: settingsTooltip,
             icon: Icons.settings_outlined,
             active: false,
             onPressed: onSettings,
