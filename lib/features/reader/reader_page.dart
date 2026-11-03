@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/progress_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
@@ -94,6 +95,10 @@ class _NoteDialogState extends State<_NoteDialog> {
 
 class _ReaderPageState extends ConsumerState<ReaderPage>
     with WidgetsBindingObserver {
+  static const _fontSizeKey = 'reader.fontSize';
+  static const _lineHeightKey = 'reader.lineHeight';
+  static const _backgroundKey = 'reader.background';
+
   final ScrollController _scrollController = ScrollController();
   int _chapterIndex = 0;
   double _fontSize = 18;
@@ -102,26 +107,93 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _restoreScheduled = false;
   bool _restored = false;
   bool _restoreInFlight = false;
+  bool _settingsDirty = false;
   ResumeLocation? _pendingRestore;
   Timer? _saveTimer;
+  Timer? _settingsSaveTimer;
   ReaderData? _cachedData;
   ProgressRepository? _progressRepository;
+  SettingsRepository? _settingsRepository;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+    _settingsRepository = ref.read(settingsRepositoryProvider);
+    _loadReadingSettings();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
+    _settingsSaveTimer?.cancel();
     _persistProgress();
+    _persistReadingSettings();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadReadingSettings() async {
+    final repository = _settingsRepository;
+    if (repository == null) return;
+    try {
+      final values = await Future.wait([
+        repository.get(_fontSizeKey),
+        repository.get(_lineHeightKey),
+        repository.get(_backgroundKey),
+      ]);
+      if (!mounted) return;
+      final fontSize = double.tryParse(values[0] ?? '');
+      final lineHeight = double.tryParse(values[1] ?? '');
+      final background = _backgroundFromName(values[2]);
+      if (fontSize == null && lineHeight == null && background == null) return;
+      setState(() {
+        if (fontSize != null) _fontSize = fontSize.clamp(14.0, 28.0).toDouble();
+        if (lineHeight != null) {
+          _lineHeight = lineHeight.clamp(1.2, 2.0).toDouble();
+        }
+        if (background != null) _background = background;
+      });
+      final anchor = _currentProgress()?.anchor.charOffset;
+      if (_restored && anchor != null) _reanchorAfterLayout(anchor);
+    } catch (_) {
+      // Corrupt settings must not block reading.
+    }
+  }
+
+  ReaderBackground? _backgroundFromName(String? name) {
+    for (final value in ReaderBackground.values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+
+  void _scheduleSaveReadingSettings() {
+    _settingsDirty = true;
+    _settingsSaveTimer?.cancel();
+    _settingsSaveTimer = Timer(
+      const Duration(milliseconds: 300),
+      _persistReadingSettings,
+    );
+  }
+
+  void _persistReadingSettings() {
+    if (!_settingsDirty) return;
+    final repository = _settingsRepository;
+    if (repository == null) return;
+    _settingsDirty = false;
+    repository
+        .set(_fontSizeKey, _fontSize.toString())
+        .catchError((Object _) {});
+    repository
+        .set(_lineHeightKey, _lineHeight.toString())
+        .catchError((Object _) {});
+    repository
+        .set(_backgroundKey, _background.name)
+        .catchError((Object _) {});
   }
 
   @override
@@ -501,6 +573,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   _background = background;
                 });
                 setSheet(() {});
+                _scheduleSaveReadingSettings();
                 if (anchor != null) _reanchorAfterLayout(anchor);
               },
             );

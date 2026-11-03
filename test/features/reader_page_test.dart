@@ -8,12 +8,14 @@ import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
+import 'package:hackathon_reading/data/repositories/settings_repository.dart';
 import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
 
 void main() {
   late AppDatabase db;
@@ -246,6 +248,73 @@ void main() {
     expect(controller.position.maxScrollExtent, greaterThan(beforeMax));
     expect(controller.offset, greaterThan(beforeOffset));
     expect(after, closeTo(before, 0.02));
+    await disposeApp(tester);
+  });
+
+  testWidgets('restores persisted reading settings', (tester) async {
+    final settings = SettingsRepository(db);
+    await settings.set('reader.fontSize', '24');
+    await settings.set('reader.lineHeight', '1.8');
+    await settings.set('reader.background', 'dark');
+    await pumpReader(tester, 'b1');
+
+    final first = renderedSpans(tester).first;
+
+    expect(first.style?.fontSize, 24);
+    expect(first.style?.height, 1.8);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider).first).value, 24);
+    expect(tester.widget<Slider>(find.byType(Slider).last).value, 1.8);
+    expect(
+      tester
+          .widget<SegmentedButton<ReaderBackground>>(
+            find.byType(SegmentedButton<ReaderBackground>),
+          )
+          .selected,
+      {ReaderBackground.dark},
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('persists reading settings changes', (tester) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('深色'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settleAfterIo(tester);
+
+    final settings = SettingsRepository(db);
+    final fontSize = await tester.runAsync(
+      () => settings.get('reader.fontSize'),
+    );
+    final background = await tester.runAsync(
+      () => settings.get('reader.background'),
+    );
+
+    expect(double.parse(fontSize!), greaterThan(18));
+    expect(background, 'dark');
+    await disposeApp(tester);
+  });
+
+  testWidgets('ignores invalid settings and clamps out-of-range values', (
+    tester,
+  ) async {
+    final settings = SettingsRepository(db);
+    await settings.set('reader.fontSize', 'not-a-number');
+    await settings.set('reader.lineHeight', '99');
+    await settings.set('reader.background', 'purple');
+    await pumpReader(tester, 'b1');
+
+    final first = renderedSpans(tester).first;
+
+    expect(first.style?.fontSize, 18);
+    expect(first.style?.height, 2.0);
     await disposeApp(tester);
   });
 
