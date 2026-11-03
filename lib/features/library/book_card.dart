@@ -16,7 +16,7 @@ class BookCard extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () {
-          if (book.format != BookFormat.txt) {
+          if (book.format == BookFormat.pdf) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('该格式将在后续里程碑支持')),
             );

@@ -1,0 +1,261 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:archive/archive.dart';
+import 'package:drift/native.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
+import 'package:hackathon_reading/data/repositories/book_repository.dart';
+import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
+import 'package:hackathon_reading/data/repositories/progress_repository.dart';
+import 'package:hackathon_reading/data/storage/book_storage.dart';
+import 'package:hackathon_reading/domain/models/book.dart';
+import 'package:hackathon_reading/domain/services/book_service.dart';
+import 'package:hackathon_reading/domain/services/epub_book_parser.dart';
+
+import '../support/epub_fixture.dart';
+
+void main() {
+  group('parseEpubDocument', () {
+    test('reads EPUB3 nav titles and plain text in spine order', () {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<h1>第一章 开始</h1><p>Hello&nbsp;world &amp; more.</p>'
+                '<p>第二段。</p>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/chapter2.xhtml',
+            body: '<h2>第二章 继续</h2><p>正文二</p>',
+          ),
+        ],
+        toc: const {
+          'text/chapter1.xhtml': '第一章 开始',
+          'text/chapter2.xhtml': '第二章 继续',
+        },
+      );
+
+      final document = parseEpubDocument(bytes);
+      const expectedFirst = '第一章 开始\nHello world & more.\n第二段。';
+
+      expect(document.chapters.map((c) => c.title), ['第一章 开始', '第二章 继续']);
+      expect(
+        document.chapters.map((c) => c.contentText),
+        [expectedFirst, '第二章 继续\n正文二'],
+      );
+      expect(document.chapters.first.startOffset, 0);
+      expect(document.chapters.first.endOffset, expectedFirst.length);
+      expect(
+        document.chapters[1].startOffset,
+        document.chapters[0].endOffset,
+      );
+      expect(
+        document.chapters.last.endOffset,
+        document.chapters.fold<int>(0, (sum, c) => sum + c.contentText.length),
+      );
+    });
+
+    test('reads EPUB2 NCX titles', () {
+      final bytes = buildEpubBytes(
+        useNcx: true,
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/a.xhtml',
+            body: '<p>甲章节正文</p>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/b.xhtml',
+            body: '<p>乙章节正文</p>',
+          ),
+        ],
+        toc: const {
+          'text/a.xhtml': '甲章',
+          'text/b.xhtml': '乙章',
+        },
+      );
+
+      final document = parseEpubDocument(bytes);
+
+      expect(document.chapters.map((c) => c.title), ['甲章', '乙章']);
+      expect(document.chapters.map((c) => c.contentText), ['甲章节正文', '乙章节正文']);
+    });
+
+    test('skips nav and cover-only documents', () {
+      final bytes = buildEpubBytes(
+        includeNavInSpine: true,
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/cover.xhtml',
+            title: 'Cover',
+            body: '<img src="cover.jpg" alt="Cover"/>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<p>正文一</p>',
+          ),
+        ],
+        toc: const {'text/chapter1.xhtml': '第一章'},
+      );
+
+      final document = parseEpubDocument(bytes);
+
+      expect(document.chapters, hasLength(1));
+      expect(document.chapters.single.title, '第一章');
+      expect(document.chapters.single.contentText, '正文一');
+    });
+
+    test('falls back to the file name when a spine item is not in the TOC', () {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<p>正文一</p>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/chapter2.xhtml',
+            body: '<p>正文二</p>',
+          ),
+        ],
+        toc: const {'text/chapter1.xhtml': '有目录的章节'},
+      );
+
+      final document = parseEpubDocument(bytes);
+
+      expect(document.chapters.map((c) => c.title), ['有目录的章节', 'chapter2']);
+    });
+
+    test('throws EpubParseException for a malformed archive', () {
+      expect(
+        () => parseEpubDocument(utf8.encode('this is not a zip file')),
+        throwsA(isA<EpubParseException>()),
+      );
+    });
+
+    test('throws EpubParseException when the archive has no container', () {
+      final archive = Archive()
+        ..add(ArchiveFile.bytes(
+          'mimetype',
+          utf8.encode('application/epub+zip'),
+        ));
+      final bytes = ZipEncoder().encode(archive);
+
+      expect(
+        () => parseEpubDocument(bytes),
+        throwsA(isA<EpubParseException>()),
+      );
+    });
+  });
+
+  group('BookService EPUB import', () {
+    late Directory temp;
+    late AppDatabase db;
+    late BookRepository books;
+    late ChapterRepository chapters;
+    late BookService service;
+    var nextId = 0;
+
+    setUp(() async {
+      temp = await Directory.systemTemp.createTemp('epub_import_test');
+      db = AppDatabase(NativeDatabase.memory());
+      books = BookRepository(db);
+      chapters = ChapterRepository(db);
+      service = BookService(
+        books: books,
+        chapters: chapters,
+        progress: ProgressRepository(db),
+        annotations: AnnotationRepository(db),
+        storage: BookStorage(Directory('${temp.path}/books')),
+        newId: () => 'epub-id-${nextId++}',
+      );
+    });
+
+    tearDown(() async {
+      await db.close();
+      await temp.delete(recursive: true);
+    });
+
+    test('import stores ordered chapters with plain text and offsets', () async {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<h1>第一章</h1><p>你好，世界。</p>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/chapter2.xhtml',
+            body: '<h2>第二章</h2><p>再见。</p>',
+          ),
+        ],
+        toc: const {
+          'text/chapter1.xhtml': '第一章',
+          'text/chapter2.xhtml': '第二章',
+        },
+      );
+      final source = File('${temp.path}/我的小说.epub')
+        ..writeAsBytesSync(bytes);
+
+      final book = await service.importFile(source.path);
+      final stored = await chapters.getForBook(book.id);
+
+      expect(book.format, BookFormat.epub);
+      expect(stored.map((c) => c.title), ['第一章', '第二章']);
+      expect(stored.map((c) => c.contentText), ['第一章\n你好，世界。', '第二章\n再见。']);
+      expect(stored.first.startOffset, 0);
+      expect(stored[1].startOffset, stored[0].endOffset);
+      expect(
+        stored.last.endOffset,
+        stored.fold<int>(0, (sum, c) => sum + c.contentText.length),
+      );
+      expect(File(book.sourcePath).existsSync(), isTrue);
+
+      for (final chapter in stored) {
+        expect(
+          chapter.contentText.length,
+          chapter.endOffset - chapter.startOffset,
+        );
+      }
+    });
+
+    test('malformed EPUB leaves no book row or copied file', () async {
+      final source = File('${temp.path}/broken.epub')
+        ..writeAsBytesSync(utf8.encode('definitely not an epub'));
+
+      await expectLater(
+        service.importFile(source.path),
+        throwsA(isA<EpubParseException>()),
+      );
+
+      expect(await books.getAll(), isEmpty);
+      final booksDir = Directory('${temp.path}/books');
+      if (booksDir.existsSync()) {
+        expect(booksDir.listSync(), isEmpty);
+      }
+    });
+
+    test('EPUB with no readable content is rejected cleanly', () async {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/cover.xhtml',
+            body: '<img src="cover.jpg" alt="Cover"/>',
+          ),
+        ],
+      );
+      final source = File('${temp.path}/empty.epub')
+        ..writeAsBytesSync(bytes);
+
+      await expectLater(
+        service.importFile(source.path),
+        throwsA(isA<EpubParseException>()),
+      );
+
+      expect(await books.getAll(), isEmpty);
+      final booksDir = Directory('${temp.path}/books');
+      if (booksDir.existsSync()) {
+        expect(booksDir.listSync(), isEmpty);
+      }
+    });
+  });
+}
