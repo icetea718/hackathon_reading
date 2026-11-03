@@ -23,45 +23,53 @@ void main() {
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     final books = BookRepository(db);
-    await books.upsert(Book(
-      id: 'b1',
-      title: '测试小说',
-      author: '',
-      format: BookFormat.txt,
-      sourcePath: 'C:/books/b1.txt',
-      addedAt: DateTime(2026, 1, 1),
-    ));
-    await books.upsert(Book(
-      id: 'b2',
-      title: '空书',
-      author: '',
-      format: BookFormat.txt,
-      sourcePath: 'C:/books/b2.txt',
-      addedAt: DateTime(2026, 1, 2),
-    ));
+    await books.upsert(
+      Book(
+        id: 'b1',
+        title: '测试小说',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/b1.txt',
+        addedAt: DateTime(2026, 1, 1),
+      ),
+    );
+    await books.upsert(
+      Book(
+        id: 'b2',
+        title: '空书',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/b2.txt',
+        addedAt: DateTime(2026, 1, 2),
+      ),
+    );
 
     const texts = ['第一章的内容', '第二章的内容', '第三章的内容'];
     var offset = 0;
     final chapters = <Chapter>[];
     for (var i = 0; i < texts.length; i++) {
-      chapters.add(Chapter(
-        id: 'c$i',
-        bookId: 'b1',
-        index: i,
-        title: '第${i + 1}章',
-        startOffset: offset,
-        endOffset: offset + texts[i].length,
-        contentText: texts[i],
-      ));
+      chapters.add(
+        Chapter(
+          id: 'c$i',
+          bookId: 'b1',
+          index: i,
+          title: '第${i + 1}章',
+          startOffset: offset,
+          endOffset: offset + texts[i].length,
+          contentText: texts[i],
+        ),
+      );
       offset += texts[i].length;
     }
     await ChapterRepository(db).replaceForBook('b1', chapters);
-    await ProgressRepository(db).save(ReadingProgress(
-      bookId: 'b1',
-      anchor: const ReadingAnchor(charOffset: 8),
-      percent: 8 / 18,
-      updatedAt: DateTime(2026, 1, 1),
-    ));
+    await ProgressRepository(db).save(
+      ReadingProgress(
+        bookId: 'b1',
+        anchor: const ReadingAnchor(charOffset: 8),
+        percent: 8 / 18,
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
   });
 
   tearDown(() async {
@@ -93,14 +101,16 @@ void main() {
     }
     final text = buffer.toString();
     final books = BookRepository(db);
-    await books.upsert(Book(
-      id: 'long',
-      title: '长书',
-      author: '',
-      format: BookFormat.txt,
-      sourcePath: 'C:/books/long.txt',
-      addedAt: DateTime(2026, 1, 3),
-    ));
+    await books.upsert(
+      Book(
+        id: 'long',
+        title: '长书',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/long.txt',
+        addedAt: DateTime(2026, 1, 3),
+      ),
+    );
     await ChapterRepository(db).replaceForBook('long', [
       Chapter(
         id: 'long-c0',
@@ -121,15 +131,17 @@ void main() {
     required int anchorStart,
     AnnotationType type = AnnotationType.bookmark,
   }) async {
-    await AnnotationRepository(db).upsert(Annotation(
-      id: id,
-      bookId: bookId,
-      chapterId: chapterId,
-      type: type,
-      anchorStart: anchorStart,
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 1, 1),
-    ));
+    await AnnotationRepository(db).upsert(
+      Annotation(
+        id: id,
+        bookId: bookId,
+        chapterId: chapterId,
+        type: type,
+        anchorStart: anchorStart,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
   }
 
   Future<void> seedHighlight({
@@ -142,24 +154,27 @@ void main() {
     String selectedText = '',
     String noteText = '',
   }) async {
-    await AnnotationRepository(db).upsert(Annotation(
-      id: id,
-      bookId: 'b1',
-      chapterId: chapterId,
-      type: type,
-      anchorStart: anchorStart,
-      anchorEnd: anchorEnd,
-      selectedText: selectedText,
-      color: color,
-      noteText: noteText,
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 1, 1),
-    ));
+    await AnnotationRepository(db).upsert(
+      Annotation(
+        id: id,
+        bookId: 'b1',
+        chapterId: chapterId,
+        type: type,
+        anchorStart: anchorStart,
+        anchorEnd: anchorEnd,
+        selectedText: selectedText,
+        color: color,
+        noteText: noteText,
+        createdAt: DateTime(2026, 1, 1),
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
   }
 
   List<TextSpan> renderedSpans(WidgetTester tester) {
-    final selectable =
-        tester.widget<SelectableText>(find.byType(SelectableText));
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
     return selectable.textSpan!.children!.cast<TextSpan>().toList();
   }
 
@@ -172,8 +187,9 @@ void main() {
 
   Future<List<Annotation>?> storedBookmarks(WidgetTester tester) {
     return tester.runAsync(
-      () => AnnotationRepository(db)
-          .getForBook('b1', type: AnnotationType.bookmark),
+      () =>
+          AnnotationRepository(db)
+              .getForBook('b1', type: AnnotationType.bookmark),
     );
   }
 
@@ -188,14 +204,16 @@ void main() {
 
     final text0 = chapterText('甲');
     final text1 = chapterText('乙');
-    await BookRepository(db).upsert(Book(
-      id: 'jb',
-      title: '跳转测试',
-      author: '',
-      format: BookFormat.txt,
-      sourcePath: 'C:/books/jb.txt',
-      addedAt: DateTime(2026, 1, 4),
-    ));
+    await BookRepository(db).upsert(
+      Book(
+        id: 'jb',
+        title: '跳转测试',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/jb.txt',
+        addedAt: DateTime(2026, 1, 4),
+      ),
+    );
     await ChapterRepository(db).replaceForBook('jb', [
       Chapter(
         id: 'jb-c0',
@@ -223,6 +241,11 @@ void main() {
     return tester
         .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
         .controller!;
+  }
+
+  String footerText(WidgetTester tester) {
+    final matcher = find.textContaining(RegExp(r'^第 \d+ / \d+ 章 · \d+%$'));
+    return tester.widget<Text>(matcher).data!;
   }
 
   testWidgets('keeps the reading position when the font size changes', (
@@ -340,10 +363,7 @@ void main() {
     tester.binding.handleMetricsChanged();
     await tester.pumpAndSettle();
 
-    expect(
-      controller.position.maxScrollExtent,
-      isNot(closeTo(beforeMax, 1)),
-    );
+    expect(controller.position.maxScrollExtent, isNot(closeTo(beforeMax, 1)));
     final after = controller.offset / controller.position.maxScrollExtent;
     expect(after, closeTo(before, 0.02));
     await disposeApp(tester);
@@ -465,34 +485,35 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('jumping to a bookmark in an unloaded chapter keeps its position', (
-    tester,
-  ) async {
-    final anchorStart = await seedTwoChapterBook();
-    await seedBookmark(
-      id: 'bm2',
-      bookId: 'jb',
-      chapterId: 'jb-c1',
-      anchorStart: anchorStart,
-    );
-    await pumpReader(tester, 'jb');
+  testWidgets(
+    'jumping to a bookmark in an unloaded chapter keeps its position',
+    (tester) async {
+      final anchorStart = await seedTwoChapterBook();
+      await seedBookmark(
+        id: 'bm2',
+        bookId: 'jb',
+        chapterId: 'jb-c1',
+        anchorStart: anchorStart,
+      );
+      await pumpReader(tester, 'jb');
 
-    await tester.tap(find.byIcon(Icons.menu));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('书签'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第二章'));
-    await tester.pumpAndSettle();
-    await settleAfterIo(tester);
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('书签'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('第二章'));
+      await tester.pumpAndSettle();
+      await settleAfterIo(tester);
 
-    final controller = readerController(tester);
-    expect(controller.position.maxScrollExtent, greaterThan(0));
-    expect(
-      controller.offset / controller.position.maxScrollExtent,
-      closeTo(0.5, 0.05),
-    );
-    await disposeApp(tester);
-  });
+      final controller = readerController(tester);
+      expect(controller.position.maxScrollExtent, greaterThan(0));
+      expect(
+        controller.offset / controller.position.maxScrollExtent,
+        closeTo(0.5, 0.05),
+      );
+      await disposeApp(tester);
+    },
+  );
 
   testWidgets('a newly pumped reader shows a bookmark seeded in the DB', (
     tester,
@@ -537,7 +558,9 @@ void main() {
     await pumpReader(tester, 'b1');
 
     final note = renderedSpans(tester)
-        .where((span) => span.style?.decorationStyle == TextDecorationStyle.dotted)
+        .where(
+          (span) => span.style?.decorationStyle == TextDecorationStyle.dotted,
+        )
         .single;
     expect(note.text, '章的');
     expect(note.style!.decoration, TextDecoration.underline);
@@ -586,4 +609,85 @@ void main() {
     expect(find.textContaining('第一章的内容'), findsOneWidget);
     await disposeApp(tester);
   });
+
+  testWidgets('uses the serif reading typography by default', (tester) async {
+    await pumpReader(tester, 'b1');
+
+    final first = renderedSpans(tester).first;
+    expect(first.style?.fontSize, 18);
+    expect(first.style?.height, 1.8);
+    expect(first.style?.fontFamily, 'Source Han Serif SC');
+    expect(first.style?.fontFamilyFallback, contains('Georgia'));
+    await disposeApp(tester);
+  });
+
+  testWidgets('uses the approved reading colours', (tester) async {
+    await pumpReader(tester, 'b1');
+    expect(renderedSpans(tester).first.style?.color, const Color(0xFF3B4048));
+    await disposeApp(tester);
+
+    await SettingsRepository(db).set('reader.background', 'dark');
+    await pumpReader(tester, 'b1');
+    expect(renderedSpans(tester).first.style?.color, const Color(0xFFC6CAD1));
+    await disposeApp(tester);
+  });
+
+  testWidgets('caps the reading column at 720 logical pixels', (tester) async {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.handleMetricsChanged();
+
+    final text = List.filled(400, '这是一段足够长的正文内容').join();
+    await BookRepository(db).upsert(
+      Book(
+        id: 'wide',
+        title: '宽屏',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/wide.txt',
+        addedAt: DateTime(2026, 1, 5),
+      ),
+    );
+    await ChapterRepository(db).replaceForBook('wide', [
+      Chapter(
+        id: 'wide-c0',
+        bookId: 'wide',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: text.length,
+        contentText: text,
+      ),
+    ]);
+    await pumpReader(tester, 'wide');
+
+    expect(
+      tester.getSize(find.byType(SelectableText)).width,
+      lessThanOrEqualTo(720),
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets(
+    'shows the book and chapter in the title and the chapter percentage below',
+    (tester) async {
+      await pumpReader(tester, 'b1');
+      expect(find.textContaining('测试小说 · 第2章'), findsOneWidget);
+      expect(find.textContaining('第 2 / 3 章'), findsOneWidget);
+      await disposeApp(tester);
+
+      await seedLongBook();
+      await pumpReader(tester, 'long');
+      final before = footerText(tester);
+      expect(before, contains('第 1 / 1 章'));
+
+      final controller = readerController(tester);
+      controller.jumpTo(controller.position.maxScrollExtent);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(footerText(tester), isNot(before));
+      await disposeApp(tester);
+    },
+  );
 }
