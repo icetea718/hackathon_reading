@@ -79,6 +79,15 @@ class _DebatePersona extends PersonaModeNotifier {
   PersonaMode build() => PersonaMode.debate;
 }
 
+/// Settings table that remembers the argumentative voice.
+class _StoredDebate implements PersonaModeStore {
+  @override
+  Future<PersonaMode> load() async => PersonaMode.debate;
+
+  @override
+  Future<void> save(PersonaMode mode) async {}
+}
+
 const _request = CompanionGreetingRequest(
   bookId: 'b1',
   chapterIndex: 0,
@@ -149,6 +158,49 @@ void main() {
       expect(assistant.lastPersona, PersonaMode.debate);
       expect(assistant.lastPrompt, contains('不太同意'));
       expect(assistant.lastPrompt, isNot(contains('小细节')));
+      expect(assistant.lastPrompt, contains('思辨讨论'));
+      expect(assistant.lastPrompt, contains(PersonaMode.debate.sample));
+      expect(assistant.lastPrompt, contains(PersonaMode.debate.blurb));
+    });
+
+    test('names the gentle voice in the prompt', () async {
+      final assistant = _FakeAssistant(['这双鞋挺合脚的。']);
+      final container = ProviderContainer(
+        overrides: [
+          personaModeProvider.overrideWith(_StubPersona.new),
+          assistantServiceProvider.overrideWith((ref) async => assistant),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(companionGreeterProvider)(_request);
+
+      expect(assistant.lastPersona, PersonaMode.gentle);
+      expect(assistant.lastPrompt, contains('温柔陪读'));
+      expect(assistant.lastPrompt, contains(PersonaMode.gentle.sample));
+    });
+
+    test('waits for the stored voice before it speaks', () async {
+      final assistant = _FakeAssistant(['这条你未必同意。']);
+      final container = ProviderContainer(
+        overrides: [
+          personaModeStoreProvider.overrideWithValue(_StoredDebate()),
+          assistantServiceProvider.overrideWith((ref) async => assistant),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(personaModeProvider.notifier)
+          .ensureRestored()
+          .timeout(const Duration(seconds: 2));
+
+      expect(container.read(personaModeProvider), PersonaMode.debate);
+
+      await container.read(companionGreeterProvider)(_request);
+
+      expect(assistant.lastPersona, PersonaMode.debate);
+      expect(assistant.lastPrompt, contains('思辨讨论'));
     });
 
     test('stays silent when no AI service is configured', () async {

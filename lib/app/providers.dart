@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../assistant/assistant_service.dart';
 import '../assistant/digest_aware_assistant_service.dart';
 import '../assistant/openai_assistant_service.dart';
+import '../assistant/persona.dart';
 import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
@@ -91,6 +92,69 @@ final assistantServiceProvider = FutureProvider<AssistantService>((ref) async {
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return SettingsRepository(ref.watch(appDatabaseProvider));
 });
+
+final personaModeStoreProvider = Provider<PersonaModeStore>((ref) {
+  return PersonaModeStore(ref.watch(settingsRepositoryProvider));
+});
+
+/// The reader's current companion voice.
+///
+/// Reads synchronously on purpose: the companion panel and the greeting
+/// bubble must never wait on the database to decide how to talk.
+class PersonaModeNotifier extends Notifier<PersonaMode> {
+  bool _chosen = false;
+  bool _disposed = false;
+  Completer<void>? _restored;
+
+  @override
+  PersonaMode build() {
+    ref.onDispose(() => _disposed = true);
+    _restored = Completer<void>();
+    unawaited(_restore());
+    return PersonaMode.fallback;
+  }
+
+  /// Completes once the stored voice has been read (or failed to be read).
+  ///
+  /// Anything that speaks before the read lands would use the default voice
+  /// even though the reader picked another one, so the caller waits first.
+  /// A notifier whose [build] was replaced (tests) never restores; for those
+  /// the future is already complete.
+  Future<void> ensureRestored() => _restored?.future ?? Future<void>.value();
+
+  Future<void> _restore() async {
+    final PersonaMode stored;
+    try {
+      stored = await ref.read(personaModeStoreProvider).load();
+    } catch (_) {
+      // No usable settings table yet: the default voice is a fine answer.
+      _finishRestore();
+      return;
+    }
+    // A choice made while the read was in flight wins over the stored value.
+    if (!_disposed && !_chosen && stored != state) state = stored;
+    _finishRestore();
+  }
+
+  void _finishRestore() {
+    final completer = _restored;
+    if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
+  Future<void> select(PersonaMode mode) async {
+    if (state == mode) return;
+    _chosen = true;
+    state = mode;
+    try {
+      await ref.read(personaModeStoreProvider).save(mode);
+    } catch (_) {
+      // Failing to remember the choice must not undo it for this session.
+    }
+  }
+}
+
+final personaModeProvider =
+    NotifierProvider<PersonaModeNotifier, PersonaMode>(PersonaModeNotifier.new);
 
 final llmConfigStoreProvider = Provider<LlmConfigStore>((ref) {
   return LlmConfigStore(ref.watch(settingsRepositoryProvider));

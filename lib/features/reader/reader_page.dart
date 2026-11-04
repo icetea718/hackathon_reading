@@ -157,6 +157,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       loadService: () => ref.read(assistantServiceProvider.future),
       loadPersona: () => ref.read(personaModeProvider),
     );
+    // The stored voice loads asynchronously; chat should not open in the
+    // default temper just because the reader was quick to click.
+    unawaited(ref.read(personaModeProvider.notifier).ensureRestored());
     _loadReadingSettings();
   }
 
@@ -1163,7 +1166,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
 
   /// A fresh line for every click; unlike the greeting it is never cached.
-  Future<String?> _speakLine(Chapter chapter, String pageText) {
+  Future<String?> _speakLine(Chapter chapter, String pageText) async {
+    await ref.read(personaModeProvider.notifier).ensureRestored();
     final offset =
         (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
         chapter.startOffset;
@@ -1350,8 +1354,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   /// One line about the page being read, cached per chapter so that paging
   /// inside a chapter does not re-ask the model.
-  Future<String?> _companionGreeting(Chapter chapter, String pageText) {
-    return _greetings.putIfAbsent(chapter.id, () {
+  ///
+  /// The cached line is keyed by the voice as well: switching from 温柔 to 思辨
+  /// must not hand the reader a line written in the other temper.
+  Future<String?> _companionGreeting(Chapter chapter, String pageText) async {
+    await ref.read(personaModeProvider.notifier).ensureRestored();
+    final persona = ref.read(personaModeProvider);
+    return _greetings.putIfAbsent('${chapter.id}#${persona.id}', () {
       final offset =
           (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
           chapter.startOffset;

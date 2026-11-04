@@ -77,3 +77,13 @@
 - 面板的入场动画（60~120ms 淡入 + 轻微位移）与收起动画，注意不要用无限循环。
 - 面板与输入框的焦点：打开时聚焦输入框；Esc 关闭。
 - 气泡长文本换行、最多显示 6 行，超出可滚动。
+
+## 8. 人格（2026-11-04 补充）
+
+- 问题：读者选过「思辨讨论」，气泡里的台词仍是温柔口吻。
+- 根因两条：①`_companionGreeting` 的缓存键只有章节 id，换人格后仍复用旧台词；②人格是从设置表异步恢复的，进页面 600ms 就冒泡时读到的还是默认 `gentle`，这次结果又被按章缓存。
+- 修法：
+  - `PersonaModeNotifier` 增加 `Future<void> ensureRestored()`，`_restore()` 结束（成功或失败）时完成；`build` 被测试替换时立即返回已完成 future。
+  - `_companionGreeting` / `_speakLine` 先 `await ensureRestored()`，缓存键改成 `'${chapter.id}#${persona.id}'`；`initState` 里也预先启动一次恢复，聊天不必等第一次气泡。
+  - `_prompt` 把人格放到最前面并给出口吻样例：身份行（`label` + `blurb`）、`greetingHint`、`像这样开口：「${persona.sample}」`，最后才是「第一人称、25 字、不客套」的格式要求。
+- 测试：`companion_greeting_test.dart` 断言两种人格的 prompt 分别含 `温柔陪读`/`思辨讨论`、`sample`、`blurb`；新增 `waits for the stored voice before it speaks`（用 `personaModeStoreProvider` 的假存储返回 `debate`，`ensureRestored` 后 provider 与 prompt 都是思辨）。

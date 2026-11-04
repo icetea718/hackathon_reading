@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../assistant/persona.dart';
 import '../../assistant/reading_context.dart';
 
 /// What the reader is looking at when the companion picks a line to say.
@@ -46,6 +47,7 @@ Future<String?> _greetWithAssistant(
   try {
     final service = await ref.read(assistantServiceProvider.future);
     if (!service.isConfigured) return null;
+    final persona = ref.read(personaModeProvider);
     final stream = service.chat(
       ReadingContext(
         bookTitle: request.bookTitle,
@@ -57,7 +59,8 @@ Future<String?> _greetWithAssistant(
         chapterCharOffset: request.readerOffset,
       ),
       const [],
-      _prompt(request),
+      _prompt(request, persona),
+      persona: persona,
     );
     final buffer = StringBuffer();
     await for (final chunk in stream) {
@@ -77,14 +80,16 @@ bool _endsSentence(String text) {
   return '。！？!?'.contains(trimmed[trimmed.length - 1]);
 }
 
-String _prompt(CompanionGreetingRequest request) {
+String _prompt(CompanionGreetingRequest request, PersonaMode persona) {
   final page = request.pageText.trim();
   final excerpt = page.length > 400 ? page.substring(0, 400) : page;
-  return '你是一个坐在读者身边的陪读伙伴，说话轻松、口语化。'
+  return '你此刻的身份是「${persona.label}」：${persona.blurb}。\n'
       '他正在读《${request.bookTitle}》的「${request.chapterTitle}」，这一页写着：\n'
       '「$excerpt」\n'
-      '请对他说一句搭话，要求：不超过 25 个字；可以提一句这一页正在发生的事；'
-      '不要用引号，不要客套，不要提问开场，直接给出这句话本身。';
+      '${persona.greetingHint}\n'
+      '就像你平时说话的口气，例如「${persona.sample}」。\n'
+      '现在开口，直接给出你要对他说的那一句话：第一人称、口语，最多 25 个字，'
+      '不用引号，不客套，不自我介绍，不复述原文。';
 }
 
 /// Trims a raw model answer down to one clean bubble line.

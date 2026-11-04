@@ -1,6 +1,7 @@
 import '../distill/distill_digest.dart';
 import '../distill/distilled_context_assembler.dart';
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 
 /// Decorates an [AssistantService] so every request carries the book's
@@ -39,10 +40,11 @@ class DigestAwareAssistantService implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) async* {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) async* {
     final enriched = await _enrich(context, question: userMessage);
-    yield* inner.chat(enriched, history, userMessage);
+    yield* inner.chat(enriched, history, userMessage, persona: persona);
   }
 
   Future<ReadingContext> _enrich(

@@ -1,3 +1,4 @@
+import 'persona.dart';
 import 'reading_context.dart';
 
 abstract class AssistantService {
@@ -9,11 +10,16 @@ abstract class AssistantService {
 
   Stream<String> summarizeChapter(ReadingContext context);
 
+  /// Talks with the reader in [persona]'s voice.
+  ///
+  /// Only the voice changes between modes: [context] and [history] are sent
+  /// untouched, so switching mid-conversation keeps every earlier turn.
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  );
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  });
 }
 
 class AssistantNotConfiguredException implements Exception {
