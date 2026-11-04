@@ -32,6 +32,7 @@ import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
 import '../illustration/illustration_config.dart';
+import '../illustration/illustration_service.dart';
 import '../domain/models/book.dart';
 import '../domain/models/category.dart';
 import '../domain/models/comic_page.dart';
@@ -209,6 +210,16 @@ final illustrationConfigStoreProvider =
 
 final illustrationConfigProvider = FutureProvider<IllustrationConfig>((ref) {
   return ref.watch(illustrationConfigStoreProvider).load();
+});
+
+/// Builds the generator for one job; tests swap in a fake here.
+typedef IllustrationServiceFactory = IllustrationService Function(
+  IllustrationEffective effective,
+);
+
+final illustrationServiceFactoryProvider =
+    Provider<IllustrationServiceFactory>((ref) {
+  return (effective) => IllustrationService(effective: effective);
 });
 
 /// Synchronous snapshot of [llmConfigProvider] for the client's config callback.

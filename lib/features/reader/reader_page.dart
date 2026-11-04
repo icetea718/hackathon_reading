@@ -17,6 +17,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/book_illustration.dart';
+import '../../illustration/illustration_models.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
@@ -27,11 +28,14 @@ import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
 import '../companion/companion_presence.dart';
 import '../illustration/illustration_composer_page.dart';
+import '../illustration/illustration_jobs.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
 import 'chapter_translation.dart';
 import 'comic_toc_drawer.dart';
+import 'illustration_source.dart';
+import 'illustration_source_sheet.dart';
 import 'illustration_viewer.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
@@ -1307,15 +1311,133 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (data == null || data.chapters.isEmpty) return;
     final index = _chapterIndex.clamp(0, data.chapters.length - 1);
     final chapter = data.chapters[index];
-    final text = await ref.read(
+    final source = await showIllustrationSourceSheet(context);
+    if (source == null || !mounted) return;
+    final chapterText = await ref.read(
       chapterContentProvider((bookId: widget.bookId, index: index)).future,
     );
     if (!mounted) return;
-    await Navigator.of(context).push(
+    final pagination = _paginationChapterId == chapter.id ? _pagination : null;
+    final text = illustrationTextForSource(
+      source: source,
+      chapterText: chapterText,
+      pagination: pagination,
+      startPage: _pageIndex,
+      endPage: _pageEndIndex ?? _pageIndex,
+    );
+    await _openIllustrationComposer(
+      text,
+      [data.book?.title ?? '', chapter.title, source.label]
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · '),
+    );
+  }
+
+  Future<void> _openIllustrationComposer(String text, String label) {
+    return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => IllustrationComposerPage(
           initialText: text,
-          contextLabel: '${data.book?.title ?? ''} · ${chapter.title}',
+          contextLabel: label,
+        ),
+      ),
+    );
+  }
+
+  void _openIllustrationJob(IllustrationJob job) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => IllustrationComposerPage(
+          jobId: job.id,
+          initialText: job.text,
+          contextLabel: job.label,
+        ),
+      ),
+    );
+  }
+
+  Widget _illustrationJobPill(IllustrationJob job) {
+    final running = job.isRunning;
+    final done = job.status == IllustrationJobStatus.done;
+    final label = running
+        ? '插画生成中 · ${job.stage?.label ?? '准备中…'}'
+        : done
+            ? '插画已生成'
+            : '插画生成失败';
+    return Material(
+      key: const Key('reader-illustration-job'),
+      color: _colors.$1,
+      elevation: 4,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        key: const Key('reader-illustration-job-open'),
+        borderRadius: BorderRadius.circular(24),
+        onTap: () => _openIllustrationJob(job),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (running)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _accent,
+                  ),
+                )
+              else
+                Icon(
+                  done ? Icons.image_outlined : Icons.error_outline,
+                  size: 18,
+                  color: done ? _accent : Colors.redAccent,
+                ),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 260),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: _colors.$2),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                running ? '查看进度' : '查看',
+                style: TextStyle(fontSize: 12, color: _accent),
+              ),
+              if (running)
+                IconButton(
+                  key: const Key('reader-illustration-job-stop'),
+                  tooltip: '停止生成',
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
+                  onPressed: () =>
+                      ref.read(illustrationJobProvider.notifier).cancel(),
+                  icon: Icon(Icons.stop_circle_outlined, color: _colors.$2),
+                )
+              else
+                IconButton(
+                  key: const Key('reader-illustration-job-dismiss'),
+                  tooltip: '关闭提示',
+                  iconSize: 16,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
+                  onPressed: () =>
+                      ref.read(illustrationJobProvider.notifier).dismiss(),
+                  icon: Icon(Icons.close, color: _colors.$2),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1503,6 +1625,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
   }
 
+  void _illustrateSelection(Chapter chapter, TextSelection selection, String text) {
+    final selected = _selectedText(selection, text).trim();
+    if (selected.isEmpty) return;
+    _openIllustrationComposer(
+      selected,
+      [_cachedData?.book?.title ?? '', chapter.title, '选中文字']
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · '),
+    );
+  }
+
   void _translateSelection(TextSelection selection, String text) {
     final start = selection.start.clamp(0, text.length);
     final end = selection.end.clamp(0, text.length);
@@ -1539,6 +1672,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onPressed: () {
               editableTextState.hideToolbar();
               _addNote(chapter, page, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '生成插画',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _illustrateSelection(chapter, selection, text);
             },
           ),
           ContextMenuButtonItem(
@@ -2001,12 +2141,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           },
           child: Focus(autofocus: true, child: body),
         );
-        final scaffoldBody = companionPanel == null
+        final job = ref.watch(illustrationJobProvider);
+        final readerBodyWithJob = job == null
             ? readerBody
+            : Stack(
+                fit: StackFit.expand,
+                children: [
+                  readerBody,
+                  Positioned(
+                    right: 18,
+                    bottom: 18,
+                    child: _illustrationJobPill(job),
+                  ),
+                ],
+              );
+        final scaffoldBody = companionPanel == null
+            ? readerBodyWithJob
             : Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: readerBody),
+                  Expanded(child: readerBodyWithJob),
                   companionPanel,
                 ],
               );

@@ -13,6 +13,8 @@ import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
 import 'companion_history.dart';
+import 'companion_providers.dart';
+import 'companion_memory_sheet.dart';
 
 enum _CompanionView { chat, history }
 
@@ -645,6 +647,12 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               icon: const Icon(Icons.stop_circle_outlined),
               onPressed: _hush,
             ),
+          IconButton(
+            key: const Key('companion-memory'),
+            tooltip: '回忆录',
+            icon: const Icon(Icons.auto_stories_outlined),
+            onPressed: _openMemorySheet,
+          ),
           TextButton(
             onPressed: configured && !_busy && _readOnlyThread == null
                 ? _summarize
@@ -777,6 +785,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 
   Widget _messageList(BuildContext context) {
     final readOnly = _readOnlyThread;
+    final memoryHintHidden = ref.watch(companionMemoryHintHiddenProvider);
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(16),
@@ -795,20 +804,43 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           )
-        else
+        else if (!memoryHintHidden)
           Container(
             key: const Key('companion-memory-chip'),
             margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              widget.chapterIndex == 0
-                  ? '暂无前序章节对话'
-                  : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
-              style: Theme.of(context).textTheme.bodySmall,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.chapterIndex == 0
+                        ? '暂无前序章节对话'
+                        : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                IconButton(
+                  key: const Key('companion-memory-chip-close'),
+                  tooltip: '关闭提示',
+                  iconSize: 16,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 24,
+                    height: 24,
+                  ),
+                  onPressed: () => ref
+                      .read(companionMemoryHintHiddenProvider.notifier)
+                      .hide(),
+                  icon: Icon(
+                    Icons.close,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
         for (var index = 0; index < _history.length; index++)
@@ -887,6 +919,23 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   void _openSettings() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+    );
+  }
+
+  void _openMemorySheet() {
+    final page = widget.currentPageText.trim();
+    final text = page.isEmpty ? widget.chapterText : page;
+    final label = [widget.bookTitle, widget.chapterTitle]
+        .where((part) => part.trim().isNotEmpty)
+        .join(' · ');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => CompanionMemorySheet(
+        initialText: text,
+        contextLabel: label,
+      ),
     );
   }
 }

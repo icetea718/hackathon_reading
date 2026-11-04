@@ -221,6 +221,16 @@ void main() {
     expect(withImage.pageCount, greaterThan(plain.pageCount));
   });
 
+  test('keeps a small illustration at its intrinsic size', () {
+    final pagination = paginateWith(
+      _longText(paragraphs: 3),
+      [imageFor(0, width: 100, height: 50)],
+    );
+    final image = pagination.pages.first.images.single;
+    expect(image.width, 100);
+    expect(image.height, 50);
+  });
+
   test('scales a tall illustration into the page', () {
     final pagination = paginateWith(
       _longText(paragraphs: 3),

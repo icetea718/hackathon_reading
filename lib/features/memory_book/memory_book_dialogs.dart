@@ -8,44 +8,67 @@ Future<String?> promptMemoryBookName(
   BuildContext context, {
   String title = '新建回忆录',
   String initial = '',
-}) async {
-  final controller = TextEditingController(text: initial);
-  final result = await showDialog<String>(
+}) {
+  return showDialog<String>(
     context: context,
-    builder: (dialogContext) {
-      void submit() {
-        final value = controller.text.trim();
-        if (value.isEmpty) return;
-        Navigator.of(dialogContext).pop(value);
-      }
-
-      return AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 30,
-          decoration: const InputDecoration(
-            labelText: '名字',
-            hintText: '例如：雪夜站台',
-          ),
-          onSubmitted: (_) => submit(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: submit,
-            child: Text(initial.isEmpty ? '创建' : '保存'),
-          ),
-        ],
-      );
-    },
+    builder: (_) => _MemoryBookNameDialog(title: title, initial: initial),
   );
-  controller.dispose();
-  return result;
+}
+
+/// The controller lives with the dialog so it is only disposed once the
+/// closing animation has finished rendering the field.
+class _MemoryBookNameDialog extends StatefulWidget {
+  const _MemoryBookNameDialog({required this.title, required this.initial});
+
+  final String title;
+  final String initial;
+
+  @override
+  State<_MemoryBookNameDialog> createState() => _MemoryBookNameDialogState();
+}
+
+class _MemoryBookNameDialogState extends State<_MemoryBookNameDialog> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (value.isEmpty) return;
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 30,
+        decoration: const InputDecoration(
+          labelText: '名字',
+          hintText: '例如：雪夜站台',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(widget.initial.isEmpty ? '创建' : '保存'),
+        ),
+      ],
+    );
+  }
 }
 
 Future<String?> pickMemoryBookDialog(

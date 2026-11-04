@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../illustration/illustration_models.dart';
 import '../../memory_book/memory_book_models.dart';
 import '../illustration/illustration_composer_page.dart';
+import '../illustration/illustration_jobs.dart';
 import 'memory_book_dialogs.dart';
 import 'memory_book_page.dart';
 import 'memory_book_providers.dart';
@@ -15,6 +17,7 @@ class MemoryBooksPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booksAsync = ref.watch(memoryBookListProvider);
+    final job = ref.watch(illustrationJobProvider);
     final theme = Theme.of(context);
 
     return Column(
@@ -49,6 +52,17 @@ class MemoryBooksPage extends ConsumerWidget {
             ],
           ),
         ),
+        if (job != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: _CurrentGenerationCard(
+              job: job,
+              onOpen: () => _openJob(context, job),
+              onStop: () => ref.read(illustrationJobProvider.notifier).cancel(),
+              onDismiss: () =>
+                  ref.read(illustrationJobProvider.notifier).dismiss(),
+            ),
+          ),
         Expanded(
           child: booksAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -167,6 +181,149 @@ class MemoryBooksPage extends ConsumerWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const IllustrationComposerPage(),
+      ),
+    );
+  }
+
+  void _openJob(BuildContext context, IllustrationJob job) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => IllustrationComposerPage(
+          jobId: job.id,
+          initialText: job.text,
+          contextLabel: job.label,
+        ),
+      ),
+    );
+  }
+}
+
+/// The illustration job that is running or just finished, surfaced here so the
+/// memory shelf can reach it without going back through the reader.
+class _CurrentGenerationCard extends StatelessWidget {
+  const _CurrentGenerationCard({
+    required this.job,
+    required this.onOpen,
+    required this.onStop,
+    required this.onDismiss,
+  });
+
+  final IllustrationJob job;
+  final VoidCallback onOpen;
+  final VoidCallback onStop;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final running = job.isRunning;
+    final done =
+        job.status == IllustrationJobStatus.done && job.result != null;
+    final title = running
+        ? '插画生成中 · ${job.stage?.label ?? '准备中…'}'
+        : done
+            ? '插画已生成'
+            : '插画生成失败';
+    final subtitle = running
+        ? '可以先去读，画完会通知你。'
+        : done
+            ? '还没收进回忆录，打开可以保存。'
+            : job.error ?? '';
+
+    return Card(
+      key: const Key('memory-current-job'),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            _thumb(theme, running, done),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (running) ...[
+              OutlinedButton(
+                key: const Key('memory-current-job-stop'),
+                onPressed: onStop,
+                child: const Text('停止'),
+              ),
+              const SizedBox(width: 8),
+            ],
+            FilledButton.tonal(
+              key: const Key('memory-current-job-open'),
+              onPressed: onOpen,
+              child: Text(running ? '查看进度' : '查看'),
+            ),
+            IconButton(
+              key: const Key('memory-current-job-dismiss'),
+              tooltip: '关闭提示',
+              onPressed: running ? null : onDismiss,
+              icon: const Icon(Icons.close, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _thumb(ThemeData theme, bool running, bool done) {
+    const size = 56.0;
+    if (running) {
+      return const SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final result = job.result;
+    if (done && result != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.file(
+          result.finalFile,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _icon(theme),
+        ),
+      );
+    }
+    return _icon(theme);
+  }
+
+  Widget _icon(ThemeData theme) {
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Icon(
+        Icons.error_outline,
+        color: theme.colorScheme.error,
       ),
     );
   }

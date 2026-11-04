@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../illustration/illustration_config.dart';
 import '../../illustration/illustration_models.dart';
-import '../../illustration/illustration_service.dart';
+import 'illustration_jobs.dart';
 import '../memory_book/memory_book_dialogs.dart';
 import '../memory_book/memory_book_providers.dart';
 import '../settings/settings_page.dart';
@@ -15,11 +15,15 @@ class IllustrationComposerPage extends ConsumerStatefulWidget {
     this.initialText = '',
     this.contextLabel = '',
     this.preselectBookId,
+    this.jobId,
   });
 
   final String initialText;
   final String contextLabel;
   final String? preselectBookId;
+
+  /// Opens an existing background job instead of starting a fresh one.
+  final String? jobId;
 
   @override
   ConsumerState<IllustrationComposerPage> createState() =>
@@ -29,10 +33,7 @@ class IllustrationComposerPage extends ConsumerStatefulWidget {
 class _IllustrationComposerPageState
     extends ConsumerState<IllustrationComposerPage> {
   late final TextEditingController _text;
-  IllustrationStage? _stage;
-  IllustrationResult? _result;
-  String? _error;
-  bool _busy = false;
+  String? _jobId;
   bool _saving = false;
 
   static const _maxInputChars = 6000;
@@ -40,7 +41,13 @@ class _IllustrationComposerPageState
   @override
   void initState() {
     super.initState();
-    final initial = widget.initialText.trim();
+    _jobId = widget.jobId;
+    final job = widget.jobId == null
+        ? null
+        : ref.read(illustrationJobProvider);
+    final initial = widget.initialText.trim().isNotEmpty
+        ? widget.initialText.trim()
+        : (job?.text.trim() ?? '');
     _text = TextEditingController(
       text: initial.length <= _maxInputChars
           ? initial
@@ -61,6 +68,11 @@ class _IllustrationComposerPageState
     final config = illAsync.value;
     final llm = llmAsync.value;
     final effective = config == null || llm == null ? null : config.resolve(llm);
+    final job = ref.watch(illustrationJobProvider);
+    final myJob = job != null && job.id == _jobId ? job : null;
+    final running = myJob?.isRunning ?? false;
+    final result = myJob?.result;
+    final error = myJob?.error;
 
     return Scaffold(
       appBar: AppBar(
@@ -100,36 +112,36 @@ class _IllustrationComposerPageState
               ),
               const SizedBox(height: 14),
               _configCard(effective, illAsync.isLoading || llmAsync.isLoading),
-              if (_busy) ...[
+              if (running) ...[
                 const SizedBox(height: 18),
-                _progressCard(),
+                _progressCard(myJob?.stage),
               ],
-              if (_error != null) ...[
+              if (error != null) ...[
                 const SizedBox(height: 18),
-                _errorCard(_error!),
+                _errorCard(error),
               ],
-              if (_result != null) ...[
+              if (result != null) ...[
                 const SizedBox(height: 18),
-                _previewCard(_result!),
+                _previewCard(result),
               ],
               const SizedBox(height: 20),
               Row(
                 children: [
                   FilledButton.icon(
-                    onPressed: _busy || _result != null ? null : _generate,
+                    onPressed: running || result != null ? null : _generate,
                     icon: const Icon(Icons.auto_awesome, size: 18),
                     label: const Text('开始生成'),
                   ),
                   const SizedBox(width: 12),
-                  if (_result != null)
+                  if (result != null || error != null)
                     OutlinedButton(
-                      onPressed: _busy ? null : _reset,
+                      onPressed: running ? null : _reset,
                       child: const Text('重新生成'),
                     ),
                   const Spacer(),
-                  if (_result != null)
+                  if (result != null)
                     TextButton(
-                      onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                      onPressed: running ? null : _discard,
                       child: const Text('放弃'),
                     ),
                 ],
@@ -177,7 +189,7 @@ class _IllustrationComposerPageState
               ),
               const SizedBox(height: 6),
               Text(
-                '插画需要火山方舟 Ark 的接口和图像模型。到设置里填写一次即可，'
+                '插画需要一个支持生图的接口和图像模型。到设置里填写一次即可，'
                 '可以复用上面的 API Key。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onErrorContainer,
@@ -202,7 +214,7 @@ class _IllustrationComposerPageState
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            '当前插画接口是 DeepSeek，它没有绘图接口。请到设置里把插画接口改成火山方舟 Ark。',
+            '当前插画接口是 DeepSeek，它没有生图接口。请到设置里换一个支持生图的接口。',
             style: TextStyle(color: theme.colorScheme.onErrorContainer),
           ),
         ),
@@ -226,7 +238,7 @@ class _IllustrationComposerPageState
     );
   }
 
-  Widget _progressCard() {
+  Widget _progressCard(IllustrationStage? stage) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -234,15 +246,35 @@ class _IllustrationComposerPageState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _stage?.label ?? '准备中…',
+              stage?.label ?? '准备中…',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 12),
             const LinearProgressIndicator(),
             const SizedBox(height: 8),
             const Text(
-              '生成一张需要几十秒，请不要关闭窗口。',
+              '生成一张需要几十秒，可以先去读，画完会通知你。',
               style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const Key('illustration-stop'),
+                  onPressed: _stop,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: const Text('停止生成'),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('illustration-background'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.menu_book_outlined, size: 18),
+                  label: const Text('后台生成，先去读'),
+                ),
+              ],
             ),
           ],
         ),
@@ -335,7 +367,7 @@ class _IllustrationComposerPageState
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
-                onPressed: _busy || _saving ? null : _save,
+                onPressed: _saving ? null : _save,
                 icon: _saving
                     ? const SizedBox(
                         width: 16,
@@ -352,56 +384,25 @@ class _IllustrationComposerPageState
     );
   }
 
-  Future<void> _generate() async {
+  void _generate() {
     final text = _text.text.trim();
     if (text.isEmpty) {
       _snack('请先粘贴一段小说文段。');
       return;
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-      _result = null;
-      _stage = IllustrationStage.planning;
-    });
-
-    IllustrationService? service;
-    try {
-      final config = await ref.read(illustrationConfigProvider.future);
-      final llm = await ref.read(llmConfigProvider.future);
-      final effective = config.resolve(llm);
-      if (!effective.isConfigured) {
-        throw IllustrationException(
-          '还没有配置插画服务。请到设置里填写 Ark 接口、API Key 和图像模型。',
-        );
-      }
-      service = IllustrationService(effective: effective);
-      final result = await service.generate(
-        text,
-        onStage: (stage) {
-          if (mounted) setState(() => _stage = stage);
-        },
-      );
-      if (!mounted) return;
-      setState(() {
-        _result = result;
-        _busy = false;
-        _stage = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _error = error.toString();
-        _busy = false;
-        _stage = null;
-      });
-    } finally {
-      service?.dispose();
+    final id = ref
+        .read(illustrationJobProvider.notifier)
+        .start(text: text, label: widget.contextLabel);
+    if (id == null) {
+      _snack('已有插画在生成中，等它画完再试。');
+      return;
     }
+    setState(() => _jobId = id);
   }
 
   Future<void> _save() async {
-    final result = _result;
+    final job = ref.read(illustrationJobProvider);
+    final result = job?.result;
     if (result == null || _saving) return;
     final bookId = await pickMemoryBookDialog(
       context,
@@ -415,10 +416,11 @@ class _IllustrationComposerPageState
       await store.addPage(
         bookId: bookId,
         sourcePath: result.finalFile.path,
-        excerpt: _text.text,
+        excerpt: job?.text ?? _text.text,
         medium: result.plan.medium,
       );
       if (!mounted) return;
+      ref.read(illustrationJobProvider.notifier).dismiss();
       _snack('已保存到回忆录。');
       Navigator.of(context).pop(true);
     } catch (error) {
@@ -428,12 +430,20 @@ class _IllustrationComposerPageState
     }
   }
 
+  void _stop() {
+    ref.read(illustrationJobProvider.notifier).cancel();
+    setState(() => _jobId = null);
+    _snack('已停止生成。');
+  }
+
   void _reset() {
-    setState(() {
-      _result = null;
-      _error = null;
-      _stage = null;
-    });
+    ref.read(illustrationJobProvider.notifier).dismiss();
+    setState(() => _jobId = null);
+  }
+
+  void _discard() {
+    ref.read(illustrationJobProvider.notifier).dismiss();
+    Navigator.of(context).pop();
   }
 
   void _openSettings() {

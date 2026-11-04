@@ -288,6 +288,19 @@ void main() {
     expect(find.textContaining('先启动 chino-tts'), findsOneWidget);
   });
 
+  testWidgets('the illustration section accepts any image-capable API',
+      (tester) async {
+    await pumpPage(tester, _FakeClient());
+
+    await reveal(tester, find.text('插画（生图）'));
+
+    expect(find.textContaining('必须使用火山方舟'), findsNothing);
+    expect(
+      find.textContaining('任意支持图片生成的 OpenAI 兼容接口'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('saves the search settings and reports a probe hit',
       (tester) async {
     final search = _FakeSearch(

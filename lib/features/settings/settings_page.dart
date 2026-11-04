@@ -233,7 +233,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (!effective.isConfigured) {
       message = '请先填写插画 API Key（或沿用上面的 API Key）';
     } else if (effective.isDeepSeek) {
-      message = 'DeepSeek 不支持绘图，请把插画接口改成火山方舟 Ark 地址';
+      message = 'DeepSeek 不支持生图，请把插画接口改成一个支持生图的接口地址';
     } else {
       final client = ref.read(llmClientFactoryProvider)(
         LlmConfig(
@@ -245,7 +245,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
       try {
         await client.completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
-        message = '插画聊天接口可用（图像接口未单独测试）';
+        message = '插画聊天接口可用（生图接口未单独测试）';
       } catch (error) {
         message = '插画配置连接失败：$error';
       } finally {
@@ -375,12 +375,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(),
                 const SizedBox(height: 8),
                 Text(
-                  '插画（Seedream）',
+                  '插画（生图）',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '图像生成必须使用火山方舟 Ark；接口/Key 留空时沿用上面的 AI 服务。',
+                  '生图可以使用任意支持图片生成的 OpenAI 兼容接口；接口/Key 留空时沿用上面的 AI 服务。',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -391,8 +391,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   controller: _illBaseUrl,
                   decoration: const InputDecoration(
                     labelText: '插画接口地址（可选）',
-                    hintText: 'https://ark.cn-beijing.volces.com/api/v3',
-                    helperText: '留空则沿用上面的接口地址；绘图必须是 Ark',
+                    hintText: 'https://api.openai.com/v1',
+                    helperText: '留空则沿用上面的接口地址；填到 /v1 或 /api/v3 即可',
                   ),
                   keyboardType: TextInputType.url,
                 ),
@@ -421,7 +421,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   controller: _illImageModel,
                   decoration: const InputDecoration(
                     labelText: '图像模型',
-                    helperText: '默认 doubao-seedream-5-0-pro-260628',
+                    helperText: '例如 gpt-image-1、doubao-seedream-5-0-pro-260628',
                   ),
                 ),
                 const SizedBox(height: 8),
