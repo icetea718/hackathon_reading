@@ -110,7 +110,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
   int _pageIndex = 0;
-  int _pageDirection = 1;
   int? _pendingOffset;
   ChapterPagination? _pagination;
   String? _paginationKey;
@@ -391,7 +390,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (index < 0 || index >= data.chapters.length) return;
     final chapter = data.chapters[index];
     setState(() {
-      _pageDirection = index >= _chapterIndex ? 1 : -1;
       _chapterIndex = index;
       _pageIndex = 0;
       _pendingOffset = chapter.startOffset;
@@ -416,10 +414,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final pagination = _validPagination(data.chapters);
     if (pagination == null) return;
     if (_pageIndex < pagination.pageCount - 1) {
-      setState(() {
-        _pageDirection = 1;
-        _pageIndex++;
-      });
+      setState(() => _pageIndex++);
       _scheduleProgressSave();
       return;
     }
@@ -433,10 +428,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (data == null || data.chapters.isEmpty) return;
     if (_validPagination(data.chapters) == null) return;
     if (_pageIndex > 0) {
-      setState(() {
-        _pageDirection = -1;
-        _pageIndex--;
-      });
+      setState(() => _pageIndex--);
       _scheduleProgressSave();
       return;
     }
@@ -447,7 +439,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         ? previous.endOffset - 1
         : previous.startOffset;
     setState(() {
-      _pageDirection = -1;
       _chapterIndex = previousIndex;
       _pendingOffset = offset;
     });
@@ -1028,35 +1019,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                             child: ClipRect(
                               child: Align(
                                 alignment: Alignment.topLeft,
-                                child: AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 180),
-                                  transitionBuilder: (child, animation) {
-                                    final offset = Tween<Offset>(
-                                      begin: Offset(0.06 * _pageDirection, 0),
-                                      end: Offset.zero,
-                                    ).animate(animation);
-                                    return FadeTransition(
-                                      opacity: animation,
-                                      child: SlideTransition(
-                                        position: offset,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                                  child: KeyedSubtree(
-                                    key: ValueKey(
-                                      '${currentChapter.id}-$_pageIndex-$_paginationKey',
-                                    ),
-                                    child: SelectableText.rich(
-                                      TextSpan(children: spans),
-                                      contextMenuBuilder: (context, state) =>
-                                          _selectionToolbar(
-                                            state,
-                                            page,
-                                            pageContent,
-                                            currentChapter,
-                                          ),
-                                    ),
+                                child: KeyedSubtree(
+                                  key: ValueKey(
+                                    '${currentChapter.id}-$_pageIndex-$_paginationKey',
+                                  ),
+                                  child: SelectableText.rich(
+                                    TextSpan(children: spans),
+                                    contextMenuBuilder: (context, state) =>
+                                        _selectionToolbar(
+                                          state,
+                                          page,
+                                          pageContent,
+                                          currentChapter,
+                                        ),
                                   ),
                                 ),
                               ),

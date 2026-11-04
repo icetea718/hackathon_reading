@@ -335,6 +335,18 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('turns a page without a transition animation', (tester) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+
+    await tester.tap(find.byKey(const Key('reader-next-zone')));
+    await tester.pump();
+
+    expect(find.byType(SelectableText), findsOneWidget);
+    expect(footerText(tester), matches(RegExp(r'^第 2 / \d+ 页 · ')));
+    await disposeApp(tester);
+  });
+
   testWidgets('keyboard paging during a chapter load does not skip chapters', (
     tester,
   ) async {
