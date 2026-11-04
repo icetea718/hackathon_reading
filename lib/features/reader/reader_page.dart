@@ -16,7 +16,6 @@ import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
-import '../companion/companion_avatar.dart';
 import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
 import '../companion/companion_presence.dart';
@@ -1265,7 +1264,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               bottom: roomy ? 24 : 12,
               child: CompanionPresence(
                 key: const Key('companion-presence'),
-                assetPath: companionSprite,
                 height: height,
                 greetingLoader: greetingLoader,
                 onOpenChat: onOpenChat,

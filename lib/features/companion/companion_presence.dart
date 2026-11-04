@@ -57,6 +57,9 @@ class _CompanionPresenceState extends State<CompanionPresence>
   late final Animation<double> _scale;
   late final Animation<double> _opacity;
 
+  final GlobalKey<CompanionAvatarState> _avatarKey =
+      GlobalKey<CompanionAvatarState>();
+
   Timer? _greetTimer;
   Timer? _hideTimer;
   Timer? _loadTimer;
@@ -131,6 +134,8 @@ class _CompanionPresenceState extends State<CompanionPresence>
       _visible = true;
     });
     _bubble.forward();
+    // A little hop, so the line lands with a body language of its own.
+    _avatarKey.currentState?.cheer();
     _hideTimer = Timer(_lingerFor, _close);
   }
 
@@ -196,15 +201,13 @@ class _CompanionPresenceState extends State<CompanionPresence>
               ),
             ),
           ),
-        GestureDetector(
+        KeyedSubtree(
           key: const Key('companion-avatar-tap'),
-          onTap: _handleAvatarTap,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: CompanionAvatar(
-              assetPath: widget.assetPath,
-              height: widget.height,
-            ),
+          child: CompanionAvatar(
+            key: _avatarKey,
+            assetPath: widget.assetPath,
+            height: widget.height,
+            onTap: _handleAvatarTap,
           ),
         ),
       ],

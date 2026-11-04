@@ -18,6 +18,7 @@ import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
 import 'package:hackathon_reading/features/companion/companion_avatar.dart';
+import 'package:hackathon_reading/features/companion/companion_clip.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
@@ -1583,13 +1584,14 @@ void main() {
       await disposeApp(tester);
     });
 
-    testWidgets('wears the bundled sprite', (tester) async {
+    testWidgets('wears the pet clips', (tester) async {
       await pumpReader(tester, 'b1');
 
       final avatar = tester.widget<CompanionAvatar>(
         find.byType(CompanionAvatar),
       );
-      expect(avatar.assetPath, companionSprite);
+      expect(avatar.assetPath, isNull);
+      expect(find.byType(CompanionClipStage), findsOneWidget);
       await disposeApp(tester);
     });
   });

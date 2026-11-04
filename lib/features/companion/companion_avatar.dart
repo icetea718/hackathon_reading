@@ -2,6 +2,9 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 
+import 'companion_body.dart';
+import 'companion_clip.dart';
+import 'companion_fish.dart';
 import 'companion_idle_sprite.dart';
 
 /// The bundled sprite the reader shows next to the page.
@@ -16,8 +19,17 @@ bool get _runningInTests => Platform.environment['FLUTTER_TEST'] == 'true';
 ///
 /// The sprite is a placeholder drawn with a [CustomPainter] until real art
 /// lands; pass [assetPath] to swap in an image without touching call sites.
+///
+/// The body runs on springs (see [CompanionBody]), so the character reacts to
+/// taps, drags and the mouse pointer instead of standing still.
 class CompanionAvatar extends StatefulWidget {
-  const CompanionAvatar({super.key, this.assetPath, required this.height});
+  const CompanionAvatar({
+    super.key,
+    this.assetPath,
+    required this.height,
+    this.onTap,
+    this.idleMotion = true,
+  });
 
   /// Optional image asset. When null (or when the asset fails to load) the
   /// built-in painter is used instead.
@@ -26,17 +38,32 @@ class CompanionAvatar extends StatefulWidget {
   /// Rendered height in logical pixels; the width follows a 3:4 ratio.
   final double height;
 
+  /// Fired when the character is tapped or clicked (not when it is dragged).
+  final VoidCallback? onTap;
+
+  /// Breathing and idle nudges. Tests pass false so nothing keeps ticking.
+  final bool idleMotion;
+
   @override
-  State<CompanionAvatar> createState() => _CompanionAvatarState();
+  State<CompanionAvatar> createState() => CompanionAvatarState();
 }
 
-class _CompanionAvatarState extends State<CompanionAvatar>
+class CompanionAvatarState extends State<CompanionAvatar>
     with SingleTickerProviderStateMixin {
   // One-shot entrance only. A repeating controller would make every
   // `pumpAndSettle()` in the reader tests time out.
   late final AnimationController _entrance;
   late final Animation<double> _scale;
   late final Animation<double> _lift;
+
+  final GlobalKey<CompanionBodyState> _bodyKey = GlobalKey<CompanionBodyState>();
+  final GlobalKey<CompanionClipStageState> _stageKey =
+      GlobalKey<CompanionClipStageState>();
+  final ValueNotifier<double> _motion = ValueNotifier<double>(0);
+  final ValueNotifier<Offset> _look = ValueNotifier<Offset>(Offset.zero);
+
+  /// Little hop, used when the character has something to say.
+  void cheer() => _bodyKey.currentState?.cheer();
 
   @override
   void initState() {
@@ -56,6 +83,8 @@ class _CompanionAvatarState extends State<CompanionAvatar>
   @override
   void dispose() {
     _entrance.dispose();
+    _motion.dispose();
+    _look.dispose();
     super.dispose();
   }
 
@@ -72,72 +101,43 @@ class _CompanionAvatarState extends State<CompanionAvatar>
         key: const Key('companion-avatar'),
         width: size.width,
         height: size.height,
-        child: widget.assetPath == null
-            ? _placeholder(context)
-            : widget.assetPath == companionSprite
-            ? CompanionIdleSprite(animate: !_runningInTests)
-            : Image.asset(
-                widget.assetPath!,
-                fit: BoxFit.contain,
-                alignment: Alignment.bottomCenter,
-                filterQuality: FilterQuality.medium,
-                errorBuilder: (context, _, _) => _placeholder(context),
-              ),
+        child: CompanionBody(
+          key: _bodyKey,
+          idleMotion: widget.idleMotion && !_runningInTests,
+          onTap: widget.onTap,
+          onPress: () => _stageKey.currentState?.play(companionPokeClip),
+          onGrabbed: () => _stageKey.currentState?.play(companionDragClip),
+          onReleased: () => _stageKey.currentState?.playIdle(),
+          motion: _motion,
+          look: _look,
+          child: widget.assetPath == companionSprite
+              ? CompanionIdleSprite(animate: !_runningInTests)
+              : widget.assetPath != null
+              ? Image.asset(
+                  widget.assetPath!,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.bottomCenter,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (context, _, _) => _fish(context),
+                )
+              : CompanionClipStage(
+                  key: _stageKey,
+                  animate: widget.idleMotion && !_runningInTests,
+                ),
+        ),
       ),
     );
   }
 
-  Widget _placeholder(BuildContext context) {
+  Widget _fish(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return CustomPaint(
-      painter: _AvatarPainter(
-        body: scheme.primary,
-        head: scheme.secondaryContainer,
-        eye: scheme.onSecondaryContainer,
-      ),
+    return CompanionFish(
+      motion: _motion,
+      look: _look,
+      bodyColor: Color.lerp(scheme.primary, Colors.white, 0.30) ?? scheme.primary,
+      bellyColor: const Color(0xFFFFF4E6),
+      finColor: Color.lerp(scheme.primary, Colors.white, 0.58) ?? scheme.primary,
+      eyeColor: const Color(0xFF22283A),
     );
   }
-}
-
-class _AvatarPainter extends CustomPainter {
-  const _AvatarPainter({
-    required this.body,
-    required this.head,
-    required this.eye,
-  });
-
-  final Color body;
-  final Color head;
-  final Color eye;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // Body: rounded torso filling the lower half.
-    final bodyPaint = Paint()..color = body.withValues(alpha: 0.85);
-    final torso = Rect.fromLTWH(w * 0.12, h * 0.5, w * 0.76, h * 0.42);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(torso, Radius.circular(h * 0.12)),
-      bodyPaint,
-    );
-
-    // Head: circle overlapping the torso.
-    final headPaint = Paint()..color = head;
-    final center = Offset(w * 0.5, h * 0.3);
-    canvas.drawCircle(center, h * 0.22, headPaint);
-
-    // Eyes.
-    final eyePaint = Paint()..color = eye;
-    final eyeRadius = h * 0.03;
-    canvas.drawCircle(Offset(w * 0.42, h * 0.29), eyeRadius, eyePaint);
-    canvas.drawCircle(Offset(w * 0.58, h * 0.29), eyeRadius, eyePaint);
-  }
-
-  @override
-  bool shouldRepaint(_AvatarPainter oldDelegate) =>
-      oldDelegate.body != body ||
-      oldDelegate.head != head ||
-      oldDelegate.eye != eye;
 }
