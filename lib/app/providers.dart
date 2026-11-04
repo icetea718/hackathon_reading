@@ -31,6 +31,10 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../tts/audio_output.dart';
+import '../tts/tts_client.dart';
+import '../tts/tts_config.dart';
+import '../tts/tts_service.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase.defaults();
@@ -112,6 +116,83 @@ final llmClientProvider = Provider<LlmClient>((ref) {
   final client = OpenAiLlmClient(config: () => source.value);
   ref.onDispose(client.dispose);
   return client;
+});
+
+/// Builds a short-lived client from an explicit config.
+///
+/// The settings page's "test connection" button needs the values currently in
+/// the form, which are not in [llmConfigSourceProvider] yet: that snapshot only
+/// refreshes once [llmConfigProvider] has reloaded from the database.
+typedef LlmClientFactory = LlmClient Function(LlmConfig config);
+
+final llmClientFactoryProvider = Provider<LlmClientFactory>((ref) {
+  return (config) => OpenAiLlmClient(config: () => config);
+});
+
+final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {
+  return TtsConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+/// The stored voice settings; invalidated whenever the settings page saves.
+final ttsConfigProvider = FutureProvider<TtsConfig>((ref) {
+  return ref.watch(ttsConfigStoreProvider).load();
+});
+
+/// Synchronous snapshot of [ttsConfigProvider] for the client's callback.
+class TtsConfigSource {
+  TtsConfig value = TtsConfig.defaults;
+}
+
+final ttsConfigSourceProvider = Provider<TtsConfigSource>((ref) {
+  final source = TtsConfigSource();
+  ref.listen<AsyncValue<TtsConfig>>(
+    ttsConfigProvider,
+    (previous, next) {
+      if (next is AsyncData<TtsConfig>) source.value = next.value;
+    },
+    fireImmediately: true,
+  );
+  return source;
+});
+
+final ttsClientProvider = Provider<TtsClient>((ref) {
+  final source = ref.watch(ttsConfigSourceProvider);
+  final client = OpenAiTtsClient(config: () => source.value);
+  ref.onDispose(client.dispose);
+  return client;
+});
+
+/// Builds a short-lived voice client from an explicit config.
+///
+/// Same reason as [llmClientFactoryProvider]: the "test voice" button must ping
+/// the address that is on screen, not the snapshot that lags behind it.
+typedef TtsClientFactory = TtsClient Function(TtsConfig config);
+
+final ttsClientFactoryProvider = Provider<TtsClientFactory>((ref) {
+  return (config) => OpenAiTtsClient(config: () => config);
+});
+
+final audioOutputProvider = Provider<AudioOutput>((ref) {
+  final output = Platform.isWindows ? WinmmAudioOutput() : NoopAudioOutput();
+  ref.onDispose(output.dispose);
+  return output;
+});
+
+/// Speaks assistant replies; one instance serves every companion panel.
+final ttsServiceProvider = Provider<TtsService>((ref) {
+  final service = TtsService(
+    client: ref.watch(ttsClientProvider),
+    output: ref.watch(audioOutputProvider),
+    config: () => ref.read(ttsConfigSourceProvider).value,
+    tempDirectory: () async {
+      final base = await getTemporaryDirectory();
+      final dir = Directory(p.join(base.path, 'tts'));
+      if (!await dir.exists()) await dir.create(recursive: true);
+      return dir;
+    },
+  );
+  ref.onDispose(service.dispose);
+  return service;
 });
 
 final distillJobRepositoryProvider = Provider<DistillJobRepository>((ref) {

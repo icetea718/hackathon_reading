@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../distill/llm/llm_config.dart';
+import '../../tts/tts_client.dart';
+import '../../tts/tts_config.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -19,8 +21,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _temperature = TextEditingController();
   final _maxChunkChars = TextEditingController();
 
+  final _ttsBaseUrl = TextEditingController();
+  final _ttsVoice = TextEditingController();
+  final _ttsSpeed = TextEditingController();
+  final _ttsVolume = TextEditingController();
+  bool _ttsEnabled = TtsConfig.defaults.enabled;
+  bool _ttsAutoSpeak = TtsConfig.defaults.autoSpeak;
+
   bool _loaded = false;
   bool _testing = false;
+  bool _testingVoice = false;
 
   @override
   void initState() {
@@ -35,11 +45,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _apiKey.dispose();
     _temperature.dispose();
     _maxChunkChars.dispose();
+    _ttsBaseUrl.dispose();
+    _ttsVoice.dispose();
+    _ttsSpeed.dispose();
+    _ttsVolume.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     final config = await ref.read(llmConfigStoreProvider).load();
+    final voice = await ref.read(ttsConfigStoreProvider).load();
     if (!mounted) return;
     setState(() {
       _baseUrl.text = config.baseUrl;
@@ -47,6 +62,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _apiKey.text = config.apiKey;
       _temperature.text = '${config.temperature}';
       _maxChunkChars.text = '${config.maxChunkChars}';
+      _ttsBaseUrl.text = voice.baseUrl;
+      _ttsVoice.text = voice.voice;
+      _ttsSpeed.text = '${voice.speed}';
+      _ttsVolume.text = '${voice.volume}';
+      _ttsEnabled = voice.enabled;
+      _ttsAutoSpeak = voice.autoSpeak;
       _loaded = true;
     });
   }
@@ -66,24 +87,66 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _save({bool announce = true}) async {
     await ref.read(llmConfigStoreProvider).save(_configFromForm());
     ref.invalidate(llmConfigProvider);
+    await ref.read(ttsConfigStoreProvider).save(_voiceFromForm());
+    ref.invalidate(ttsConfigProvider);
     if (!mounted || !announce) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('已保存')));
+  }
+
+  TtsConfig _voiceFromForm() {
+    final speed = double.tryParse(_ttsSpeed.text.trim());
+    final volume = double.tryParse(_ttsVolume.text.trim());
+    final voice = _ttsVoice.text.trim();
+    return TtsConfig(
+      baseUrl: _ttsBaseUrl.text.trim(),
+      voice: voice.isEmpty ? TtsConfig.defaults.voice : voice,
+      speed: (speed ?? TtsConfig.defaults.speed).clamp(0.6, 1.6).toDouble(),
+      volume: (volume ?? TtsConfig.defaults.volume).clamp(0, 1).toDouble(),
+      enabled: _ttsEnabled,
+      autoSpeak: _ttsAutoSpeak,
+    );
+  }
+
+  Future<void> _testVoice() async {
+    if (_testingVoice) return;
+    setState(() => _testingVoice = true);
+    final config = _voiceFromForm();
+    await _save(announce: false);
+    // Use the values on screen: the shared client still holds the previous
+    // snapshot until the settings provider has reloaded from the database.
+    final client = ref.read(ttsClientFactoryProvider)(config);
+    TtsProbe probe;
+    try {
+      probe = await client.probe();
+    } finally {
+      client.dispose();
+    }
+    if (!mounted) return;
+    setState(() => _testingVoice = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(probe.ok ? probe.message : '语音服务不可用：${probe.message}'),
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   Future<void> _testConnection() async {
     if (_testing) return;
     setState(() => _testing = true);
     // Save first so the shared client picks up the values just typed.
+    final config = _configFromForm();
     await _save(announce: false);
     String message;
+    final client = ref.read(llmClientFactoryProvider)(config);
     try {
-      await ref
-          .read(llmClientProvider)
-          .completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
+      await client.completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
       message = '连接成功';
     } catch (error) {
       message = '连接失败：$error';
+    } finally {
+      client.dispose();
     }
     if (!mounted) return;
     setState(() => _testing = false);
@@ -147,6 +210,94 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  '朗读（GPT-SoVITS / chino-tts）',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                SwitchListTile(
+                  key: const Key('tts-enabled'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('启用朗读'),
+                  subtitle: const Text('关掉只停用「自动朗读回复」；手动点喇叭照样会读'),
+                  value: _ttsEnabled,
+                  onChanged: (value) => setState(() => _ttsEnabled = value),
+                ),
+                TextField(
+                  key: const Key('tts-base-url'),
+                  controller: _ttsBaseUrl,
+                  decoration: const InputDecoration(
+                    labelText: '语音服务地址',
+                    hintText: 'http://127.0.0.1:8766',
+                    helperText: 'chino-tts 或 GPT-SoVITS api_v2；根路径 404 是正常的',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('tts-voice'),
+                  controller: _ttsVoice,
+                  decoration: const InputDecoration(
+                    labelText: '音色',
+                    helperText: '点下面的预设，或自己填服务里的音色名；'
+                        'zhino / xiaoyi 走在线合成，几乎实时，'
+                        'zhino-clone 是本机克隆，比实时慢很多',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final preset in TtsConfig.voicePresets)
+                      ActionChip(
+                        key: Key('tts-voice-$preset'),
+                        label: Text(preset),
+                        onPressed: () =>
+                            setState(() => _ttsVoice.text = preset),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        key: const Key('tts-speed'),
+                        controller: _ttsSpeed,
+                        decoration: const InputDecoration(
+                          labelText: '语速（0.6–1.6）',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        key: const Key('tts-volume'),
+                        controller: _ttsVolume,
+                        decoration: const InputDecoration(
+                          labelText: '音量（0–1）',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  key: const Key('tts-auto-speak'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('自动朗读回复'),
+                  subtitle: const Text('回复生成完就念，不用点喇叭'),
+                  value: _ttsAutoSpeak,
+                  onChanged: (value) => setState(() => _ttsAutoSpeak = value),
+                ),
+                const SizedBox(height: 24),
                 Row(
                   children: [
                     FilledButton(
@@ -163,6 +314,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('测试连接'),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      key: const Key('tts-test'),
+                      onPressed: _testingVoice ? null : _testVoice,
+                      child: _testingVoice
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('测试语音'),
                     ),
                   ],
                 ),
