@@ -329,7 +329,7 @@ git commit -m "feat(search): 新增免 Key 的必应 RSS 搜索源"
 
 **Files:**
 - Create: `lib/search/routing_search_provider.dart`
-- Modify: `lib/app/providers.dart:214-225`
+- Modify: `lib/app/providers.dart:139-177`（从 `searchConfigStoreProvider` 到 `searchProviderFactoryProvider`）
 - Test: `test/search/routing_search_provider_test.dart`（新建）
 
 **Interfaces:**
@@ -720,6 +720,7 @@ git commit -m "feat(search): 联网 chip 改为选择来源，重试沿用同一
   testWidgets('选免费搜索时隐藏 Tavily Key 并保存为 free', (tester) async {
     await pumpPage(tester, _FakeClient());
 
+    await reveal(tester, find.byKey(const Key('search-provider')));
     await tester.tap(find.byKey(const Key('search-provider')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('免费搜索（免 Key）').last);
@@ -727,7 +728,7 @@ git commit -m "feat(search): 联网 chip 改为选择来源，重试沿用同一
 
     expect(find.byKey(const Key('search-api-key')), findsNothing);
 
-    await tester.tap(find.text('保存'));
+    await tapAt(tester, find.text('保存'));
     await tester.pumpAndSettle();
 
     final saved = await SearchConfigStore(SettingsRepository(db)).load();
@@ -746,6 +747,7 @@ Expected: FAIL — 找不到「免费搜索（免 Key）」
 - 下拉 `items` 插入 `DropdownMenuItem(value: SearchConfig.free, child: Text('免费搜索（免 Key）'))`（放在「关闭」与 Tavily 之间）
 - 把 `search-api-key` 的 `TextField` 包成 `if (_searchProvider == SearchConfig.tavily) ...`，其 helper 文案不变
 - `_testSearch()` 不动（工厂已按 config 路由）
+- 注意：`test/features/settings_page_test.dart` 已有「选 Tavily 填 Key 再保存」的用例（用 `reveal(...)` + `tapAt(...)` 处理滚动）。改完 Key 框的可见性后，先跑一遍这个文件；若有既有用例依赖「provider=off 时 Key 框可见」，同步调整它，不要留着红。
 
 - [ ] **Step 4: 跑测试确认通过**
 
