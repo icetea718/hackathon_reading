@@ -38,7 +38,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 11);
+    expect(db.schemaVersion, 12);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -119,7 +119,7 @@ void main() {
     expect(chapter.read<int>('level'), 2);
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 11);
+    expect(version.read<int>('user_version'), 12);
 
     await db.close();
   });
@@ -153,7 +153,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 11);
+    expect(db.schemaVersion, 12);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -229,7 +229,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 11);
+    expect(version.read<int>('user_version'), 12);
     await db.close();
   });
 
@@ -315,7 +315,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 11);
+    expect(version.read<int>('user_version'), 12);
     await db.close();
   });
 
@@ -375,7 +375,80 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 11);
+    expect(version.read<int>('user_version'), 12);
+    await db.close();
+  });
+
+  test('upgrades a v11 search database with a book column', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 11;');
+        raw.execute(
+          'CREATE TABLE chat_threads ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          "title TEXT NOT NULL DEFAULT '', "
+          'created_at TEXT NOT NULL, '
+          'updated_at TEXT NOT NULL)',
+        );
+        raw.execute(
+          'CREATE INDEX chat_threads_updated ON chat_threads (updated_at)',
+        );
+        raw.execute(
+          "INSERT INTO chat_threads (id, title, created_at, updated_at) "
+          "VALUES ('t1', '旧对话', '2026-11-04T00:00:00.000', "
+          "'2026-11-04T00:00:00.000')",
+        );
+      },
+    ));
+
+    final columns = await db
+        .customSelect('PRAGMA table_info(chat_threads)')
+        .get();
+    expect(
+      columns.map((row) => row.read<String>('name')),
+      contains('book_id'),
+    );
+
+    final row = await db
+        .customSelect("SELECT book_id FROM chat_threads WHERE id = 't1'")
+        .getSingle();
+    expect(row.read<String?>('book_id'), null);
+
+    final indexNames = (await db
+            .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+            .get())
+        .map((row) => row.read<String>('name'))
+        .toSet();
+    expect(indexNames, contains('chat_threads_book'));
+
+    final version = await db.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 12);
+    await db.close();
+  });
+
+  test('re-running the v12 migration tolerates an existing column', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 11;');
+        raw.execute(
+          'CREATE TABLE chat_threads ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          "title TEXT NOT NULL DEFAULT '', "
+          'created_at TEXT NOT NULL, '
+          'updated_at TEXT NOT NULL, '
+          'book_id TEXT)',
+        );
+        raw.execute(
+          'CREATE INDEX chat_threads_updated ON chat_threads (updated_at)',
+        );
+        raw.execute(
+          'CREATE INDEX chat_threads_book ON chat_threads (book_id, updated_at)',
+        );
+      },
+    ));
+
+    final version = await db.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 12);
     await db.close();
   });
 }

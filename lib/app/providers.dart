@@ -41,6 +41,7 @@ import '../domain/services/file_picker_service.dart';
 import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
 import '../search/book_context.dart';
+import '../search/search_book.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
 import '../search/tavily_search_provider.dart';
@@ -328,6 +329,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     distillArtifacts: ref.watch(distillArtifactRepositoryProvider),
     categories: ref.watch(categoryRepositoryProvider),
     companionChats: ref.watch(companionChatRepositoryProvider),
+    chatThreads: ref.watch(chatThreadRepositoryProvider),
   );
   await service.backfillContentHashes();
   unawaited(service.backfillCovers());
@@ -367,9 +369,12 @@ final chatMessageRepositoryProvider = Provider<ChatMessageRepository>(
   (ref) => ChatMessageRepository(ref.watch(appDatabaseProvider)),
 );
 
-final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>(
-  (ref) => ref.watch(chatThreadRepositoryProvider).watchAll(),
-);
+/// Conversations of the scope the reader is currently in: the picked book's
+/// archive, or the threads that belong to no book.
+final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>((ref) {
+  final bookId = ref.watch(searchBookProvider);
+  return ref.watch(chatThreadRepositoryProvider).watchForBook(bookId);
+});
 
 /// The 搜 agent: free-form chat, optionally grounded in web results.
 final agentServiceProvider = Provider<SearchAgentService>(

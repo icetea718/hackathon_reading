@@ -106,4 +106,58 @@ void main() {
     expect(ChatThreadRepository.deriveTitle('字' * 40).length, 24);
     expect(ChatThreadRepository.deriveTitle(''), '新对话');
   });
+
+  test('watchForBook only returns the threads archived under that book', () async {
+    final archived = await threads.create(title: '本书', bookId: 'b1');
+    final loose = await threads.create(title: '未选书');
+
+    expect(
+      (await threads.watchForBook('b1').first).map((row) => row.id),
+      [archived.id],
+    );
+    expect(
+      (await threads.watchForBook(null).first).map((row) => row.id),
+      [loose.id],
+    );
+    expect((await threads.watchAll().first).length, 2);
+  });
+
+  test('a blank bookId is stored as no book', () async {
+    final thread = await threads.create(bookId: '   ');
+
+    expect(thread.bookId, null);
+    expect(
+      (await threads.watchForBook(null).first).map((row) => row.id),
+      [thread.id],
+    );
+  });
+
+  test('latestForBook returns the most recently touched thread of that book',
+      () async {
+    final older = await threads.create(title: '旧', bookId: 'b1');
+    final newer = await threads.create(title: '新', bookId: 'b1');
+    await threads.create(title: '别的书', bookId: 'b2');
+
+    expect((await threads.latestForBook('b1'))!.id, newer.id);
+
+    await threads.touch(older.id);
+
+    expect((await threads.latestForBook('b1'))!.id, older.id);
+    expect((await threads.latestForBook(null)), null);
+    expect((await threads.latestForBook('b9')), null);
+  });
+
+  test('deleteForBook removes the book threads and their messages', () async {
+    final archived = await threads.create(bookId: 'b1');
+    final other = await threads.create(bookId: 'b2');
+    await messages.append(threadId: archived.id, role: 'user', content: 'hi');
+    await messages.append(threadId: other.id, role: 'user', content: 'yo');
+
+    await threads.deleteForBook('b1');
+
+    expect(await threads.watchForBook('b1').first, isEmpty);
+    expect(await messages.list(archived.id), isEmpty);
+    expect((await threads.watchForBook('b2').first).single.id, other.id);
+    expect((await messages.list(other.id)).single.content, 'yo');
+  });
 }

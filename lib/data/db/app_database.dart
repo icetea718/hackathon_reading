@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -122,6 +122,22 @@ class AppDatabase extends _$AppDatabase {
             }
             if (!await hasTable('translation_caches')) {
               await m.createTable(translationCaches);
+            }
+          }
+          if (from < 12) {
+            // Older databases have chat_threads without book_id. Databases
+            // created by the v11 block above already use the new definition,
+            // so guard the column before adding it.
+            final columns = await m.database
+                .customSelect('PRAGMA table_info(chat_threads)')
+                .get();
+            final hasBookId =
+                columns.any((row) => row.read<String>('name') == 'book_id');
+            if (!hasBookId) {
+              await m.addColumn(chatThreads, chatThreads.bookId);
+            }
+            if (!await hasIndex('chat_threads_book')) {
+              await m.create(chatThreadsBook);
             }
           }
         },

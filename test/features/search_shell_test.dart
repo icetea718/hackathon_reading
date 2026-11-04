@@ -224,9 +224,9 @@ class SlowThreadRepository extends ChatThreadRepository {
   final Completer<void> gate = Completer<void>();
 
   @override
-  Future<ChatThreadRow> create({String? title}) async {
+  Future<ChatThreadRow> create({String? title, String? bookId}) async {
     await gate.future;
-    return super.create(title: title);
+    return super.create(title: title, bookId: bookId);
   }
 }
 
@@ -555,6 +555,120 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
   }
+
+  Book shelfBook(String id, String title) {
+    return Book(
+      id: id,
+      title: title,
+      author: '',
+      format: BookFormat.epub,
+      sourcePath: '/books/$id.epub',
+      addedAt: DateTime(2026, 1, 1),
+    );
+  }
+
+  Future<void> pickBook(WidgetTester tester, String bookId) async {
+    await tester.tap(find.byKey(const Key('chat-book')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('book-option-$bookId')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a question asked with a book picked is archived under it',
+      (tester) async {
+    await pumpShell(tester, client: InstantClient('ok'));
+    await tester.runAsync(() => BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖')));
+    await tester.pumpAndSettle();
+
+    await pickBook(tester, 'b1');
+    await send(tester, '冰层多厚');
+
+    final threads = await threadRows(tester);
+    expect(threads.single.bookId, 'b1');
+    await disposeShell(tester);
+  });
+
+  testWidgets('picking a book switches the sidebar to that book history',
+      (tester) async {
+    setWide(tester);
+    await tester.runAsync(() async {
+      final repo = ChatThreadRepository(db);
+      final loose = await repo.create(title: '未选书的对话');
+      await ChatMessageRepository(db).append(
+        threadId: loose.id,
+        role: 'user',
+        content: '书架外的问题',
+      );
+      await repo.create(title: '书里的旧问题', bookId: 'b1');
+      final latest = await repo.create(title: '书里的新问题', bookId: 'b1');
+      await ChatMessageRepository(db).append(
+        threadId: latest.id,
+        role: 'user',
+        content: '书里最新的提问',
+      );
+      await repo.create(title: '另一本书的对话', bookId: 'b2');
+      await BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖'));
+    });
+    await pumpShell(tester, client: InstantClient('ok'));
+
+    expect(find.text('未选书的对话'), findsOneWidget);
+
+    await pickBook(tester, 'b1');
+
+    expect(find.text('书里的新问题'), findsOneWidget);
+    expect(find.text('书里的旧问题'), findsOneWidget);
+    expect(find.text('未选书的对话'), findsNothing);
+    expect(find.text('另一本书的对话'), findsNothing);
+    expect(find.text('书里最新的提问'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('clearing the book returns to the threads with no book',
+      (tester) async {
+    setWide(tester);
+    await tester.runAsync(() async {
+      final repo = ChatThreadRepository(db);
+      final loose = await repo.create(title: '未选书的对话');
+      await ChatMessageRepository(db).append(
+        threadId: loose.id,
+        role: 'user',
+        content: '书架外的问题',
+      );
+      await repo.create(title: '书里的新问题', bookId: 'b1');
+      await BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖'));
+    });
+    await pumpShell(tester, client: InstantClient('ok'));
+
+    await pickBook(tester, 'b1');
+    expect(find.text('书里的新问题'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('取消引用这本书'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未选书的对话'), findsOneWidget);
+    expect(find.text('书里的新问题'), findsNothing);
+    expect(find.text('书架外的问题'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('a new conversation keeps the picked book scope', (tester) async {
+    setWide(tester);
+    await pumpShell(tester, client: InstantClient('ok'));
+    await tester.runAsync(() => BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖')));
+    await tester.pumpAndSettle();
+
+    await pickBook(tester, 'b1');
+    await tester.tap(find.byKey(const Key('sidebar-new')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chat-book-chip')), findsOneWidget);
+
+    await send(tester, '新问题');
+
+    final threads = await threadRows(tester);
+    expect(threads.single.title, '新问题');
+    expect(threads.single.bookId, 'b1');
+    await disposeShell(tester);
+  });
 
   test('a retrieval failure that is not SearchException still finishes',
       () async {

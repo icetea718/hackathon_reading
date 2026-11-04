@@ -24,16 +24,20 @@ class ChatThreadRepository {
         : collapsed.substring(0, titleLength);
   }
 
-  Future<ChatThreadRow> create({String? title}) async {
+  Future<ChatThreadRow> create({String? title, String? bookId}) async {
     final id = const Uuid().v4();
     final latest = await _latestThreadUpdate();
     final now = _after(DateTime.now(), latest);
+    final trimmedBook = bookId?.trim();
     await _db
         .into(_db.chatThreads)
         .insert(
           ChatThreadsCompanion.insert(
             id: id,
             title: Value((title ?? '').trim()),
+            bookId: Value(
+              trimmedBook == null || trimmedBook.isEmpty ? null : trimmedBook,
+            ),
             createdAt: now,
             updatedAt: now,
           ),
@@ -47,6 +51,48 @@ class ChatThreadRepository {
     final query = _db.select(_db.chatThreads)
       ..orderBy([(row) => OrderingTerm.desc(row.updatedAt)]);
     return query.watch();
+  }
+
+  /// Threads archived under [bookId]; null means the threads with no book.
+  Stream<List<ChatThreadRow>> watchForBook(String? bookId) {
+    final query = _db.select(_db.chatThreads)
+      ..where((row) => _scope(row, bookId))
+      ..orderBy([(row) => OrderingTerm.desc(row.updatedAt)]);
+    return query.watch();
+  }
+
+  Future<ChatThreadRow?> latestForBook(String? bookId) {
+    return (_db.select(_db.chatThreads)
+          ..where((row) => _scope(row, bookId))
+          ..orderBy([(row) => OrderingTerm.desc(row.updatedAt)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<void> deleteForBook(String bookId) async {
+    await _db.transaction(() async {
+      final ids = await (_db.selectOnly(_db.chatThreads)
+            ..addColumns([_db.chatThreads.id])
+            ..where(_db.chatThreads.bookId.equals(bookId)))
+          .map((row) => row.read(_db.chatThreads.id)!)
+          .get();
+      if (ids.isEmpty) return;
+      await (_db.delete(_db.chatMessages)
+            ..where((row) => row.threadId.isIn(ids)))
+          .go();
+      await (_db.delete(_db.chatThreads)
+            ..where((row) => row.bookId.equals(bookId)))
+          .go();
+    });
+  }
+
+  Expression<bool> _scope(
+    $ChatThreadsTable row,
+    String? bookId,
+  ) {
+    return bookId == null
+        ? row.bookId.isNull()
+        : row.bookId.equals(bookId);
   }
 
   Future<void> touch(String id, {String? title}) async {

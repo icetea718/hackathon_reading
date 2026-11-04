@@ -51,7 +51,9 @@ class _SearchShellState extends ConsumerState<SearchShell> {
   void _newThread() {
     Navigator.maybePop(context);
     ref.read(chatControllerProvider(_threadKey).notifier).stop();
-    ref.invalidate(chatControllerProvider(ChatController.newThreadKey));
+    ref
+        .read(chatControllerProvider(ChatController.newThreadKey).notifier)
+        .reset();
     setState(() => _threadKey = ChatController.newThreadKey);
   }
 
@@ -59,9 +61,16 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     final key = _threadKey;
     final current = ref.read(chatControllerProvider(key));
     if (current.threadId != id) return;
-    ref.read(chatControllerProvider(key).notifier).stop();
-    ref.invalidate(chatControllerProvider(key));
-    ref.invalidate(chatControllerProvider(ChatController.newThreadKey));
+    final controller = ref.read(chatControllerProvider(key).notifier);
+    controller.stop();
+    if (key == ChatController.newThreadKey) {
+      controller.reset();
+    } else {
+      ref.invalidate(chatControllerProvider(key));
+      ref
+          .read(chatControllerProvider(ChatController.newThreadKey).notifier)
+          .reset();
+    }
     setState(() => _threadKey = ChatController.newThreadKey);
   }
 
@@ -74,7 +83,29 @@ class _SearchShellState extends ConsumerState<SearchShell> {
   Future<void> _pickBook() async {
     final picked = await showBookPicker(context);
     if (!mounted || picked == null) return;
-    ref.read(searchBookProvider.notifier).select(picked);
+    await _switchScope(picked);
+  }
+
+  /// Moves the shell into [bookId]'s archive (null = no book): the current
+  /// stream stops, the sidebar follows the new scope, and the scope's most
+  /// recent conversation opens. An empty scope shows a fresh conversation.
+  Future<void> _switchScope(String? bookId) async {
+    final key = _threadKey;
+    ref.read(chatControllerProvider(key).notifier).stop();
+    if (key == ChatController.newThreadKey) {
+      ref.read(chatControllerProvider(key).notifier).reset();
+    }
+    final books = ref.read(searchBookProvider.notifier);
+    if (bookId == null) {
+      books.clear();
+    } else {
+      books.select(bookId);
+    }
+
+    final latest =
+        await ref.read(chatThreadRepositoryProvider).latestForBook(bookId);
+    if (!mounted) return;
+    setState(() => _threadKey = latest?.id ?? ChatController.newThreadKey);
   }
 
   @override
@@ -86,7 +117,6 @@ class _SearchShellState extends ConsumerState<SearchShell> {
         ref.watch(searchConfigProvider).asData?.value.isEnabled ?? false;
 
     final chat = ref.watch(chatControllerProvider(_threadKey));
-    final controller = ref.read(chatControllerProvider(_threadKey).notifier);
 
     final bookId = ref.watch(searchBookProvider);
     final books = ref.watch(bookListProvider).asData?.value ?? const <Book>[];
@@ -126,7 +156,7 @@ class _SearchShellState extends ConsumerState<SearchShell> {
                           hits: chat.hits,
                           degraded: chat.degraded,
                           error: chat.error,
-                          onRetry: () => _retry(controller),
+                          onRetry: () => _retry(),
                         ),
             ),
             ChatComposer(
@@ -137,10 +167,9 @@ class _SearchShellState extends ConsumerState<SearchShell> {
               onWebChanged: (value) => setState(() => _webSearch = value),
               bookTitle: bookTitle,
               onPickBook: _pickBook,
-              onClearBook: () => ref.read(searchBookProvider.notifier).clear(),
-              onStop: controller.stop,
-              onSend: (text) =>
-                  controller.send(text, webSearch: _webSearch && webConfigured),
+              onClearBook: () => _switchScope(null),
+              onStop: _stop,
+              onSend: (text) => _send(text, webSearch: _webSearch && webConfigured),
             ),
           ],
         );
@@ -163,8 +192,18 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     );
   }
 
-  void _retry(ChatController controller) {
-    controller.retry(webSearch: _webSearch);
+  /// The controller is looked up when the action runs: a scope switch
+  /// invalidates the current one, and a captured instance would be disposed.
+  ChatController get _controller =>
+      ref.read(chatControllerProvider(_threadKey).notifier);
+
+  void _stop() => _controller.stop();
+
+  Future<void> _send(String text, {required bool webSearch}) =>
+      _controller.send(text, webSearch: webSearch);
+
+  void _retry() {
+    _controller.retry(webSearch: _webSearch);
   }
 }
 

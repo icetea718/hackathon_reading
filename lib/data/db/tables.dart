@@ -154,9 +154,13 @@ class DistillArtifacts extends Table {
 
 @DataClassName('ChatThreadRow')
 @TableIndex(name: 'chat_threads_updated', columns: {#updatedAt})
+@TableIndex(name: 'chat_threads_book', columns: {#bookId, #updatedAt})
 class ChatThreads extends Table {
   TextColumn get id => text()();
   TextColumn get title => text().withDefault(const Constant(''))();
+
+  /// Shelf book this conversation is archived under; null means no book.
+  TextColumn get bookId => text().nullable()();
   TextColumn get createdAt => text().map(const IsoDateTimeConverter())();
   TextColumn get updatedAt => text().map(const IsoDateTimeConverter())();
 

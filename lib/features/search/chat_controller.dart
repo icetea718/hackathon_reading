@@ -129,6 +129,7 @@ class ChatController extends Notifier<ChatState> {
       if (threadId == null) {
         final thread = await threadRepo.create(
           title: ChatThreadRepository.deriveTitle(trimmed),
+          bookId: bookId,
         );
         threadId = thread.id;
         created = true;
@@ -424,6 +425,16 @@ class ChatController extends Notifier<ChatState> {
   /// Stops the stream; whatever arrived is kept as an interrupted reply.
   void stop() {
     _cancel?.cancel();
+  }
+
+  /// Clears the draft conversation, for a scope switch or a new conversation.
+  /// Unlike invalidating the provider this keeps the instance alive, so the
+  /// composer's live lookup still reaches a usable controller.
+  void reset() {
+    _cancel?.cancel();
+    _cancel = null;
+    _starting = false;
+    state = const ChatState();
   }
 
   void _patchAssistant(String id, String content) {
