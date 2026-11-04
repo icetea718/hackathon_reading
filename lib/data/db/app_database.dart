@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'converters.dart';
 import 'tables.dart';
 
 part 'app_database.g.dart';
@@ -17,6 +18,8 @@ part 'app_database.g.dart';
     DistillArtifacts,
     Categories,
     BookCategories,
+    ChatThreads,
+    ChatMessages,
     TranslationCaches,
     CompanionThreads,
     CompanionMessages,
@@ -28,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -69,35 +72,56 @@ class AppDatabase extends _$AppDatabase {
               await m.addColumn(chapters, chapters.level);
             }
           }
+          Future<bool> hasTable(String name) async {
+            final rows = await m.database.customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+              variables: [Variable.withString(name)],
+            ).get();
+            return rows.isNotEmpty;
+          }
+
+          Future<bool> hasIndex(String name) async {
+            final rows = await m.database.customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+              variables: [Variable.withString(name)],
+            ).get();
+            return rows.isNotEmpty;
+          }
+
           if (from < 9) {
             await m.createTable(translationCaches);
           }
-          if (from < 10) {
-            final tables = await m.database
-                .customSelect(
-                  "SELECT name FROM sqlite_master WHERE type = 'table'",
-                )
-                .get();
-            final names =
-                tables.map((row) => row.read<String>('name')).toSet();
-            if (!names.contains('companion_threads')) {
+          if (from < 11) {
+            // Two branches both shipped as schema v10: one added the companion
+            // tables, the other the search chat tables. A database upgraded
+            // from either one lacks the other group, so create whichever is
+            // missing. Existence checks keep this migration re-runnable.
+            if (!await hasTable('companion_threads')) {
               await m.createTable(companionThreads);
             }
-            if (!names.contains('companion_messages')) {
-              await m.createTable(companionMessages);
-            }
-            final indexes = await m.database
-                .customSelect(
-                  "SELECT name FROM sqlite_master WHERE type = 'index'",
-                )
-                .get();
-            final indexNames =
-                indexes.map((row) => row.read<String>('name')).toSet();
-            if (!indexNames.contains('companion_threads_book_chapter')) {
+            if (!await hasIndex('companion_threads_book_chapter')) {
               await m.create(companionThreadsBookChapter);
             }
-            if (!indexNames.contains('companion_messages_thread_seq')) {
+            if (!await hasTable('companion_messages')) {
+              await m.createTable(companionMessages);
+            }
+            if (!await hasIndex('companion_messages_thread_seq')) {
               await m.create(companionMessagesThreadSeq);
+            }
+            if (!await hasTable('chat_threads')) {
+              await m.createTable(chatThreads);
+            }
+            if (!await hasIndex('chat_threads_updated')) {
+              await m.create(chatThreadsUpdated);
+            }
+            if (!await hasTable('chat_messages')) {
+              await m.createTable(chatMessages);
+            }
+            if (!await hasIndex('chat_messages_thread')) {
+              await m.create(chatMessagesThread);
+            }
+            if (!await hasTable('translation_caches')) {
+              await m.createTable(translationCaches);
             }
           }
         },

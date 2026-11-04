@@ -8,6 +8,8 @@ import 'package:hackathon_reading/app/app.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
+import 'package:hackathon_reading/features/home/home_providers.dart';
+import 'package:hackathon_reading/features/home/section_rail.dart';
 import 'package:hackathon_reading/features/settings/settings_page.dart';
 
 void main() {
@@ -36,6 +38,8 @@ void main() {
         child: const BookApp(),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('launcher-read')));
     await tester.pumpAndSettle();
   }
 
@@ -71,7 +75,19 @@ void main() {
   });
 
   testWidgets('the brand mark uses the larger serif style', (tester) async {
-    await pumpApp(tester);
+    // The bookshelf rail swaps the badge for the 阅/搜 switch, so the badge
+    // contract is exercised on a plain rail (the reader rail still uses it).
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SectionRail(
+            activeSection: AppSection.bookshelf,
+            onSelectSection: (_) {},
+            onSettings: () {},
+          ),
+        ),
+      ),
+    );
 
     final mark = tester.widget<Text>(find.text('阅'));
     expect(mark.style?.fontSize, 18);

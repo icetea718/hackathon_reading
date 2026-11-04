@@ -50,6 +50,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('launcher-read')));
+    await tester.pumpAndSettle();
   }
 
   Future<void> withApp(

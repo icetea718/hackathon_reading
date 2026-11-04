@@ -8,6 +8,9 @@ import 'package:hackathon_reading/data/repositories/settings_repository.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
 import 'package:hackathon_reading/features/settings/settings_page.dart';
+import 'package:hackathon_reading/search/search_config.dart';
+import 'package:hackathon_reading/search/search_hit.dart';
+import 'package:hackathon_reading/search/search_provider.dart';
 import 'package:hackathon_reading/tts/tts_client.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
 
@@ -45,9 +48,33 @@ class _FakeClient implements LlmClient {
   void dispose() {}
 }
 
+class _FakeSearch implements SearchProvider {
+  _FakeSearch({this.hits = const [], this.failWith});
+
+  final List<SearchHit> hits;
+  final String? failWith;
+  int calls = 0;
+
+  @override
+  String get id => 'tavily';
+
+  @override
+  bool get isConfigured => true;
+
+  @override
+  Future<List<SearchHit>> search(
+    String query, {
+    int count = 5,
+    CancelToken? cancel,
+  }) async {
+    calls++;
+    if (failWith != null) throw SearchException(failWith!);
+    return hits;
+  }
+}
+
 void main() {
   late AppDatabase db;
-
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
   });
@@ -59,6 +86,7 @@ void main() {
     LlmClient client, {
     TtsClient? ttsClient,
     void Function(TtsConfig config)? onTtsClientRequested,
+    SearchProvider? searchProvider,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -70,6 +98,10 @@ void main() {
               onTtsClientRequested?.call(config);
               return ttsClient;
             }),
+          if (searchProvider != null)
+            searchProviderFactoryProvider.overrideWithValue(
+              (config) => searchProvider,
+            ),
         ],
         child: const MaterialApp(home: SettingsPage()),
       ),
@@ -254,5 +286,45 @@ void main() {
 
     expect(find.textContaining('语音服务不可用'), findsOneWidget);
     expect(find.textContaining('先启动 chino-tts'), findsOneWidget);
+  });
+
+  testWidgets('saves the search settings and reports a probe hit',
+      (tester) async {
+    final search = _FakeSearch(
+      hits: const [
+        SearchHit(title: 'Ping', snippet: 'pong', source: 'example.com'),
+      ],
+    );
+    await pumpPage(tester, _FakeClient(), searchProvider: search);
+
+    await reveal(tester, find.byKey(const Key('search-provider')));
+    await tester.tap(find.byKey(const Key('search-provider')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tavily').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('search-api-key')), 'tvly-1');
+    await tapAt(tester, find.byKey(const Key('search-test')));
+
+    expect(find.text('搜索成功：1 条'), findsOneWidget);
+    expect(search.calls, 1);
+
+    final saved = await SearchConfigStore(SettingsRepository(db)).load();
+    expect(saved.provider, SearchConfig.tavily);
+    expect(saved.apiKey, 'tvly-1');
+    expect(saved.isEnabled, isTrue);
+  });
+
+  testWidgets('the search probe reports a failure', (tester) async {
+    await pumpPage(
+      tester,
+      _FakeClient(),
+      searchProvider: _FakeSearch(failWith: 'HTTP 401: bad key'),
+    );
+
+    await tapAt(tester, find.byKey(const Key('search-test')));
+
+    expect(find.textContaining('搜索失败'), findsOneWidget);
+    expect(find.textContaining('HTTP 401'), findsOneWidget);
   });
 }

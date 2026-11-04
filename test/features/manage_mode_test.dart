@@ -55,6 +55,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // A re-pump inside the same test reuses the provider container, so the
+    // launcher is already gone; only tap it on a cold start.
+    final launcher = find.byKey(const Key('launcher-read'));
+    if (launcher.evaluate().isNotEmpty) {
+      await tester.tap(launcher);
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> withApp(

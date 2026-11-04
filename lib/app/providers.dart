@@ -17,6 +17,7 @@ import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/chapter_repository.dart';
+import '../data/repositories/chat_repository.dart';
 import '../data/repositories/companion_chat_repository.dart';
 import '../data/repositories/distill_artifact_repository.dart';
 import '../data/repositories/distill_job_repository.dart';
@@ -29,6 +30,7 @@ import '../distill/distill_digest.dart';
 import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
+import '../illustration/illustration_config.dart';
 import '../domain/models/book.dart';
 import '../domain/models/category.dart';
 import '../domain/models/comic_page.dart';
@@ -36,6 +38,12 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../features/search/chat_controller.dart';
+import '../search/agent_service.dart';
+import '../search/book_context.dart';
+import '../search/search_config.dart';
+import '../search/search_provider.dart';
+import '../search/tavily_search_provider.dart';
 import '../tts/audio_output.dart';
 import '../tts/tts_client.dart';
 import '../tts/tts_config.dart';
@@ -127,6 +135,16 @@ final llmConfigProvider = FutureProvider<LlmConfig>((ref) {
   return ref.watch(llmConfigStoreProvider).load();
 });
 
+/// 插画/绘图配置；与聊天配置分开存放，但默认可以复用同一把 Key。
+final illustrationConfigStoreProvider =
+    Provider<IllustrationConfigStore>((ref) {
+  return IllustrationConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+final illustrationConfigProvider = FutureProvider<IllustrationConfig>((ref) {
+  return ref.watch(illustrationConfigStoreProvider).load();
+});
+
 /// Synchronous snapshot of [llmConfigProvider] for the client's config callback.
 class LlmConfigSource {
   LlmConfig value = LlmConfig.defaults;
@@ -160,6 +178,46 @@ typedef LlmClientFactory = LlmClient Function(LlmConfig config);
 
 final llmClientFactoryProvider = Provider<LlmClientFactory>((ref) {
   return (config) => OpenAiLlmClient(config: () => config);
+});
+
+final searchConfigStoreProvider = Provider<SearchConfigStore>((ref) {
+  return SearchConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+final searchConfigProvider = FutureProvider<SearchConfig>((ref) {
+  return ref.watch(searchConfigStoreProvider).load();
+});
+
+/// Synchronous snapshot of [searchConfigProvider] for the search provider's
+/// config callback, mirroring [LlmConfigSource].
+class SearchConfigSource {
+  SearchConfig value = const SearchConfig();
+}
+
+final searchConfigSourceProvider = Provider<SearchConfigSource>((ref) {
+  final source = SearchConfigSource();
+  ref.listen<AsyncValue<SearchConfig>>(
+    searchConfigProvider,
+    (previous, next) {
+      if (next is AsyncData<SearchConfig>) source.value = next.value;
+    },
+    fireImmediately: true,
+  );
+  return source;
+});
+
+/// The retrieval implementation behind the 搜 shell.
+final webSearchProvider = Provider<SearchProvider>((ref) {
+  final source = ref.watch(searchConfigSourceProvider);
+  return TavilySearchProvider(config: () => source.value);
+});
+
+/// Builds a throwaway provider from explicit settings, for the "test search"
+/// button (the stored snapshot lags behind the form).
+typedef SearchProviderFactory = SearchProvider Function(SearchConfig config);
+
+final searchProviderFactoryProvider = Provider<SearchProviderFactory>((ref) {
+  return (config) => TavilySearchProvider(config: () => config);
 });
 
 final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {
@@ -299,4 +357,40 @@ final bookCategoryMembershipsProvider =
 
 final progressPercentsProvider = StreamProvider<Map<String, double>>(
   (ref) => ref.watch(progressRepositoryProvider).watchPercents(),
+);
+
+final chatThreadRepositoryProvider = Provider<ChatThreadRepository>(
+  (ref) => ChatThreadRepository(ref.watch(appDatabaseProvider)),
+);
+
+final chatMessageRepositoryProvider = Provider<ChatMessageRepository>(
+  (ref) => ChatMessageRepository(ref.watch(appDatabaseProvider)),
+);
+
+final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>(
+  (ref) => ref.watch(chatThreadRepositoryProvider).watchAll(),
+);
+
+/// The 搜 agent: free-form chat, optionally grounded in web results.
+final agentServiceProvider = Provider<SearchAgentService>(
+  (ref) => SearchAgentService(client: ref.watch(llmClientProvider)),
+);
+
+/// Builds the prompt-sized knowledge card for a book the reader picked.
+final bookContextBuilderProvider = Provider<BookContextBuilder>(
+  (ref) => BookContextBuilder(
+    loadBook: (id) => ref.read(bookRepositoryProvider).getById(id),
+    loadChapters: (id) =>
+        ref.read(chapterRepositoryProvider).getSummariesForBook(id),
+    loadChapterText: (id, index) =>
+        ref.read(chapterRepositoryProvider).getContent(id, index),
+    digests: ref.read(distillDigestSourceProvider),
+  ),
+);
+
+/// One controller per conversation key (a thread id, or
+/// [ChatController.newThreadKey] before the first send).
+final chatControllerProvider =
+    NotifierProvider.family<ChatController, ChatState, String>(
+  ChatController.new,
 );

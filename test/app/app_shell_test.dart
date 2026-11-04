@@ -36,6 +36,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('launcher-read')));
+    await tester.pumpAndSettle();
     expect(find.byTooltip('书架'), findsOneWidget);
     expect(find.text('还没有书'), findsOneWidget);
     expect(find.text('导入第一本书'), findsOneWidget);

@@ -20,6 +20,7 @@ import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_panel.dart';
+import '../illustration/illustration_composer_page.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
@@ -1128,6 +1129,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  Future<void> _openIllustration() async {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return;
+    final index = _chapterIndex.clamp(0, data.chapters.length - 1);
+    final chapter = data.chapters[index];
+    final text = await ref.read(
+      chapterContentProvider((bookId: widget.bookId, index: index)).future,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => IllustrationComposerPage(
+          initialText: text,
+          contextLabel: '${data.book?.title ?? ''} · ${chapter.title}',
+        ),
+      ),
+    );
+  }
+
   Future<String?> _pickHighlightColor() {
     return showModalBottomSheet<String>(
       context: context,
@@ -1860,6 +1880,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               onTogglePinned: _toggleRailPinned,
               onBackToLibrary: _backToLibrary,
               onOpenCompanion: _toggleCompanion,
+              onOpenIllustration: _openIllustration,
               onOpenSettings: _openAppSettings,
               background: _colors.$1,
               foreground: _colors.$2,
@@ -1917,6 +1938,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   onTogglePinned: _toggleRailPinned,
                   onBackToLibrary: _backToLibrary,
                   onOpenCompanion: _toggleCompanion,
+                  onOpenIllustration: _openIllustration,
                   onOpenSettings: _openAppSettings,
                   background: _colors.$1,
                   foreground: _colors.$2,
