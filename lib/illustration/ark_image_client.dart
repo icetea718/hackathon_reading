@@ -15,6 +15,7 @@ class ArkImageClient {
     required this.apiKey,
     required this.model,
     this.size = '1152x1536',
+    this.requestTimeout = const Duration(seconds: 300),
     HttpClient? httpClient,
   }) : _httpClient = httpClient ?? HttpClient() {
     _httpClient.connectionTimeout = const Duration(seconds: 30);
@@ -24,9 +25,8 @@ class ArkImageClient {
   final String apiKey;
   final String model;
   final String size;
+  final Duration requestTimeout;
   final HttpClient _httpClient;
-
-  static const _timeout = Duration(seconds: 180);
 
   Future<Uint8List> generate({
     required String prompt,
@@ -66,7 +66,7 @@ class ArkImageClient {
       );
       request.add(utf8.encode(jsonEncode(payload)));
 
-      final response = await request.close().timeout(_timeout);
+      final response = await request.close().timeout(requestTimeout);
       final body = await response.transform(utf8.decoder).join();
       if (response.statusCode != HttpStatus.ok) {
         throw IllustrationException(
@@ -118,7 +118,7 @@ class ArkImageClient {
     final request = await _httpClient
         .getUrl(Uri.parse(url))
         .timeout(const Duration(seconds: 30));
-    final response = await request.close().timeout(_timeout);
+    final response = await request.close().timeout(requestTimeout);
     if (response.statusCode != HttpStatus.ok) {
       throw IllustrationException('下载图片失败：HTTP ${response.statusCode}');
     }

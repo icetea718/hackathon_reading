@@ -14,6 +14,7 @@ class OpenAiLlmClient implements LlmClient {
   OpenAiLlmClient({
     required this.config,
     HttpClient? httpClient,
+    this.requestTimeout = const Duration(seconds: 30),
   }) : _httpClient = httpClient ?? HttpClient() {
     _httpClient.connectionTimeout = const Duration(seconds: 15);
   }
@@ -22,7 +23,9 @@ class OpenAiLlmClient implements LlmClient {
   final LlmConfig Function() config;
   final HttpClient _httpClient;
 
-  static const _timeout = Duration(seconds: 30);
+  /// Non-streaming request timeout. Illustration planning can take much
+  /// longer than a short chat, so callers can raise this.
+  final Duration requestTimeout;
 
   @override
   Stream<String> streamChat(
@@ -120,7 +123,7 @@ class OpenAiLlmClient implements LlmClient {
       }();
 
       return await pending.timeout(
-        _timeout,
+        requestTimeout,
         onTimeout: () => throw LlmException('请求超时'),
       );
     } on HttpException {

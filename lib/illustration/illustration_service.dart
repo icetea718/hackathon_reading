@@ -19,12 +19,16 @@ class IllustrationService {
     ArkImageClient? imageClient,
   })  : effective = effective,
         _llm = llmClient ??
-            OpenAiLlmClient(config: () => effective.chatConfig),
+            OpenAiLlmClient(
+              config: () => effective.chatConfig,
+              requestTimeout: const Duration(seconds: 180),
+            ),
         _image = imageClient ??
             ArkImageClient(
               baseUrl: effective.baseUrl,
               apiKey: effective.apiKey,
               model: effective.imageModel,
+              requestTimeout: const Duration(seconds: 300),
             );
 
   final IllustrationEffective effective;
