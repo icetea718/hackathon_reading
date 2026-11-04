@@ -32,6 +32,8 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../features/search/chat_controller.dart';
+import '../search/agent_service.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
 import '../search/tavily_search_provider.dart';
@@ -321,4 +323,16 @@ final chatMessageRepositoryProvider = Provider<ChatMessageRepository>(
 
 final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>(
   (ref) => ref.watch(chatThreadRepositoryProvider).watchAll(),
+);
+
+/// The 搜 agent: free-form chat, optionally grounded in web results.
+final agentServiceProvider = Provider<SearchAgentService>(
+  (ref) => SearchAgentService(client: ref.watch(llmClientProvider)),
+);
+
+/// One controller per conversation key (a thread id, or
+/// [ChatController.newThreadKey] before the first send).
+final chatControllerProvider =
+    NotifierProvider.family<ChatController, ChatState, String>(
+  ChatController.new,
 );

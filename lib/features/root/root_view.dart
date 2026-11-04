@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../home/app_shell.dart';
+import '../search/search_shell.dart';
 import 'app_mode.dart';
 import 'launcher_page.dart';
-import 'mode_switch.dart';
 
 /// Hosts the launcher until a mode is picked, then keeps both shells alive so
 /// switching modes never cancels a running reply or loses scroll position.
@@ -46,37 +46,7 @@ class _RootViewState extends ConsumerState<RootView> {
   Widget _shellFor(AppMode mode) {
     return switch (mode) {
       AppMode.read => const AppShell(),
-      AppMode.search => const _SearchPlaceholder(),
+      AppMode.search => const SearchShell(),
     };
-  }
-}
-
-class _SearchPlaceholder extends ConsumerWidget {
-  const _SearchPlaceholder();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      key: const Key('search-shell'),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              children: [
-                ModeSwitch(
-                  mode: AppMode.search,
-                  axis: Axis.horizontal,
-                  keyPrefix: 'search',
-                  onChanged: (mode) =>
-                      ref.read(modeProvider.notifier).select(mode),
-                ),
-              ],
-            ),
-          ),
-          const Expanded(child: Center(child: Text('搜'))),
-        ],
-      ),
-    );
   }
 }
