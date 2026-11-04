@@ -125,6 +125,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
   ReaderSpread _spread = ReaderSpread.double;
+  bool _doubleSpread = false;
+  int? _pageEndIndex;
   bool _railPinned = false;
   bool _railVisible = false;
   bool _suppressHotzone = false;
@@ -421,8 +423,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (data == null || data.chapters.isEmpty) return;
     final pagination = _validPagination(data.chapters);
     if (pagination == null) return;
-    if (_pageIndex < pagination.pageCount - 1) {
-      setState(() => _pageIndex++);
+    final step = _doubleSpread ? 2 : 1;
+    if (_pageIndex + step <= pagination.pageCount - 1) {
+      setState(() => _pageIndex += step);
       _scheduleProgressSave();
       return;
     }
@@ -435,8 +438,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     if (_validPagination(data.chapters) == null) return;
+    final step = _doubleSpread ? 2 : 1;
     if (_pageIndex > 0) {
-      setState(() => _pageIndex--);
+      setState(
+        () => _pageIndex = (_pageIndex - step).clamp(0, _pageIndex - 1),
+      );
       _scheduleProgressSave();
       return;
     }
@@ -944,8 +950,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             final textScaler = MediaQuery.textScalerOf(context);
             return LayoutBuilder(
               builder: (context, constraints) {
-                final textWidth = (constraints.maxWidth.clamp(0.0, 720.0) - 40)
-                    .clamp(1.0, 720.0);
+                final doubleSpread = spreadApplies(
+                  _spread,
+                  constraints.maxWidth,
+                );
+                final textWidth = doubleSpread
+                    ? spreadTextWidth(
+                        constraints.maxWidth,
+                      ).clamp(1.0, double.infinity)
+                    : (constraints.maxWidth.clamp(0.0, 720.0) - 40).clamp(
+                        1.0,
+                        720.0,
+                      );
                 final textHeight = (constraints.maxHeight - 48).clamp(
                   1.0,
                   double.infinity,
@@ -953,7 +969,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 final key =
                     '${currentChapter.id}|$_fontSize|$_lineHeight|'
                     '${textScaler.scale(1).toStringAsFixed(3)}|'
-                    '${textWidth.round()}|${textHeight.round()}|${text.length}';
+                    '${textWidth.round()}|${textHeight.round()}|'
+                    '${text.length}|${doubleSpread ? 'double' : 'single'}';
                 ChapterPagination pagination;
                 if (_paginationKey == key &&
                     _paginationChapterId == currentChapter.id &&
@@ -977,7 +994,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     '$_fontSize|$_lineHeight|'
                     '${textScaler.scale(1).toStringAsFixed(3)}|'
                     '${textWidth.round()}|${textHeight.round()}|'
-                    '${chapters.length}';
+                    '${chapters.length}|'
+                    '${doubleSpread ? 'double' : 'single'}';
                 if (bookSignature != _bookPageSignature) {
                   _bookPageSignature = bookSignature;
                   final layout = PageLayout(
@@ -998,55 +1016,136 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                       )
                     : _pageIndex;
                 pageIndex = pageIndex.clamp(0, pagination.pageCount - 1);
+                if (doubleSpread) pageIndex = spreadPageIndex(pageIndex);
                 final page = pagination.pageAt(pageIndex);
                 _pageIndex = pageIndex;
+                final nextPageEndIndex = doubleSpread
+                    ? spreadLastPageIndex(pageIndex, pagination.pageCount)
+                    : null;
+                final endIndexChanged = _pageEndIndex != nextPageEndIndex;
+                _pageEndIndex = nextPageEndIndex;
                 _pendingOffset = null;
                 _restored = true;
-                if (pending != null) {
+                final spreadChanged = doubleSpread != _doubleSpread;
+                _doubleSpread = doubleSpread;
+                if (pending != null || spreadChanged || endIndexChanged) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) setState(() {});
                   });
                 }
 
-                final spans = _pageSpans(
-                  text: text,
-                  page: page,
-                  pagination: pagination,
-                  chapter: currentChapter,
-                  annotations: chapterAnnotations,
-                  baseStyle: baseStyle,
-                );
-                final pageContent = text.substring(page.start, page.end);
-                return Stack(
-                  key: const Key('reader-page'),
-                  fit: StackFit.expand,
-                  children: [
-                    Center(
-                      child: SizedBox(
-                        width: constraints.maxWidth.clamp(0.0, 720.0),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                          child: SizedBox(
-                            width: textWidth,
-                            child: ClipRect(
-                              child: Align(
-                                alignment: Alignment.topLeft,
-                                child: KeyedSubtree(
-                                  key: ValueKey(
-                                    '${currentChapter.id}-$_pageIndex-$_paginationKey',
+                Widget pagePane(int? paneIndex) {
+                  if (paneIndex == null || paneIndex >= pagination.pageCount) {
+                    return const Expanded(
+                      child: SizedBox.expand(
+                        key: Key('reader-spread-blank'),
+                      ),
+                    );
+                  }
+                  final panePage = pagination.pageAt(paneIndex);
+                  final paneSpans = _pageSpans(
+                    text: text,
+                    page: panePage,
+                    pagination: pagination,
+                    chapter: currentChapter,
+                    annotations: chapterAnnotations,
+                    baseStyle: baseStyle,
+                  );
+                  final paneContent = text.substring(
+                    panePage.start,
+                    panePage.end,
+                  );
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: kPaneHorizontalPadding,
+                      ),
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: KeyedSubtree(
+                            key: ValueKey(
+                              '${currentChapter.id}-$paneIndex-$_paginationKey',
+                            ),
+                            child: SelectableText.rich(
+                              TextSpan(children: paneSpans),
+                              scrollPhysics: const NeverScrollableScrollPhysics(),
+                              contextMenuBuilder: (context, state) =>
+                                  _selectionToolbar(
+                                    state,
+                                    panePage,
+                                    paneContent,
+                                    currentChapter,
                                   ),
-                                  child: SelectableText.rich(
-                                    TextSpan(children: spans),
-                                    scrollPhysics:
-                                        const NeverScrollableScrollPhysics(),
-                                    contextMenuBuilder: (context, state) =>
-                                        _selectionToolbar(
-                                          state,
-                                          page,
-                                          pageContent,
-                                          currentChapter,
-                                        ),
-                                  ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                final Widget pageBody;
+                if (doubleSpread) {
+                  final contentWidth = constraints.maxWidth.clamp(
+                    0.0,
+                    kSpreadContentMaxWidth,
+                  );
+                  pageBody = Center(
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 32),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            pagePane(pageIndex),
+                            VerticalDivider(
+                              width: kSpreadGutterWidth,
+                              thickness: 1,
+                              color: _colors.$2.withValues(alpha: 0.12),
+                            ),
+                            pagePane(pageIndex + 1),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  final spans = _pageSpans(
+                    text: text,
+                    page: page,
+                    pagination: pagination,
+                    chapter: currentChapter,
+                    annotations: chapterAnnotations,
+                    baseStyle: baseStyle,
+                  );
+                  final pageContent = text.substring(page.start, page.end);
+                  pageBody = Center(
+                    child: SizedBox(
+                      width: constraints.maxWidth.clamp(0.0, 720.0),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                        child: SizedBox(
+                          width: textWidth,
+                          child: ClipRect(
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: KeyedSubtree(
+                                key: ValueKey(
+                                  '${currentChapter.id}-$_pageIndex-$_paginationKey',
+                                ),
+                                child: SelectableText.rich(
+                                  TextSpan(children: spans),
+                                  scrollPhysics:
+                                      const NeverScrollableScrollPhysics(),
+                                  contextMenuBuilder: (context, state) =>
+                                      _selectionToolbar(
+                                        state,
+                                        page,
+                                        pageContent,
+                                        currentChapter,
+                                      ),
                                 ),
                               ),
                             ),
@@ -1054,6 +1153,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                         ),
                       ),
                     ),
+                  );
+                }
+                return Stack(
+                  key: const Key('reader-page'),
+                  fit: StackFit.expand,
+                  children: [
+                    pageBody,
                     Positioned(
                       left: 0,
                       top: 0,
@@ -1492,6 +1598,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         : null;
     final pageCount = pagination?.pageCount ?? 1;
     final pageNumber = _pageIndex.clamp(0, pageCount - 1);
+    final pageEndIndex = pagination == null || !_doubleSpread
+        ? null
+        : _pageEndIndex;
     final counts =
         _bookPageCountsSignature != null &&
             _bookPageCountsSignature == _bookPageSignature &&
@@ -1516,8 +1625,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             .clamp(0.0, 1.0)
             .toDouble();
     final atBookStart = index == 0 && _pageIndex <= 0;
+    final lastSpreadPage = _doubleSpread
+        ? spreadPageIndex(pageCount - 1)
+        : pageCount - 1;
     final atBookEnd =
-        index == chapters.length - 1 && _pageIndex >= pageCount - 1;
+        index == chapters.length - 1 && _pageIndex >= lastSpreadPage;
     return Container(
       color: background,
       child: SafeArea(
@@ -1545,6 +1657,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     child: Text(
                       readingFooterText(
                         pageIndex: pageNumber,
+                        pageEndIndex: pageEndIndex,
                         chapterPageCount: pagination?.pageCount,
                         bookPageIndex: bookPageIndex,
                         bookPageTotal: bookPageTotal,
