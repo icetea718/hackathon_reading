@@ -95,6 +95,36 @@ void main() {
     await disposePane(tester);
   });
 
+  testWidgets('counts share the same right edge', (tester) async {
+    final category = await io(tester, () => categories.create('科幻'));
+    await io(tester, () => categories.addBook('b1', category.id));
+    await pumpPane(tester);
+
+    final allCount = find.descendant(
+      of: find.byKey(const Key('category-row-all')),
+      matching: find.text('2'),
+    );
+    final categoryCount = find.descendant(
+      of: find.byKey(Key('category-row-${category.id}')),
+      matching: find.text('1'),
+    );
+
+    final allRight = tester.getTopRight(allCount).dx;
+    final categoryRight = tester.getTopRight(categoryCount).dx;
+    final uncategorizedRight = tester
+        .getTopRight(
+          find.descendant(
+            of: find.byKey(const Key('category-row-uncategorized')),
+            matching: find.text('1'),
+          ),
+        )
+        .dx;
+
+    expect(categoryRight, closeTo(allRight, 1));
+    expect(uncategorizedRight, closeTo(allRight, 1));
+    await disposePane(tester);
+  });
+
   testWidgets('creates a category', (tester) async {
     await pumpPane(tester);
 
