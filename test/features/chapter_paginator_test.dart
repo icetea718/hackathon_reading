@@ -1,0 +1,102 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
+
+const _style = TextStyle(fontSize: 16, height: 1.8);
+
+String _longText({int paragraphs = 80}) => List.generate(
+      paragraphs,
+      (i) => '第$i段：这是一段用于分页测试的中文正文内容。',
+    ).join('\n');
+
+ChapterPagination _paginate(String text, {double width = 320, double height = 240}) {
+  return paginateChapter(
+    text: text,
+    title: '第一章',
+    level: 1,
+    baseStyle: _style,
+    width: width,
+    height: height,
+  );
+}
+
+void main() {
+  test('splits a long chapter into contiguous non-empty pages', () {
+    final text = _longText();
+    final pagination = _paginate(text);
+
+    expect(pagination.pageCount, greaterThan(1));
+    expect(pagination.pages.first.start, 0);
+    expect(pagination.pages.last.end, text.length);
+    for (var i = 0; i < pagination.pages.length; i++) {
+      final page = pagination.pages[i];
+      expect(page.end, greaterThan(page.start));
+      if (i > 0) expect(page.start, pagination.pages[i - 1].end);
+    }
+  });
+
+  test('larger fonts and narrower widths create more pages', () {
+    final text = _longText();
+    final normal = _paginate(text);
+    final big = paginateChapter(
+      text: text, title: '第一章', level: 1,
+      baseStyle: const TextStyle(fontSize: 24, height: 1.8),
+      width: 320, height: 240,
+    );
+    final narrow = _paginate(text, width: 160);
+
+    expect(big.pageCount, greaterThan(normal.pageCount));
+    expect(narrow.pageCount, greaterThan(normal.pageCount));
+  });
+
+  test('detects a matching heading and tolerates footnote markers', () {
+    expect(matchedHeadingLine('择善[8]\n正文', '择善'), '择善[8]');
+    expect(matchedHeadingLine('正文直接开始。\n下一段', '第一章'), isNull);
+
+    final pagination = paginateChapter(
+      text: '择善\n正文', title: '择善', level: 2,
+      baseStyle: _style, width: 320, height: 240,
+    );
+    expect(pagination.headingText, '择善');
+  });
+
+  test('scales heading styles by level', () {
+    expect(headingTextStyle(_style, 1).fontSize, 24);
+    expect(headingTextStyle(_style, 1).fontWeight, FontWeight.w700);
+    expect(headingTextStyle(_style, 2).fontSize, closeTo(19.2, 0.01));
+    expect(headingTextStyle(_style, 2).fontWeight, FontWeight.w600);
+  });
+
+  test('treats empty and whitespace-only chapters as one page', () {
+    for (final text in ['', '   \n\n  ']) {
+      final pagination = _paginate(text);
+      expect(pagination.pageCount, 1);
+      expect(pagination.pages.single.start, 0);
+      expect(pagination.pages.single.end, text.length);
+    }
+  });
+
+  test('maps offsets to page indexes, clamped at both ends', () {
+    final text = _longText();
+    final pagination = _paginate(text);
+
+    expect(pagination.pageIndexForOffset(-5), 0);
+    expect(pagination.pageIndexForOffset(0), 0);
+    expect(pagination.pageIndexForOffset(text.length + 100), pagination.pageCount - 1);
+    expect(pagination.pageIndexForOffset(pagination.pages[1].start), 1);
+    expect(pagination.pageIndexForOffset(pagination.pages[0].end - 1), 0);
+    expect(pagination.pageAt(999).end, pagination.pages.last.end);
+  });
+
+  test('gives a line taller than the page its own page', () {
+    final text = _longText(paragraphs: 10);
+    final pagination = _paginate(text, height: 8);
+
+    expect(pagination.pageCount, greaterThan(5));
+    expect(pagination.pages.first.start, 0);
+    expect(pagination.pages.last.end, text.length);
+    for (var i = 1; i < pagination.pages.length; i++) {
+      expect(pagination.pages[i].start, pagination.pages[i - 1].end);
+    }
+  });
+}
