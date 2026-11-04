@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../assistant/assistant_service.dart';
+import '../../assistant/persona.dart';
 import '../../assistant/reading_context.dart';
 import '../../data/repositories/companion_chat_repository.dart';
 import '../../domain/models/companion_chat.dart';
@@ -15,6 +16,7 @@ import '../settings/settings_page.dart';
 import 'companion_history.dart';
 import 'companion_providers.dart';
 import 'companion_memory_sheet.dart';
+import 'persona_mode_sheet.dart';
 
 enum _CompanionView { chat, history }
 
@@ -97,6 +99,9 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   String? _pendingThreadId;
   int? _pendingChapterIndex;
 
+  /// Voice the reader just switched to, echoed into the transcript once.
+  PersonaMode? _modeNotice;
+
   late final TtsService _tts;
   StreamSubscription<TtsStatus>? _ttsSubscription;
   TtsStatus _ttsStatus = const TtsStatus();
@@ -139,6 +144,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       _threads = const [];
       _threadsLoading = false;
       _readOnlyThread = null;
+      _modeNotice = null;
     });
     unawaited(_tts.stop());
     if (followPending) {
@@ -254,6 +260,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       _error = null;
       _readOnlyThread = null;
       _view = _CompanionView.chat;
+      _modeNotice = null;
     });
     unawaited(_loadThreads());
   }
@@ -467,6 +474,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     if (text.isEmpty || _busy || _readOnlyThread != null) return;
     final service = ref.read(assistantServiceProvider).value;
     if (service == null || !service.isConfigured) return;
+    final persona = ref.read(personaModeProvider);
     _input.clear();
     final token = _requestToken;
     final thread = await _ensureThread(firstMessage: text);
@@ -476,9 +484,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       content: text,
     );
     if (!mounted || token != _requestToken) return;
-    setState(
-      () => _history.add(ChatMessage(role: ChatRole.user, content: text)),
-    );
+    setState(() {
+      _history.add(ChatMessage(role: ChatRole.user, content: text));
+      _modeNotice = null;
+    });
 
     final priorCount = _history.length - 1;
     final start = priorCount > 8 ? priorCount - 8 : 0;
@@ -494,6 +503,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         _context.copyWith(companionMemory: memory),
         prior,
         text,
+        persona: persona,
       ),
       token: token,
       onComplete: (reply) => _chats.appendMessage(
@@ -698,6 +708,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       children: [
         tab('companion-tab-chat', '聊天', _CompanionView.chat),
         tab('companion-tab-history', '历史', _CompanionView.history),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, right: 8),
+          child: _ModePill(
+            mode: ref.watch(personaModeProvider),
+            onTap: () => unawaited(_openModeSheet()),
+          ),
+        ),
       ],
     );
   }
@@ -843,6 +860,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               ],
             ),
           ),
+        if (_modeNotice != null) _ModeNotice(mode: _modeNotice!),
         for (var index = 0; index < _history.length; index++)
           _Bubble(
             text: _history[index].content,
@@ -922,6 +940,14 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     );
   }
 
+  Future<void> _openModeSheet() async {
+    final before = ref.read(personaModeProvider);
+    final picked = await showPersonaModeSheet(context);
+    if (!mounted || picked == null || picked == before) return;
+    setState(() => _modeNotice = picked);
+    _scrollToEnd();
+  }
+
   void _openMemorySheet() {
     final page = widget.currentPageText.trim();
     final text = page.isEmpty ? widget.chapterText : page;
@@ -991,6 +1017,69 @@ class _Bubble extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The current voice, as a chip the reader can tap to change it.
+class _ModePill extends StatelessWidget {
+  const _ModePill({required this.mode, required this.onTap});
+
+  final PersonaMode mode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.secondaryContainer.withValues(alpha: 0.6),
+      shape: const StadiumBorder(),
+      child: InkWell(
+        key: const Key('companion-mode-pill'),
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(modeIcon(mode), size: 14),
+              const SizedBox(width: 4),
+              Text(mode.shortLabel, style: Theme.of(context).textTheme.labelMedium),
+              const Icon(Icons.arrow_drop_down, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One quiet line saying which voice took over.
+class _ModeNotice extends StatelessWidget {
+  const _ModeNotice({required this.mode});
+
+  final PersonaMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(modeIcon(mode), size: 13, color: scheme.outline),
+          const SizedBox(width: 4),
+          Text(
+            '已切到${mode.label}',
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: scheme.outline),
+          ),
+        ],
       ),
     );
   }

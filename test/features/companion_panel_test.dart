@@ -33,6 +33,7 @@ const _ttsConfig = TtsConfig(
 
 class _FakeAssistant implements AssistantService {
   final List<String> prompts = [];
+  final List<PersonaMode> personas = [];
   List<ChatMessage>? lastHistory;
   ReadingContext? lastContext;
 
@@ -47,6 +48,7 @@ class _FakeAssistant implements AssistantService {
     PersonaMode persona = PersonaMode.fallback,
   }) async* {
     prompts.add('chat:$userMessage');
+    personas.add(persona);
     lastHistory = List.of(history);
     lastContext = context;
     yield '福贵';
@@ -960,5 +962,76 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('这一页的正文。'), findsOneWidget);
+  });
+
+  group('persona', () {
+    testWidgets('the chip names the voice the reader is in', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      expect(find.byKey(const Key('companion-mode-pill')), findsOneWidget);
+      expect(find.text(PersonaMode.gentle.shortLabel), findsOneWidget);
+    });
+
+    testWidgets('the chip opens the chooser with both voices', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('陪读模式'), findsOneWidget);
+      for (final mode in PersonaMode.values) {
+        expect(find.byKey(Key('persona-option-${mode.id}')), findsOneWidget);
+        expect(find.text('“${mode.sample}”'), findsOneWidget);
+      }
+    });
+
+    testWidgets('picking a voice closes the chooser and says so',
+        (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-debate')));
+      await _settle(tester);
+
+      expect(find.text('陪读模式'), findsNothing);
+      expect(find.text('已切到${PersonaMode.debate.label}'), findsOneWidget);
+      expect(find.text(PersonaMode.debate.shortLabel), findsOneWidget);
+    });
+
+    testWidgets('the next question goes out in the chosen voice',
+        (tester) async {
+      final assistant = _FakeAssistant();
+      await tester.pumpWidget(_host(assistant));
+      await _settle(tester);
+      await _ask(tester);
+      expect(assistant.personas.last, PersonaMode.gentle);
+      expect(find.text('福贵是因为赌博。'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-debate')));
+      await _settle(tester);
+      expect(find.text('福贵是因为赌博。'), findsOneWidget);
+
+      await _ask(tester);
+      expect(assistant.personas.last, PersonaMode.debate);
+      expect(find.text('已切到${PersonaMode.debate.label}'), findsNothing);
+    });
+
+    testWidgets('picking the voice already in use stays quiet', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-gentle')));
+      await _settle(tester);
+
+      expect(find.text('已切到${PersonaMode.gentle.label}'), findsNothing);
+    });
   });
 }
