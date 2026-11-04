@@ -16,6 +16,7 @@ import 'reader_position.dart';
 import 'reader_providers.dart';
 import 'reader_settings_sheet.dart';
 import 'toc_drawer.dart';
+import 'translation_dialog.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.bookId});
@@ -105,6 +106,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ResumeLocation? _pendingRestore;
   Timer? _saveTimer;
   ReaderData? _cachedData;
+  String _chapterText = '';
   ProgressRepository? _progressRepository;
 
   @override
@@ -453,6 +455,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openTranslation(String title, String sourceText) async {
+    if (sourceText.trim().isEmpty) {
+      _showSnackBar('没有可翻译的内容');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => TranslationDialog(
+        title: title,
+        sourceText: sourceText,
+        service: ref.read(assistantServiceProvider),
+      ),
+    );
+  }
+
+  void _translateChapter(Chapter chapter) {
+    _openTranslation('翻译本章：${chapter.title}', _chapterText);
+  }
+
+  void _translateSelection(TextSelection selection, String text) {
+    final start = selection.start.clamp(0, text.length);
+    final end = selection.end.clamp(0, text.length);
+    if (start >= end) return;
+    _openTranslation('翻译选中内容', text.substring(start, end));
+  }
+
+  void _translateFromSelection(TextSelection selection, String text) {
+    final start = selection.start.clamp(0, text.length);
+    if (start >= text.length) return;
+    _openTranslation('从此处开始翻译', text.substring(start));
+  }
+
   Widget _selectionToolbar(
     EditableTextState editableTextState,
     String text,
@@ -475,6 +509,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onPressed: () {
               editableTextState.hideToolbar();
               _addNote(chapter, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '翻译',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _translateSelection(selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '从此段翻译',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _translateFromSelection(selection, text);
             },
           ),
         ],
@@ -561,6 +609,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           bookmarked: chapterBookmarked,
           onToggleBookmark: () => _toggleBookmark(currentChapter),
           onOpenAnnotations: () => _openAnnotations(chapters),
+          onTranslateChapter: () => _translateChapter(currentChapter),
           drawer: TocDrawer(
             chapters: chapters,
             currentIndex: index,
@@ -574,6 +623,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (error, _) => Center(child: Text('章节加载失败：$error')),
             data: (text) {
+              _chapterText = text;
               _schedulePendingRestore();
               final baseStyle = TextStyle(
                 fontSize: _fontSize,
@@ -615,6 +665,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     bool? bookmarked,
     VoidCallback? onToggleBookmark,
     VoidCallback? onOpenAnnotations,
+    VoidCallback? onTranslateChapter,
   }) {
     final (background, foreground) = _colors;
     return Scaffold(
@@ -639,6 +690,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               tooltip: '标注',
               icon: const Icon(Icons.format_list_bulleted),
               onPressed: onOpenAnnotations,
+            ),
+          if (onTranslateChapter != null)
+            IconButton(
+              tooltip: '翻译本章',
+              icon: const Icon(Icons.translate),
+              onPressed: onTranslateChapter,
             ),
           if (drawer != null)
             Builder(

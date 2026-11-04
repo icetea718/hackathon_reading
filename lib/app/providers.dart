@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../assistant/assistant_service.dart';
-import '../assistant/unconfigured_assistant_service.dart';
+import '../assistant/my_memory_translator.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
@@ -44,8 +44,10 @@ final annotationServiceProvider = Provider<AnnotationService>((ref) {
   return AnnotationService(ref.watch(annotationRepositoryProvider));
 });
 
+/// Translation works out of the box through a free public API; the remaining
+/// AI abilities keep reporting "not configured" until a model is wired in.
 final assistantServiceProvider = Provider<AssistantService>((ref) {
-  return const UnconfiguredAssistantService();
+  return MyMemoryTranslator();
 });
 
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
