@@ -131,6 +131,50 @@ void main() {
     expect(system, isNot(contains('–')));
   });
 
+  test('chat guards the page from spoilers and puts it first', () async {
+    const paged = ReadingContext(
+      bookTitle: '活着',
+      chapterTitle: '第一章',
+      chapterText: '本章内容。',
+      chapterPage: 3,
+      chapterPageCount: 20,
+      currentPageText: '这一页的正文。',
+      bookBrief: '全书梗概。',
+    );
+    final client = FakeLlmClient(reply: '好的');
+    final service = OpenAiAssistantService(client: client, config: configured);
+
+    await service.chat(paged, const [], '这一页讲了什么？').toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains('【剧透限制】'));
+    expect(system, contains('当前页之后'));
+    final page = system.indexOf('【读者正在看的这一页】');
+    expect(page, greaterThan(0));
+    expect(page, lessThan(system.indexOf('【全书蒸馏】')));
+    expect(page, lessThan(system.indexOf('【当前章节内容】')));
+  });
+
+  test('allowing spoilers drops the restriction', () async {
+    const paged = ReadingContext(
+      bookTitle: '活着',
+      chapterTitle: '第一章',
+      chapterText: '本章内容。',
+      chapterPage: 3,
+      chapterPageCount: 20,
+      currentPageText: '这一页的正文。',
+      allowSpoilers: true,
+    );
+    final client = FakeLlmClient(reply: '好的');
+    final service = OpenAiAssistantService(client: client, config: configured);
+
+    await service.chat(paged, const [], '后面发生了什么？').toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, isNot(contains('【剧透限制】')));
+    expect(system, contains('允许剧透'));
+  });
+
   test('summarizeChapter asks for a summary of this chapter', () async {
     final client = FakeLlmClient(reply: '摘要');
     final service = OpenAiAssistantService(client: client, config: configured);

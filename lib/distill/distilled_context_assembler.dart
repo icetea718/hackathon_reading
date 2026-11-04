@@ -11,6 +11,7 @@ class AssembleInput {
     this.chapterText = '',
     this.chapterCharOffset,
     this.question = '',
+    this.allowSpoilers = true,
   });
 
   final String bookId;
@@ -21,6 +22,9 @@ class AssembleInput {
   final String chapterText;
   final int? chapterCharOffset;
   final String question;
+
+  /// When false, the brief omits everything that would reveal later plot.
+  final bool allowSpoilers;
 }
 
 /// The distilled prompt scaffold plus the chapter window actually sent.
@@ -54,6 +58,18 @@ String windowedExcerpt(
   return text.substring(start, start + max);
 }
 
+/// Chapter text ending at the reader's page, so the model never sees what the
+/// reader has not read yet.
+String priorExcerpt(String text, {int? endOffset, int maxChars = 2400}) {
+  if (text.isEmpty) return '';
+  if (endOffset == null) {
+    return text.length <= maxChars ? text : text.substring(0, maxChars);
+  }
+  final end = endOffset.clamp(0, text.length);
+  final start = end > maxChars ? end - maxChars : 0;
+  return text.substring(start, end);
+}
+
 /// Turns a [DistillDigest] into a compact system-prompt preamble so the model
 /// understands the whole book without receiving the whole book.
 class DistilledContextAssembler {
@@ -83,9 +99,13 @@ class DistilledContextAssembler {
       buffer.write(text.length <= room ? text : text.substring(0, room));
     }
 
+    final allowSpoilers = input.allowSpoilers;
+
     add('【全书】《${input.bookTitle}》${input.author.isEmpty ? '' : input.author}\n');
-    if (digest.oneLiner.isNotEmpty) add('一句话：${digest.oneLiner}\n');
-    if (digest.synopsis.isNotEmpty) {
+    if (allowSpoilers && digest.oneLiner.isNotEmpty) {
+      add('一句话：${digest.oneLiner}\n');
+    }
+    if (allowSpoilers && digest.synopsis.isNotEmpty) {
       add('梗概：${_clip(digest.synopsis, 400)}\n');
     }
     if (digest.themes.isNotEmpty) {
@@ -107,8 +127,10 @@ class DistilledContextAssembler {
 
     final nearby = <int>[
       input.chapterIndex - 1,
-      input.chapterIndex,
-      input.chapterIndex + 1,
+      if (allowSpoilers) ...[
+        input.chapterIndex,
+        input.chapterIndex + 1,
+      ],
     ].where(digest.gists.containsKey).toList();
     if (nearby.isNotEmpty) {
       add('【章节地图】\n');
@@ -117,17 +139,24 @@ class DistilledContextAssembler {
       }
     }
 
-    final cards = _rankCards(digest.cards, input);
-    if (cards.isNotEmpty) {
-      add('【本书要点】\n');
-      for (final card in cards) {
-        final quote = card.quote == null ? '' : '（原文：${_clip(card.quote!, 80)}）';
-        add('- ${card.title}：${_clip(card.definition, cardChars)}$quote\n');
+    if (allowSpoilers) {
+      final cards = _rankCards(digest.cards, input);
+      if (cards.isNotEmpty) {
+        add('【本书要点】\n');
+        for (final card in cards) {
+          final quote = card.quote == null ? '' : '（原文：${_clip(card.quote!, 80)}）';
+          add('- ${card.title}：${_clip(card.definition, cardChars)}$quote\n');
+        }
       }
     }
 
-    add('【提示】只依据截至第 ${input.chapterIndex + 1} 章的内容作答；'
-        '不要引用后面的章节，也不要提前透露后续情节。');
+    if (allowSpoilers) {
+      add('【提示】只依据截至第 ${input.chapterIndex + 1} 章的内容作答；'
+          '不要引用后面的章节，也不要提前透露后续情节。');
+    } else {
+      add('【提示】当前只呈现到读者正在看的那一页。只依据这一页及之前的内容作答；'
+          '不要概括、暗示或透露这一页之后的情节。');
+    }
 
     final excerpt = windowedExcerpt(
       input.chapterText,

@@ -50,9 +50,22 @@ class DigestAwareAssistantService implements AssistantService {
     String question = '',
     bool windowChapter = true,
   }) async {
-    if (context.bookId.isEmpty) return context;
+    final guard = windowChapter && !context.allowSpoilers;
+    final cutoff = context.pageStartOffset ?? context.chapterCharOffset;
+    String guardedText() =>
+        priorExcerpt(context.chapterText, endOffset: cutoff);
+
+    if (context.bookId.isEmpty) {
+      return guard
+          ? context.copyWith(chapterText: guardedText())
+          : context;
+    }
     final digest = await source.load(context.bookId);
-    if (digest == null || digest.isEmpty) return context;
+    if (digest == null || digest.isEmpty) {
+      return guard
+          ? context.copyWith(chapterText: guardedText())
+          : context;
+    }
 
     final assembled = assembler.assemble(
       AssembleInput(
@@ -64,14 +77,16 @@ class DigestAwareAssistantService implements AssistantService {
         chapterText: context.chapterText,
         chapterCharOffset: context.chapterCharOffset,
         question: question,
+        allowSpoilers: !guard,
       ),
       digest,
     );
 
     return context.copyWith(
       bookBrief: assembled.brief,
-      chapterText:
-          windowChapter ? assembled.chapterExcerpt : context.chapterText,
+      chapterText: windowChapter
+          ? (guard ? guardedText() : assembled.chapterExcerpt)
+          : context.chapterText,
     );
   }
 }

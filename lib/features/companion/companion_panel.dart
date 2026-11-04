@@ -31,6 +31,8 @@ class CompanionPanel extends ConsumerStatefulWidget {
     this.chapterPageCount,
     this.bookPage,
     this.bookPageTotal,
+    this.pageStartOffset,
+    this.pageEndOffset,
     this.currentPageText = '',
     this.bookTitle = '',
     this.author = '',
@@ -49,6 +51,8 @@ class CompanionPanel extends ConsumerStatefulWidget {
   final int? chapterPageCount;
   final int? bookPage;
   final int? bookPageTotal;
+  final int? pageStartOffset;
+  final int? pageEndOffset;
   final String currentPageText;
   final String bookTitle;
   final String author;
@@ -72,6 +76,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   final ScrollController _scroll = ScrollController();
   String _streaming = '';
   bool _busy = false;
+  bool _spoilerEnabled = false;
   String? _error;
 
   late final CompanionChatRepository _chats;
@@ -396,7 +401,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         chapterPageCount: widget.chapterPageCount,
         bookPage: widget.bookPage,
         bookPageTotal: widget.bookPageTotal,
+        pageStartOffset: widget.pageStartOffset,
+        pageEndOffset: widget.pageEndOffset,
         currentPageText: widget.currentPageText,
+        allowSpoilers: _spoilerEnabled,
       );
 
   Future<void> _stream(
@@ -519,8 +527,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     if (!mounted || token != _requestToken) return;
 
     await _stream(
+      // Summarising the chapter is an explicit request, so it may span the
+      // whole chapter regardless of the spoiler switch.
       (service) => service.summarizeChapter(
-        _context.copyWith(companionMemory: memory),
+        _context.copyWith(companionMemory: memory, allowSpoilers: true),
       ),
       token: token,
       onComplete: (reply) => _chats.appendMessage(
@@ -722,6 +732,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 
     return Column(
       children: [
+        _spoilerBar(context),
         Expanded(child: _messageList(context)),
         if (_error != null)
           Padding(
@@ -733,6 +744,34 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
           ),
         if (_readOnlyThread == null) _composer() else _jumpButton(),
       ],
+    );
+  }
+
+  Widget _spoilerBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      child: Row(
+        children: [
+          Icon(
+            _spoilerEnabled ? Icons.visibility : Icons.visibility_off,
+            size: 16,
+            color: scheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _spoilerEnabled ? '允许剧透：可以聊当前页之后的情节' : '不剧透：只聊当前页及之前',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Switch(
+            key: const Key('companion-spoiler-toggle'),
+            value: _spoilerEnabled,
+            onChanged: (value) => setState(() => _spoilerEnabled = value),
+          ),
+        ],
+      ),
     );
   }
 

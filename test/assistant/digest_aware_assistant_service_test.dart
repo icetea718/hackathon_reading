@@ -61,6 +61,7 @@ void main() {
         bookId: 'book-1',
         chapterIndex: 2,
         chapterCharOffset: 3000,
+        allowSpoilers: true,
       );
 
   test('chat receives the distilled brief and a windowed chapter', () async {
@@ -101,5 +102,75 @@ void main() {
     final sent = inner.chats.single;
     expect(sent.bookBrief, '');
     expect(sent.chapterText, longChapter);
+  });
+
+  const guarded = ReadingContext(
+    bookTitle: '活着',
+    chapterTitle: '第二章',
+    chapterText: '开头前文。当前页内容。当前页之后的后文。',
+    bookId: 'book-1',
+    chapterIndex: 2,
+    pageStartOffset: 5,
+    pageEndOffset: 11,
+    currentPageText: '当前页内容。',
+  );
+
+  test('chat hides text after the page while spoilers are off', () async {
+    final inner = _RecordingService();
+    final service = DigestAwareAssistantService(
+      inner: inner,
+      source: _FixedSource(const DistillDigest(oneLiner: 'x')),
+    );
+
+    await service.chat(guarded, const [], '这一页讲了什么？').toList();
+
+    final sent = inner.chats.single;
+    expect(sent.allowSpoilers, isFalse);
+    expect(sent.chapterText, contains('开头前文'));
+    expect(sent.chapterText, isNot(contains('后文')));
+  });
+
+  test('allowing spoilers restores the text after the page', () async {
+    final inner = _RecordingService();
+    final service = DigestAwareAssistantService(
+      inner: inner,
+      source: _FixedSource(const DistillDigest(oneLiner: 'x')),
+    );
+
+    await service.chat(
+      guarded.copyWith(allowSpoilers: true),
+      const [],
+      '后面发生了什么？',
+    ).toList();
+
+    final sent = inner.chats.single;
+    expect(sent.allowSpoilers, isTrue);
+    expect(sent.chapterText, contains('后文'));
+  });
+
+  test('chat without a digest also stops at the page', () async {
+    final inner = _RecordingService();
+    final service = DigestAwareAssistantService(
+      inner: inner,
+      source: _FixedSource(null),
+    );
+
+    await service.chat(guarded, const [], '这一页讲了什么？').toList();
+
+    final sent = inner.chats.single;
+    expect(sent.chapterText, contains('开头前文'));
+    expect(sent.chapterText, isNot(contains('后文')));
+  });
+
+  test('summarizeChapter still receives the whole chapter', () async {
+    final inner = _RecordingService();
+    final service = DigestAwareAssistantService(
+      inner: inner,
+      source: _FixedSource(const DistillDigest(oneLiner: 'x')),
+    );
+
+    await service.summarizeChapter(guarded).toList();
+
+    expect(inner.summaries.single.chapterText, guarded.chapterText);
   });
 }

@@ -22,7 +22,10 @@ class ReadingContext {
     this.chapterPageCount,
     this.bookPage,
     this.bookPageTotal,
+    this.pageStartOffset,
+    this.pageEndOffset,
     this.currentPageText = '',
+    this.allowSpoilers = false,
     this.bookBrief = '',
     this.companionMemory = '',
   });
@@ -57,8 +60,17 @@ class ReadingContext {
   /// Total pages in the whole book, when the reader has finished counting.
   final int? bookPageTotal;
 
+  /// Chapter-relative offset where the page (or spread) begins.
+  final int? pageStartOffset;
+
+  /// Chapter-relative offset where the page (or spread) ends, exclusive.
+  final int? pageEndOffset;
+
   /// Text of the page (or spread) the reader is looking at right now.
   final String currentPageText;
+
+  /// Whether the reader has opted in to hearing about later content.
+  final bool allowSpoilers;
 
   /// Distilled whole-book preamble assembled before the request.
   final String bookBrief;
@@ -80,7 +92,10 @@ class ReadingContext {
     int? chapterPageCount,
     int? bookPage,
     int? bookPageTotal,
+    int? pageStartOffset,
+    int? pageEndOffset,
     String? currentPageText,
+    bool? allowSpoilers,
     String? bookBrief,
     String? companionMemory,
   }) {
@@ -98,7 +113,10 @@ class ReadingContext {
       chapterPageCount: chapterPageCount ?? this.chapterPageCount,
       bookPage: bookPage ?? this.bookPage,
       bookPageTotal: bookPageTotal ?? this.bookPageTotal,
+      pageStartOffset: pageStartOffset ?? this.pageStartOffset,
+      pageEndOffset: pageEndOffset ?? this.pageEndOffset,
       currentPageText: currentPageText ?? this.currentPageText,
+      allowSpoilers: allowSpoilers ?? this.allowSpoilers,
       bookBrief: bookBrief ?? this.bookBrief,
       companionMemory: companionMemory ?? this.companionMemory,
     );

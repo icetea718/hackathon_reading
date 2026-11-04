@@ -125,6 +125,45 @@ void main() {
     expect(assembled.brief, isNot(contains('远处的事')));
   });
 
+  test('spoilers off keeps plot summaries and later gists out of the brief', () {
+    final digest = DistillDigest(
+      oneLiner: '一句话剧透',
+      synopsis: '全书梗概剧透',
+      themes: const ['主题甲'],
+      toneOverall: '克制',
+      gists: const {1: '前章要点', 2: '当前章结局', 3: '下一章剧透'},
+      cards: const [
+        DistillDigestCard(
+          slug: 'c',
+          title: '卡片剧透',
+          definition: '卡片内容',
+          sourceChapters: [1],
+        ),
+      ],
+    );
+
+    final assembled = DistilledContextAssembler().assemble(
+      AssembleInput(
+        bookId: 'b',
+        bookTitle: '活着',
+        chapterIndex: 2,
+        chapterTitle: '第二章',
+        chapterText: '正文',
+        allowSpoilers: false,
+      ),
+      digest,
+    );
+
+    expect(assembled.brief, isNot(contains('一句话剧透')));
+    expect(assembled.brief, isNot(contains('全书梗概剧透')));
+    expect(assembled.brief, isNot(contains('当前章结局')));
+    expect(assembled.brief, isNot(contains('下一章剧透')));
+    expect(assembled.brief, isNot(contains('卡片剧透')));
+    expect(assembled.brief, contains('前章要点'));
+    expect(assembled.brief, contains('主题甲'));
+    expect(assembled.brief, contains('读者正在看的那一页'));
+  });
+
   test('an empty digest still yields a usable brief', () {
     final assembled = DistilledContextAssembler().assemble(
       const AssembleInput(

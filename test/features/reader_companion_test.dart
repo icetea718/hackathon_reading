@@ -172,6 +172,11 @@ void main() {
     expect(panel.chapterPage, 1);
     expect(panel.chapterPageCount, greaterThanOrEqualTo(1));
     expect(panel.currentPageText, contains('第一章的内容'));
+    final start = panel.pageStartOffset;
+    final end = panel.pageEndOffset;
+    expect(start, isNotNull);
+    expect(end, isNotNull);
+    expect(panel.chapterText.substring(start!, end!), contains('第一章的内容'));
   });
 
   testWidgets('closing the side panel leaves the reader in place',

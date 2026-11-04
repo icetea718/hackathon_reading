@@ -136,6 +136,8 @@ Widget _host(
   int? chapterPageCount,
   int? bookPage,
   int? bookPageTotal,
+  int? pageStartOffset,
+  int? pageEndOffset,
   String currentPageText = '',
 }) {
   final voice = client ?? FakeTtsClient();
@@ -159,6 +161,8 @@ Widget _host(
     chapterPageCount: chapterPageCount,
     bookPage: bookPage,
     bookPageTotal: bookPageTotal,
+    pageStartOffset: pageStartOffset,
+    pageEndOffset: pageEndOffset,
     currentPageText: currentPageText,
   );
 }
@@ -175,6 +179,8 @@ Widget _wrap(
   int? chapterPageCount,
   int? bookPage,
   int? bookPageTotal,
+  int? pageStartOffset,
+  int? pageEndOffset,
   String currentPageText = '',
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
@@ -203,6 +209,8 @@ Widget _wrap(
             chapterPageCount: chapterPageCount,
             bookPage: bookPage,
             bookPageTotal: bookPageTotal,
+            pageStartOffset: pageStartOffset,
+            pageEndOffset: pageEndOffset,
             currentPageText: currentPageText,
             onGoToChapter: onGoToChapter,
           ),
@@ -294,6 +302,30 @@ void main() {
     expect(context.bookPage, 42);
     expect(context.bookPageTotal, 300);
     expect(context.currentPageText, '这一页的正文。');
+  });
+
+  testWidgets('spoilers stay off until the reader turns them on',
+      (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(
+      fake,
+      chapterPage: 3,
+      pageStartOffset: 100,
+      pageEndOffset: 200,
+    ));
+    await _settle(tester);
+
+    await _ask(tester);
+
+    expect(fake.lastContext!.allowSpoilers, isFalse);
+    expect(fake.lastContext!.pageStartOffset, 100);
+    expect(fake.lastContext!.pageEndOffset, 200);
+
+    await tester.tap(find.byKey(const Key('companion-spoiler-toggle')));
+    await tester.pumpAndSettle();
+    await _ask(tester);
+
+    expect(fake.lastContext!.allowSpoilers, isTrue);
   });
 
   testWidgets('pressing enter sends the question', (tester) async {

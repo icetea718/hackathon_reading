@@ -92,14 +92,24 @@ class OpenAiAssistantService implements AssistantService {
     if (location != null) {
       lines.add('读者当前位置：$location');
     }
-    if (context.bookBrief.isNotEmpty) {
-      lines.add('【全书蒸馏】\n${context.bookBrief}');
+    final hasPage =
+        context.currentPageText.isNotEmpty || context.chapterPage != null;
+    if (hasPage && !context.allowSpoilers) {
+      lines.add('【剧透限制】读者还没读到后面。回答时先结合读者当前这一页；'
+          '这一页不够时，只补充这一页之前的本章内容或之前章节。'
+          '不要总结、暗示或透露当前页之后的情节，也不要引用后面的章节。');
+    } else if (hasPage) {
+      lines.add('读者已打开「允许剧透」，可以讨论当前页之后的情节，'
+          '但回答时仍要先结合读者当前这一页。');
+    }
+    if (context.currentPageText.isNotEmpty) {
+      lines.add('【读者正在看的这一页】\n${context.currentPageText}');
     }
     if (context.companionMemory.isNotEmpty) {
       lines.add('【此前章节的对话纪要】\n${context.companionMemory}');
     }
-    if (context.currentPageText.isNotEmpty) {
-      lines.add('【读者正在看的这一页】\n${context.currentPageText}');
+    if (context.bookBrief.isNotEmpty) {
+      lines.add('【全书蒸馏】\n${context.bookBrief}');
     }
     if (context.chapterText.isNotEmpty) {
       lines.add('【当前章节内容】\n${context.chapterText}');

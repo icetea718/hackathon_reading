@@ -947,6 +947,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           chapterPageCount: pageInfo.pageCount,
           bookPage: pageInfo.bookPage,
           bookPageTotal: pageInfo.bookPageTotal,
+          pageStartOffset: pageInfo.startOffset,
+          pageEndOffset: pageInfo.endOffset,
           currentPageText: pageInfo.text,
           bookTitle: data.book?.title ?? '',
           author: data.book?.author ?? '',
@@ -1016,6 +1018,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     int? pageCount,
     int? bookPage,
     int? bookPageTotal,
+    int? startOffset,
+    int? endOffset,
     String text,
   }) _companionPageInfo(
     int chapterIndex,
@@ -1028,6 +1032,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       pageCount: null,
       bookPage: null,
       bookPageTotal: null,
+      startOffset: null,
+      endOffset: null,
       text: '',
     );
     final pagination = _pagination;
@@ -1070,6 +1076,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       pageCount: pagination.pageCount,
       bookPage: bookPage,
       bookPageTotal: bookPageTotal,
+      startOffset: start >= 0 ? start : null,
+      endOffset: start >= 0 && end > start ? end : null,
       text: pageText,
     );
   }
@@ -1108,6 +1116,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         chapterPageCount: pageInfo.pageCount,
         bookPage: pageInfo.bookPage,
         bookPageTotal: pageInfo.bookPageTotal,
+        pageStartOffset: pageInfo.startOffset,
+        pageEndOffset: pageInfo.endOffset,
         currentPageText: pageInfo.text,
         bookTitle: data.book?.title ?? '',
         author: data.book?.author ?? '',
