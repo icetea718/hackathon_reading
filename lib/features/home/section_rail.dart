@@ -14,6 +14,7 @@ class SectionRail extends StatelessWidget {
     this.foregroundColor,
     this.selectedBackgroundColor,
     this.selectedForegroundColor,
+    this.elevated = false,
   });
 
   final AppSection? activeSection;
@@ -25,6 +26,7 @@ class SectionRail extends StatelessWidget {
   final Color? foregroundColor;
   final Color? selectedBackgroundColor;
   final Color? selectedForegroundColor;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +66,15 @@ class SectionRail extends StatelessWidget {
         border: Border(
           right: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
+        boxShadow: elevated
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 16,
+                  offset: Offset(4, 0),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         children: [

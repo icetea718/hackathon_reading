@@ -397,9 +397,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       if (!mounted || anchor == null) return;
       _reanchorAfterLayout(anchor);
     });
-    if (!_railPinned) {
-      _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
-    }
   }
 
   void _showRail() {
@@ -854,6 +851,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                           Opacity(opacity: value, child: child),
                       child: ReaderRail(
                         pinned: false,
+                        elevated: true,
                         onTogglePinned: _toggleRailPinned,
                         onBackToLibrary: _backToLibrary,
                         onOpenCompanion: _openCompanion,

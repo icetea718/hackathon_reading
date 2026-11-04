@@ -14,6 +14,7 @@ class ReaderRail extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.accent,
+    this.elevated = false,
   });
 
   final bool pinned;
@@ -24,6 +25,7 @@ class ReaderRail extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color accent;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +45,7 @@ class ReaderRail extends StatelessWidget {
       foregroundColor: foreground,
       selectedBackgroundColor: accent.withValues(alpha: 0.18),
       selectedForegroundColor: accent,
+      elevated: elevated,
       footer: SizedBox(
         width: 48,
         child: TextButton(

@@ -123,7 +123,7 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('the pin switch unpins and hides the rail', (tester) async {
+  testWidgets('the pin switch unpins into the floating rail', (tester) async {
     await SettingsRepository(db).set('reader.railPinned', 'true');
     await pumpReader(tester, 'long');
     expect(find.text('已固定'), findsOneWidget);
@@ -132,7 +132,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('reader-rail-pinned')), findsNothing);
+    expect(find.byKey(const Key('reader-rail-overlay')), findsOneWidget);
+
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.byKey(const Key('reader-rail-overlay')), findsNothing);
+
     await settleAfterIo(tester);
     expect(await storedRailPinned(tester), 'false');
     await disposeApp(tester);
@@ -169,6 +174,59 @@ void main() {
 
     final after = controller.offset / controller.position.maxScrollExtent;
     expect(after, closeTo(before, 0.02));
+    await disposeApp(tester);
+  });
+
+  testWidgets('unpinning from the rail keeps it until the mouse leaves', (
+    tester,
+  ) async {
+    await SettingsRepository(db).set('reader.railPinned', 'true');
+    await pumpReader(tester, 'long');
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(find.text('已固定')));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+
+    await tester.tap(find.text('已固定'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('reader-rail-overlay')), findsOneWidget);
+
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const Key('reader-rail-overlay'))),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    await gesture.moveTo(const Offset(500, 300));
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byKey(const Key('reader-rail-overlay')), findsNothing);
+    await disposeApp(tester);
+  });
+
+  testWidgets('the floating rail casts a shadow', (tester) async {
+    await pumpReader(tester, 'long');
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(5, 300));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final containers = tester.widgetList<Container>(
+      find.descendant(
+        of: find.byKey(const Key('reader-rail-overlay')),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(
+      containers.any((container) {
+        final decoration = container.decoration;
+        return decoration is BoxDecoration &&
+            (decoration.boxShadow?.isNotEmpty ?? false);
+      }),
+      isTrue,
+    );
     await disposeApp(tester);
   });
 
