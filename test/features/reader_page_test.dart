@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
@@ -18,11 +20,65 @@ import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:hackathon_reading/distill/llm/llm_config.dart';
 import 'package:hackathon_reading/features/illustration/illustration_composer_page.dart';
+import 'package:hackathon_reading/features/illustration/illustration_jobs.dart';
+import 'package:hackathon_reading/illustration/illustration_config.dart';
+import 'package:hackathon_reading/illustration/illustration_models.dart';
+import 'package:hackathon_reading/illustration/illustration_service.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
 import 'package:hackathon_reading/features/reader/reader_spread.dart';
+
+const _jobEffective = IllustrationEffective(
+  baseUrl: 'https://api.example.com/v1',
+  apiKey: 'key',
+  chatModel: 'chat',
+  imageModel: 'image',
+);
+
+const _jobConfig = IllustrationConfig(
+  baseUrl: 'https://api.example.com/v1',
+  apiKey: 'key',
+  chatModel: 'chat',
+  imageModel: 'image',
+);
+
+const _jobLlm = LlmConfig(
+  baseUrl: 'https://api.example.com/v1',
+  model: 'chat',
+  apiKey: 'key',
+);
+
+IllustrationResult _jobResult() => IllustrationResult(
+      plan: const IllustrationPlan(
+        medium: '水彩',
+        sketchPrompt: 'sketch',
+        colorPrompt: 'color',
+      ),
+      sketchFile: File('sketch.png'),
+      finalFile: File('final.png'),
+    );
+
+class _ReaderFakeService extends IllustrationService {
+  _ReaderFakeService(this._run) : super(effective: _jobEffective);
+
+  final Future<IllustrationResult> Function(
+    void Function(IllustrationStage stage)? onStage,
+  ) _run;
+
+  @override
+  Future<IllustrationResult> generate(
+    String text, {
+    void Function(IllustrationStage stage)? onStage,
+  }) {
+    return _run(onStage);
+  }
+
+  @override
+  void dispose() {}
+}
 
 void main() {
   late AppDatabase db;
@@ -88,6 +144,7 @@ void main() {
     String bookId, {
     TargetPlatform? platform,
     BookStorage? storage,
+    List<Override> overrides = const [],
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -95,6 +152,7 @@ void main() {
           appDatabaseProvider.overrideWithValue(db),
           if (storage != null)
             bookStorageProvider.overrideWith((ref) async => storage),
+          ...overrides,
         ],
         child: MaterialApp(
           theme: platform == null ? null : ThemeData(platform: platform),
@@ -1413,6 +1471,51 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('生成插画'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('a background illustration reports progress and result',
+      (tester) async {
+    final completer = Completer<IllustrationResult>();
+    await pumpReader(
+      tester,
+      'b1',
+      overrides: [
+        illustrationConfigProvider.overrideWith((ref) async => _jobConfig),
+        llmConfigProvider.overrideWith((ref) async => _jobLlm),
+        illustrationServiceFactoryProvider.overrideWithValue(
+          (_) => _ReaderFakeService((onStage) {
+            onStage?.call(IllustrationStage.planning);
+            return completer.future;
+          }),
+        ),
+      ],
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+
+    container.read(illustrationJobProvider.notifier).start(
+          text: '第一章的内容',
+          label: '测试 · 整章',
+        );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('reader-illustration-job')), findsOneWidget);
+    expect(find.textContaining('插画生成中'), findsOneWidget);
+
+    completer.complete(_jobResult());
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('插画已生成'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('reader-illustration-job-open')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(IllustrationComposerPage), findsOneWidget);
+    expect(find.text('成品预览'), findsOneWidget);
     await disposeApp(tester);
   });
 
