@@ -207,6 +207,28 @@ void main() {
     expect(block.length, lessThanOrEqualTo(BookMemory.maxPromptChars));
   });
 
+  test('the companion digest survives an annotation-heavy prompt', () async {
+    final memory = await builder(
+      annotations: [
+        for (var i = 0; i < 40; i++)
+          annotation(
+            type: AnnotationType.highlight,
+            chapterId: 'c0',
+            selectedText: '这' * 100,
+          ),
+      ],
+      digest: CompanionDigest(
+        text: '【经济】${'读' * 1200}',
+        threadIds: const {'t1'},
+      ),
+    ).build('b1');
+
+    final block = memory!.promptBlock();
+    expect(block, contains('【陪读对话摘要】'));
+    expect(block, contains('读读读'));
+    expect(block.length, lessThanOrEqualTo(BookMemory.maxPromptChars));
+  });
+
   test('the prompt block carries the companion digest', () async {
     final memory = await builder(
       digest: const CompanionDigest(

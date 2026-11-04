@@ -26,7 +26,8 @@ class BookMemory {
     required this.companionDigest,
   });
 
-  static const int maxPromptChars = 1800;
+  /// Room for the annotations plus the companion digest, which is reserved.
+  static const int maxPromptChars = 3400;
   static const int maxBookmarks = 30;
   static const int maxHighlights = 40;
   static const int maxNotes = 30;
@@ -53,13 +54,24 @@ class BookMemory {
   String promptBlock() {
     if (isEmpty) return '';
 
+    final digestLines = <String>[];
+    if (companionDigest.text.isNotEmpty) {
+      digestLines.add('【陪读对话摘要】');
+      digestLines.addAll(companionDigest.text.split('\n'));
+    }
+    var digestSize = 0;
+    for (final line in digestLines) {
+      digestSize += line.length + 1;
+    }
+
     final lines = <String>['【读者的标注与陪读记录】'];
+    final annotationLimit = maxPromptChars - digestSize;
     var size = lines.first.length;
     var full = false;
 
     void add(String line) {
       if (full) return;
-      if (size + line.length + 1 > maxPromptChars) {
+      if (size + line.length + 1 > annotationLimit) {
         full = true;
         return;
       }
@@ -81,12 +93,7 @@ class BookMemory {
     section('高亮：', highlights.take(maxHighlights).toList());
     section('笔记：', notes.take(maxNotes).toList());
 
-    if (companionDigest.text.isNotEmpty) {
-      add('【陪读对话摘要】');
-      for (final line in companionDigest.text.split('\n')) {
-        add(line);
-      }
-    }
+    lines.addAll(digestLines);
     return lines.join('\n');
   }
 }

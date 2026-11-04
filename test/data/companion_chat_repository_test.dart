@@ -209,7 +209,7 @@ void main() {
 
     final digest = await repo.bookMemoryDigest(bookId: 'b1');
 
-    expect(digest.text.length, lessThanOrEqualTo(400));
+    expect(digest.text.length, lessThanOrEqualTo(1500));
     expect(digest.text, isNot(contains('【一】')));
     expect(digest.text, contains('【二】'));
     expect(digest.text, contains('【四】'));
@@ -217,6 +217,72 @@ void main() {
       digest.threadIds,
       {created[1].id, created[2].id, created[3].id},
     );
+  });
+
+  test('book memory digest keeps the whole conversation of a thread',
+      () async {
+    final thread = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+      title: '一',
+    );
+    for (final content in ['第一问', '第一答', '第二问', '第二答']) {
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: content.endsWith('问')
+            ? CompanionRole.user
+            : CompanionRole.assistant,
+        content: content,
+      );
+    }
+
+    final digest = await repo.bookMemoryDigest(bookId: 'b1');
+
+    for (final content in ['第一问', '第一答', '第二问', '第二答']) {
+      expect(digest.text, contains(content));
+    }
+  });
+
+  test('book memory digest keeps long messages whole', () async {
+    final thread = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+      title: '一',
+    );
+    await repo.appendMessage(
+      threadId: thread.id,
+      role: CompanionRole.assistant,
+      content: '${'甲' * 300}结尾标记',
+    );
+
+    final digest = await repo.bookMemoryDigest(bookId: 'b1');
+
+    expect(digest.text, contains('结尾标记'));
+  });
+
+  test('book memory digest drops whole messages when the budget runs out',
+      () async {
+    final thread = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+      title: '一',
+    );
+    for (var i = 0; i < 4; i++) {
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '第$i条${'字' * 400}',
+      );
+    }
+
+    final digest = await repo.bookMemoryDigest(bookId: 'b1');
+
+    expect(digest.text.length, lessThanOrEqualTo(1500));
+    expect(digest.text, contains('第3条${'字' * 400}'));
+    expect(digest.text, isNot(contains('第0条')));
   });
 
   test('an explicit selection overrides the automatic threads', () async {

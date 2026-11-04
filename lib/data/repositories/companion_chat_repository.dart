@@ -178,10 +178,13 @@ class CompanionChatRepository {
   /// The companion reminder for 搜: either the newest threads of [bookId] or
   /// exactly [threadIds]. Null selects automatically; an empty set means the
   /// reader chose to carry no companion context.
+  ///
+  /// Unlike [memoryDigest], whole conversations travel: the reader asks 搜 to
+  /// review companion chats, so the last two messages would hide most of them.
   Future<CompanionDigest> bookMemoryDigest({
     required String bookId,
     Set<String>? threadIds,
-    int maxChars = 400,
+    int maxChars = 1500,
   }) async {
     if (maxChars <= 0) return CompanionDigest.empty;
     if (threadIds != null && threadIds.isEmpty) return CompanionDigest.empty;
@@ -198,7 +201,61 @@ class CompanionChatRepository {
       (t) => OrderingTerm.desc(t.createdAt),
     ]);
 
-    return _compose(await query.get(), maxChars);
+    return _composeFull(await query.get(), maxChars);
+  }
+
+  /// Every message of each thread, newest first under [maxChars]. Messages are
+  /// kept whole; one that does not fit ends its thread instead of being cut.
+  Future<CompanionDigest> _composeFull(
+    List<CompanionThreadRecord> threads,
+    int maxChars,
+  ) async {
+    final segments = <String>[];
+    final included = <String>{};
+    var used = 0;
+    for (final thread in threads) {
+      final messages = await (_db.select(_db.companionMessages)
+            ..where((m) => m.threadId.equals(thread.id))
+            ..orderBy([(m) => OrderingTerm.desc(m.seq)]))
+          .get();
+      if (messages.isEmpty) continue;
+
+      final header = '【${thread.chapterTitle}】';
+      final separator = segments.isEmpty ? 0 : 1;
+      final remaining = maxChars - used - separator - header.length;
+      if (remaining <= 0) break;
+
+      final kept = <String>[];
+      var size = 0;
+      for (final message in messages) {
+        final label = CompanionRole.fromName(message.role) ==
+                CompanionRole.user
+            ? '读者'
+            : '助手';
+        final line = '$label：${message.content.trim()}';
+        final extra = (kept.isEmpty ? 0 : 1) + line.length;
+        if (size + extra > remaining) {
+          // A single huge message is the only case that gets cut; otherwise
+          // the whole older message is dropped and the thread ends there.
+          if (kept.isEmpty && remaining > 1) {
+            kept.add('${line.substring(0, remaining - 1)}…');
+          }
+          break;
+        }
+        kept.insert(0, line);
+        size += extra;
+      }
+      if (kept.isEmpty) continue;
+
+      final segment = '$header${kept.join(' ')}';
+      segments.add(segment);
+      included.add(thread.id);
+      used += segment.length + separator;
+    }
+    return CompanionDigest(
+      text: segments.reversed.join('\n'),
+      threadIds: included,
+    );
   }
 
   Future<CompanionDigest> _compose(
