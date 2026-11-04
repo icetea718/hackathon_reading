@@ -13,8 +13,9 @@ import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
 import 'companion_history.dart';
-import 'companion_providers.dart';
 import 'companion_memory_sheet.dart';
+import 'companion_providers.dart';
+import 'companion_quotes.dart';
 
 enum _CompanionView { chat, history }
 
@@ -127,6 +128,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     _pendingThreadId = null;
     _pendingChapterIndex = null;
     _requestToken++;
+    // Pending quotes belong to the chapter that was open; providers cannot be
+    // modified inside didUpdateWidget, so drop them once the frame is done.
+    if (ref.read(companionQuotesProvider).isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(companionQuotesProvider.notifier).clear();
+      });
+    }
     setState(() {
       _busy = false;
       _streaming = '';
@@ -467,17 +475,22 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     if (text.isEmpty || _busy || _readOnlyThread != null) return;
     final service = ref.read(assistantServiceProvider).value;
     if (service == null || !service.isConfigured) return;
+    final quotes = ref.read(companionQuotesProvider).toList();
+    final message = composeCompanionMessage(quotes, text);
+    if (quotes.isNotEmpty) {
+      ref.read(companionQuotesProvider.notifier).clear();
+    }
     _input.clear();
     final token = _requestToken;
     final thread = await _ensureThread(firstMessage: text);
     await _chats.appendMessage(
       threadId: thread.id,
       role: CompanionRole.user,
-      content: text,
+      content: message,
     );
     if (!mounted || token != _requestToken) return;
     setState(
-      () => _history.add(ChatMessage(role: ChatRole.user, content: text)),
+      () => _history.add(ChatMessage(role: ChatRole.user, content: message)),
     );
 
     final priorCount = _history.length - 1;
@@ -493,7 +506,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       (service) => service.chat(
         _context.copyWith(companionMemory: memory),
         prior,
-        text,
+        message,
       ),
       token: token,
       onComplete: (reply) => _chats.appendMessage(
@@ -572,6 +585,16 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(companionQuotesProvider, (previous, next) {
+      if (next.length <= (previous?.length ?? 0)) return;
+      final readOnly = _readOnlyThread;
+      setState(() {
+        _view = _CompanionView.chat;
+        _readOnlyThread = null;
+      });
+      if (readOnly != null) unawaited(_loadLatestThread());
+    });
+    final quotes = ref.watch(companionQuotesProvider);
     final service = ref.watch(assistantServiceProvider);
     final configured = service is AsyncData<AssistantService> &&
         service.value.isConfigured;
@@ -601,7 +624,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
             child: CircularProgressIndicator(),
           )
         else
-          Expanded(child: _chatBody(context, configured: configured)),
+          Expanded(
+            child: _chatBody(
+              context,
+              configured: configured,
+              quotes: quotes,
+            ),
+          ),
       ],
     );
 
@@ -702,7 +731,11 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     );
   }
 
-  Widget _chatBody(BuildContext context, {required bool configured}) {
+  Widget _chatBody(
+    BuildContext context, {
+    required bool configured,
+    required List<String> quotes,
+  }) {
     if (!configured) {
       if (_history.isEmpty) {
         return Center(
@@ -750,7 +783,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        if (_readOnlyThread == null) _composer() else _jumpButton(),
+        if (_readOnlyThread == null) _composer(quotes) else _jumpButton(),
       ],
     );
   }
@@ -884,35 +917,109 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     );
   }
 
-  Widget _composer() {
+  Widget _composer(List<String> quotes) {
     return Padding(
       padding: const EdgeInsets.all(8),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Focus(
-              canRequestFocus: false,
-              skipTraversal: true,
-              onKeyEvent: _handleComposerKey,
-              child: TextField(
-                controller: _input,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: '问问这一章…',
-                  border: OutlineInputBorder(),
+          if (quotes.isNotEmpty) _quoteChips(quotes),
+          Row(
+            children: [
+              Expanded(
+                child: Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  onKeyEvent: _handleComposerKey,
+                  child: TextField(
+                    controller: _input,
+                    minLines: 1,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: '问问这一章…',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _send(),
+                  ),
                 ),
-                onSubmitted: (_) => _send(),
               ),
-            ),
-          ),
-          IconButton(
-            tooltip: '发送',
-            icon: const Icon(Icons.send),
-            onPressed: _busy ? null : _send,
+              IconButton(
+                tooltip: '发送',
+                icon: const Icon(Icons.send),
+                onPressed: _busy ? null : _send,
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _quoteChips(List<String> quotes) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: const Key('companion-quote-list'),
+      children: [
+        for (var index = 0; index < quotes.length; index++)
+          Container(
+            key: Key('companion-quote-$index'),
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer,
+              border: Border(left: BorderSide(color: scheme.primary, width: 3)),
+              borderRadius: const BorderRadius.horizontal(
+                right: Radius.circular(8),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '引用',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.8,
+                          color: scheme.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        quotes[index],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  key: Key('companion-quote-remove-$index'),
+                  tooltip: '移除引用',
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 24,
+                    height: 24,
+                  ),
+                  onPressed: () => ref
+                      .read(companionQuotesProvider.notifier)
+                      .removeAt(index),
+                  icon: Icon(
+                    Icons.close,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -940,6 +1047,49 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   }
 }
 
+class _QuotedBlock extends StatelessWidget {
+  const _QuotedBlock({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const Key('companion-quoted-block'),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(left: BorderSide(color: scheme.primary, width: 3)),
+        borderRadius: const BorderRadius.horizontal(
+          right: Radius.circular(7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '引用',
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+              color: scheme.primary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.text,
@@ -961,6 +1111,10 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final speak = onSpeak;
+    final ({String? quote, String body}) parsed = isUser
+        ? parseCompanionMessage(text)
+        : (quote: null, body: text);
+    final quote = parsed.quote;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -975,7 +1129,9 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(text),
+            if (quote != null && quote.trim().isNotEmpty)
+              _QuotedBlock(text: quote),
+            if (parsed.body.isNotEmpty) Text(parsed.body),
             if (speak != null)
               Align(
                 alignment: Alignment.centerRight,

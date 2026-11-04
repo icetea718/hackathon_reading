@@ -21,6 +21,7 @@ import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
+import 'package:hackathon_reading/features/companion/companion_quotes.dart';
 import 'package:hackathon_reading/features/illustration/illustration_composer_page.dart';
 import 'package:hackathon_reading/features/illustration/illustration_jobs.dart';
 import 'package:hackathon_reading/illustration/illustration_config.dart';
@@ -1471,6 +1472,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('生成插画'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('selecting text offers to quote it into the companion',
+      (tester) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.longPress(find.byType(SelectableText).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('引用'), findsOneWidget);
+
+    await tester.tap(find.text('引用'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    final quotes = container.read(companionQuotesProvider);
+    expect(quotes, hasLength(1));
+    expect(quotes.single.trim(), isNotEmpty);
     await disposeApp(tester);
   });
 

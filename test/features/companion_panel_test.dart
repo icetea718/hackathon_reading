@@ -14,6 +14,7 @@ import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
+import 'package:hackathon_reading/features/companion/companion_quotes.dart';
 import 'package:hackathon_reading/features/memory_book/memory_book_providers.dart';
 import 'package:hackathon_reading/memory_book/memory_book_models.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
@@ -298,6 +299,72 @@ void main() {
     expect(fake.prompts, contains('chat:福贵为什么败家？'));
     expect(find.text('福贵为什么败家？'), findsOneWidget);
     expect(find.textContaining('是因为赌博'), findsOneWidget);
+  });
+
+  testWidgets('a pending quote appears above the composer and can be removed',
+      (tester) async {
+    await tester.pumpWidget(_host(_FakeAssistant()));
+    await _settle(tester);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CompanionPanel)),
+    );
+    container.read(companionQuotesProvider.notifier).add('老牛回过头。');
+    await tester.pump();
+
+    expect(find.byKey(const Key('companion-quote-0')), findsOneWidget);
+    expect(find.text('老牛回过头。'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-quote-remove-0')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('companion-quote-0')), findsNothing);
+    expect(container.read(companionQuotesProvider), isEmpty);
+  });
+
+  testWidgets('sending a quote includes it in the message and clears it',
+      (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(fake));
+    await _settle(tester);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CompanionPanel)),
+    );
+    container.read(companionQuotesProvider.notifier).add('老牛回过头。');
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '这句话说明了什么？');
+    await tester.tap(find.byTooltip('发送'));
+    await _settle(tester);
+
+    expect(
+      fake.prompts,
+      contains('chat:【引用】\n> 老牛回过头。\n\n这句话说明了什么？'),
+    );
+    expect(find.byKey(const Key('companion-quoted-block')), findsOneWidget);
+    expect(find.text('老牛回过头。'), findsOneWidget);
+    expect(find.text('这句话说明了什么？'), findsOneWidget);
+    expect(find.byKey(const Key('companion-quote-0')), findsNothing);
+    expect(container.read(companionQuotesProvider), isEmpty);
+  });
+
+  testWidgets('a new quote returns the panel from history to the chat',
+      (tester) async {
+    await tester.pumpWidget(_host(_FakeAssistant()));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    expect(find.byKey(const Key('companion-quote-0')), findsNothing);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CompanionPanel)),
+    );
+    container.read(companionQuotesProvider.notifier).add('老牛回过头。');
+    await tester.pump();
+
+    expect(find.byKey(const Key('companion-quote-0')), findsOneWidget);
   });
 
   testWidgets('the request carries the page being read', (tester) async {

@@ -22,6 +22,7 @@ import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_panel.dart';
+import '../companion/companion_quotes.dart';
 import '../illustration/illustration_composer_page.dart';
 import '../illustration/illustration_jobs.dart';
 import '../settings/settings_page.dart';
@@ -1114,6 +1115,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           },
         ),
       );
+      ref.read(companionQuotesProvider.notifier).clear();
       return;
     }
 
@@ -1131,6 +1133,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   void _closeCompanion() {
     ++_companionLoadToken;
+    ref.read(companionQuotesProvider.notifier).clear();
     final anchor = _currentPageStartOffset(_cachedData?.chapters ?? const []);
     setState(() {
       if (anchor != null) _pendingOffset = anchor;
@@ -1603,6 +1606,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
   }
 
+  void _quoteSelection(TextSelection selection, String text) {
+    final selected = _selectedText(selection, text).trim();
+    if (selected.isEmpty) return;
+    ref.read(companionQuotesProvider.notifier).add(selected);
+    unawaited(_openCompanionForQuote());
+  }
+
+  Future<void> _openCompanionForQuote() async {
+    if (_companionOpen) {
+      _ensureCompanionChapter(_chapterIndex);
+      return;
+    }
+    await _toggleCompanion();
+  }
+
   void _illustrateSelection(Chapter chapter, TextSelection selection, String text) {
     final selected = _selectedText(selection, text).trim();
     if (selected.isEmpty) return;
@@ -1650,6 +1668,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onPressed: () {
               editableTextState.hideToolbar();
               _addNote(chapter, page, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '引用',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _quoteSelection(selection, text);
             },
           ),
           ContextMenuButtonItem(
