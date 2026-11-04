@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/assistant/assistant_service.dart';
+import 'package:hackathon_reading/assistant/persona.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 import 'package:hackathon_reading/features/companion/companion_greeting.dart';
 
@@ -11,6 +12,7 @@ class _FakeAssistant implements AssistantService {
   final List<String> chunks;
   final bool configured;
   String? lastPrompt;
+  PersonaMode? lastPersona;
 
   @override
   bool get isConfigured => configured;
@@ -19,9 +21,11 @@ class _FakeAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     lastPrompt = userMessage;
+    lastPersona = persona;
     return Stream.fromIterable(chunks);
   }
 
@@ -46,8 +50,9 @@ class _ThrowingAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) => Stream<String>.error(StateError('upstream down'));
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) => Stream<String>.error(StateError('upstream down'));
 
   @override
   Stream<String> explain(String text, {required ReadingContext context}) =>
@@ -60,6 +65,18 @@ class _ThrowingAssistant implements AssistantService {
   @override
   Stream<String> translate(String text, {required String targetLang}) =>
       const Stream.empty();
+}
+
+/// Answers with the default voice without touching the settings database.
+class _StubPersona extends PersonaModeNotifier {
+  @override
+  PersonaMode build() => PersonaMode.fallback;
+}
+
+/// A reader who switched to the argumentative voice.
+class _DebatePersona extends PersonaModeNotifier {
+  @override
+  PersonaMode build() => PersonaMode.debate;
 }
 
 const _request = CompanionGreetingRequest(
@@ -103,6 +120,7 @@ void main() {
       final assistant = _FakeAssistant(['这位妈妈', '在挑鞋呢。', '还有后文']);
       final container = ProviderContainer(
         overrides: [
+          personaModeProvider.overrideWith(_StubPersona.new),
           assistantServiceProvider.overrideWith((ref) async => assistant),
         ],
       );
@@ -116,10 +134,28 @@ void main() {
       expect(assistant.lastPrompt, contains('母亲给我讲过'));
     });
 
+    test('opens with the temper of the chosen voice', () async {
+      final assistant = _FakeAssistant(['冷漠是结论。']);
+      final container = ProviderContainer(
+        overrides: [
+          personaModeProvider.overrideWith(_DebatePersona.new),
+          assistantServiceProvider.overrideWith((ref) async => assistant),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(companionGreeterProvider)(_request);
+
+      expect(assistant.lastPersona, PersonaMode.debate);
+      expect(assistant.lastPrompt, contains('不太同意'));
+      expect(assistant.lastPrompt, isNot(contains('小细节')));
+    });
+
     test('stays silent when no AI service is configured', () async {
       final assistant = _FakeAssistant(['不该出现'], configured: false);
       final container = ProviderContainer(
         overrides: [
+          personaModeProvider.overrideWith(_StubPersona.new),
           assistantServiceProvider.overrideWith((ref) async => assistant),
         ],
       );
@@ -131,6 +167,7 @@ void main() {
     test('stays silent when the assistant stream fails', () async {
       final container = ProviderContainer(
         overrides: [
+          personaModeProvider.overrideWith(_StubPersona.new),
           assistantServiceProvider.overrideWith(
             (ref) async => _ThrowingAssistant(),
           ),

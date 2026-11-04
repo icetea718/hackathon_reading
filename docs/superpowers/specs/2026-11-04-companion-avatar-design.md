@@ -113,4 +113,17 @@
 - `CompanionAvatar` 的换装点还是 `assetPath`：等于 `companionSprite` 时走 idle 播放器，其它路径仍是静态图，占位画师逻辑不变。
 - 测试里必须静止：`FLUTTER_TEST=true` 时 `animate: false`（`Platform.environment` 判断），否则阅读页那批 `pumpAndSettle()` 永远等不到 settle。
 - 构建环境的坑：加了插件依赖后 `flutter build windows` 要求 symlink 权限（本机非管理员、开发者模式未开）。绕法是先 `mklink /J` 把 `windows/flutter/ephemeral/.plugin_symlinks/*` 建成 junction，Flutter 认路径一致就直接复用，构建通过。
-- Tapping the character or the bubble hands control to onOpenChat (the existing CompanionPanel); without a handler the old toggle behaviour stays, which is what the widget tests exercise.
+
+## Slice 4 - a pet that answers the reader's hands
+
+- 形象换成 dsh-pet 风格的桌面宠物（用户要求）：素材来自 `C:\Users\q\.dsh\profiles\desktop\node_modules\dsh-pet\assets\webm`（MIT），VP9 + 独立 alpha，必须用 `ffmpeg -c:v libvpx-vp9 -pix_fmt rgba` 抽帧才有透明通道。
+- 烘焙脚本 `.superpowers/spikes/pet/bake_clips.py`：按 alpha>128 的阈值取 bbox（直接 `Image.getbbox()` 会把整幅 640x360 都算进来），每格 150x200、8 列、12fps；idle 用 72 帧窗口做首尾接缝最小化，poke / drag 取完整片段。产物 `assets/companion/pet_idle.png`（36 帧）、`pet_poke.png`、`pet_drag.png`（48 帧）。
+- 播放器 `CompanionClip` + `CompanionClipStage`：Ticker 自己的 `elapsed` 就是从 start 起算的时间，不要再建 epoch；一次性片段播完自动回 idle。
+- 身体 `CompanionBody`：位置/压扁/倾斜三组弹簧（k=90/300/120，c=11/18/10），`Listener.onPointerDown` 按下即压扁（不能等 onTapDown，竞技场会延迟 ~100ms），拖拽上限 48x28 px，松手带回惯性并落地压扁，hover 时倾斜并把归一化指针位置写进 `look`。
+- `CompanionAvatar` 把动作接到身体上：按下播 poke、拖动播 drag、松手回 idle；`idleMotion: false` 或 `FLUTTER_TEST=true` 时静止，保证 `pumpAndSettle()` 能结束。
+
+## Slice 5 - two more reactions
+
+- 翻页惊一下：`CompanionPresence` 收一个 `ValueListenable<int>? pageTurns`，阅读页在 `_goToNextPage` / `_goToPreviousPage` 里 `_pageTurns.value++`，presence 监听后播 `companionSurpriseClip`（`pet_surprise.png`，48 帧）。
+- 说话挥手：气泡打开时先 `cheer()`（身体弹一下）再播 `companionWaveClip`（`pet_wave.png`，24 帧；源片段从第 2 秒起才是挥手，所以烘焙时 `skip=24`）。
+- 两个片段都不阻塞交互：一次性播放完自动回 idle，气泡的 6 秒逗留计时不受影响。

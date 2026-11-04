@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/features/companion/companion_clip.dart';
 import 'package:hackathon_reading/features/companion/companion_presence.dart';
 
 Widget _host(Widget child) =>
@@ -169,5 +170,37 @@ void main() {
 
     expect(opened, 1);
     expect(find.byKey(const Key('companion-bubble')), findsNothing);
+  });
+
+  testWidgets('waves while it talks', (tester) async {
+    await tester.pumpWidget(_host(const CompanionPresence(height: 160)));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    final stage = tester.state<CompanionClipStageState>(
+      find.byType(CompanionClipStage),
+    );
+    expect(stage.clip, companionWaveClip);
+  });
+
+  testWidgets('flinches when the reader turns the page', (tester) async {
+    final turns = ValueNotifier<int>(0);
+    addTearDown(turns.dispose);
+
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(height: 160, autoGreet: false, pageTurns: turns),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final stage = tester.state<CompanionClipStageState>(
+      find.byType(CompanionClipStage),
+    );
+    expect(stage.clip, companionIdleClip);
+
+    turns.value = 1;
+    await tester.pump();
+    expect(stage.clip, companionSurpriseClip);
   });
 }

@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'companion_avatar.dart';
+import 'companion_clip.dart';
 
 /// The reader-facing companion: a 2D character with a speech bubble above it.
 ///
@@ -17,6 +19,7 @@ class CompanionPresence extends StatefulWidget {
     this.autoGreet = true,
     this.greetingLoader,
     this.onOpenChat,
+    this.pageTurns,
   });
 
   /// Optional sprite asset, forwarded to [CompanionAvatar].
@@ -40,6 +43,9 @@ class CompanionPresence extends StatefulWidget {
   /// Opens the companion chat; when null, tapping the character toggles the
   /// bubble instead.
   final VoidCallback? onOpenChat;
+
+  /// Ticks every time the reader turns the page; the companion flinches.
+  final ValueListenable<int>? pageTurns;
 
   @override
   State<CompanionPresence> createState() => _CompanionPresenceState();
@@ -89,10 +95,12 @@ class _CompanionPresenceState extends State<CompanionPresence>
     if (widget.autoGreet) {
       _greetTimer = Timer(_greetDelay, _startGreeting);
     }
+    widget.pageTurns?.addListener(_handlePageTurn);
   }
 
   @override
   void dispose() {
+    widget.pageTurns?.removeListener(_handlePageTurn);
     _greetTimer?.cancel();
     _hideTimer?.cancel();
     _loadTimer?.cancel();
@@ -136,7 +144,13 @@ class _CompanionPresenceState extends State<CompanionPresence>
     _bubble.forward();
     // A little hop, so the line lands with a body language of its own.
     _avatarKey.currentState?.cheer();
+    _avatarKey.currentState?.playClip(companionWaveClip);
     _hideTimer = Timer(_lingerFor, _close);
+  }
+
+  /// The reader turned the page: the companion is startled for a moment.
+  void _handlePageTurn() {
+    _avatarKey.currentState?.playClip(companionSurpriseClip);
   }
 
   void _close() {

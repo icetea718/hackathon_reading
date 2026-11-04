@@ -49,6 +49,20 @@ const CompanionClip companionDragClip = CompanionClip(
   fps: 12,
 );
 
+/// Flinch when the reader turns the page.
+const CompanionClip companionSurpriseClip = CompanionClip(
+  asset: 'assets/companion/pet_surprise.png',
+  frameCount: 48,
+  fps: 12,
+);
+
+/// Wave while the companion is talking.
+const CompanionClip companionWaveClip = CompanionClip(
+  asset: 'assets/companion/pet_wave.png',
+  frameCount: 24,
+  fps: 12,
+);
+
 /// Plays [CompanionClip]s in place of a static sprite.
 ///
 /// The stage starts on [companionIdleClip] and returns to it whenever a

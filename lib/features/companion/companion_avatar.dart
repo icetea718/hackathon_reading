@@ -65,6 +65,10 @@ class CompanionAvatarState extends State<CompanionAvatar>
   /// Little hop, used when the character has something to say.
   void cheer() => _bodyKey.currentState?.cheer();
 
+  /// Plays a one-off reaction clip; the stage falls back to the idle loop when
+  /// the clip ends.
+  void playClip(CompanionClip clip) => _stageKey.currentState?.play(clip);
+
   @override
   void initState() {
     super.initState();

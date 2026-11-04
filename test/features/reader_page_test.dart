@@ -1584,6 +1584,21 @@ void main() {
       await disposeApp(tester);
     });
 
+    testWidgets('flinches when the reader turns the page', (tester) async {
+      await seedLongBook();
+      await pumpReader(tester, 'long');
+      final stage = tester.state<CompanionClipStageState>(
+        find.byType(CompanionClipStage),
+      );
+      expect(stage.clip, companionIdleClip);
+
+      await tester.tap(find.byKey(const Key('reader-next-zone')));
+      await tester.pump();
+
+      expect(stage.clip, companionSurpriseClip);
+      await disposeApp(tester);
+    });
+
     testWidgets('wears the pet clips', (tester) async {
       await pumpReader(tester, 'b1');
 

@@ -112,6 +112,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
   int _pageIndex = 0;
+
+  /// Ticks on every page turn so the companion can flinch.
+  final ValueNotifier<int> _pageTurns = ValueNotifier<int>(0);
   int? _pendingOffset;
   ChapterPagination? _pagination;
   String? _paginationKey;
@@ -161,6 +164,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _persistComicProgress();
     _persistReadingSettings();
     _comicController?.dispose();
+    _pageTurns.dispose();
     super.dispose();
   }
 
@@ -417,6 +421,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (pagination == null) return;
     if (_pageIndex < pagination.pageCount - 1) {
       setState(() => _pageIndex++);
+      _bumpPageTurns();
       _scheduleProgressSave();
       return;
     }
@@ -431,6 +436,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (_validPagination(data.chapters) == null) return;
     if (_pageIndex > 0) {
       setState(() => _pageIndex--);
+      _bumpPageTurns();
       _scheduleProgressSave();
       return;
     }
@@ -446,6 +452,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
     _scheduleProgressSave();
   }
+
+  /// Tells the companion the page moved; it flinches for a moment.
+  void _bumpPageTurns() => _pageTurns.value = _pageTurns.value + 1;
 
   (Color, Color) get _colors {
     return switch (_background) {
@@ -1267,6 +1276,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 height: height,
                 greetingLoader: greetingLoader,
                 onOpenChat: onOpenChat,
+                pageTurns: _pageTurns,
               ),
             ),
           ],
