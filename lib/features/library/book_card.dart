@@ -100,15 +100,6 @@ class BookCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    book.author.trim().isEmpty ? '未知作者' : book.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
                   const SizedBox(height: 6),
                   if (percent == null)
                     Text(

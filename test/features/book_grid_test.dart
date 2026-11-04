@@ -112,7 +112,9 @@ void main() {
     await disposeShelf(tester);
   });
 
-  testWidgets('cards show title, author, and progress', (tester) async {
+  testWidgets('cards show title and progress without an author line', (
+    tester,
+  ) async {
     await seed(tester, mkBook('b1', title: '三体', author: '刘慈欣'));
     await seed(tester, mkBook('b2', title: '红楼梦'));
     await seed(tester, mkBook('b3', title: '论语', author: '孔子'));
@@ -130,9 +132,9 @@ void main() {
 
     expect(find.byType(BookCard), findsNWidgets(3));
     expect(find.text('三体'), findsOneWidget);
-    expect(find.text('刘慈欣'), findsOneWidget);
+    expect(find.text('刘慈欣'), findsNothing);
+    expect(find.text('未知作者'), findsNothing);
     expect(find.text('62%'), findsOneWidget);
-    expect(find.text('未知作者'), findsOneWidget);
     expect(find.text('未开始'), findsNWidgets(2));
     await disposeShelf(tester);
   });
