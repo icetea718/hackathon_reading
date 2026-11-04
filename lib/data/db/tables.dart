@@ -164,3 +164,39 @@ class TranslationCaches extends Table {
   @override
   Set<Column> get primaryKey => {sourceHash, targetLang};
 }
+
+@DataClassName('CompanionThreadRecord')
+@TableIndex(
+  name: 'companion_threads_book_chapter',
+  columns: {#bookId, #chapterIndex},
+)
+class CompanionThreads extends Table {
+  TextColumn get id => text()();
+  TextColumn get bookId => text()();
+  IntColumn get chapterIndex => integer()();
+  TextColumn get chapterTitle => text()();
+  TextColumn get title => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('CompanionMessageRecord')
+@TableIndex(
+  name: 'companion_messages_thread_seq',
+  columns: {#threadId, #seq},
+  unique: true,
+)
+class CompanionMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get threadId => text()();
+  TextColumn get role => text()();
+  TextColumn get content => text()();
+  IntColumn get seq => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

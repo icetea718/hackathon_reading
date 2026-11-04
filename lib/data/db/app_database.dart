@@ -18,6 +18,8 @@ part 'app_database.g.dart';
     Categories,
     BookCategories,
     TranslationCaches,
+    CompanionThreads,
+    CompanionMessages,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -26,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -69,6 +71,34 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 9) {
             await m.createTable(translationCaches);
+          }
+          if (from < 10) {
+            final tables = await m.database
+                .customSelect(
+                  "SELECT name FROM sqlite_master WHERE type = 'table'",
+                )
+                .get();
+            final names =
+                tables.map((row) => row.read<String>('name')).toSet();
+            if (!names.contains('companion_threads')) {
+              await m.createTable(companionThreads);
+            }
+            if (!names.contains('companion_messages')) {
+              await m.createTable(companionMessages);
+            }
+            final indexes = await m.database
+                .customSelect(
+                  "SELECT name FROM sqlite_master WHERE type = 'index'",
+                )
+                .get();
+            final indexNames =
+                indexes.map((row) => row.read<String>('name')).toSet();
+            if (!indexNames.contains('companion_threads_book_chapter')) {
+              await m.create(companionThreadsBookChapter);
+            }
+            if (!indexNames.contains('companion_messages_thread_seq')) {
+              await m.create(companionMessagesThreadSeq);
+            }
           }
         },
       );

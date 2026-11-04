@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 
 void main() {
-  test('upgrades a v5 database through v8', () async {
+  test('upgrades a v5 database through v10', () async {
     final db = AppDatabase(NativeDatabase.memory(
       setup: (raw) {
         raw.execute('PRAGMA user_version = 5;');
@@ -38,7 +38,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 9);
+    expect(db.schemaVersion, 10);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -105,7 +105,7 @@ void main() {
     expect(chapter.read<int>('level'), 2);
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 9);
+    expect(version.read<int>('user_version'), 10);
 
     await db.close();
   });
@@ -139,7 +139,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 9);
+    expect(db.schemaVersion, 10);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -161,6 +161,65 @@ void main() {
       containsAll(['books', 'chapters', 'translation_caches']),
     );
 
+    await db.close();
+  });
+
+  test('upgrades a v9 database to the companion chat tables', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 9;');
+      },
+    ));
+
+    final tables = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .get();
+    final names = tables.map((row) => row.read<String>('name')).toSet();
+    expect(names, containsAll(['companion_threads', 'companion_messages']));
+
+    final indexes = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
+        .get();
+    final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
+    expect(
+      indexNames,
+      containsAll([
+        'companion_threads_book_chapter',
+        'companion_messages_thread_seq',
+      ]),
+    );
+
+    final version = await db.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 10);
+    await db.close();
+  });
+
+  test('re-running the v10 migration tolerates an existing table', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 9;');
+        raw.execute(
+          'CREATE TABLE companion_threads ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          'book_id TEXT NOT NULL, '
+          'chapter_index INTEGER NOT NULL, '
+          'chapter_title TEXT NOT NULL, '
+          'title TEXT NOT NULL, '
+          'created_at INTEGER NOT NULL, '
+          'updated_at INTEGER NOT NULL)',
+        );
+        raw.execute(
+          'CREATE INDEX companion_threads_book_chapter '
+          'ON companion_threads (book_id, chapter_index)',
+        );
+      },
+    ));
+
+    final tables = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .get();
+    final names = tables.map((row) => row.read<String>('name')).toSet();
+    expect(names, contains('companion_messages'));
     await db.close();
   });
 }
