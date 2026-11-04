@@ -131,7 +131,7 @@ void main() {
     await pumpShelf(tester);
 
     expect(find.byType(BookCard), findsNWidgets(3));
-    expect(find.text('三体'), findsOneWidget);
+    expect(find.text('三体'), findsWidgets);
     expect(find.text('刘慈欣'), findsNothing);
     expect(find.text('未知作者'), findsNothing);
     expect(find.text('62%'), findsOneWidget);
@@ -243,15 +243,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('三'), findsOneWidget);
-  });
-
-  testWidgets('cover helpers are deterministic', (tester) async {
-    final first = BookCover.gradientIndex('book-a');
-    expect(first, BookCover.gradientIndex('book-a'));
-    expect(first, inInclusiveRange(0, 5));
-    expect(BookCover.gradientIndex('book-b'), inInclusiveRange(0, 5));
-    expect(BookCover.initialLetter('三体'), '三');
-    expect(BookCover.initialLetter('abc'), 'A');
+    expect(find.text('三体'), findsOneWidget);
   });
 }

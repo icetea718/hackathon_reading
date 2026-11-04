@@ -12,6 +12,7 @@ import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/services/file_picker_service.dart';
+import 'package:hackathon_reading/features/library/book_card.dart';
 import 'package:hackathon_reading/features/reader/pdf_reader_page.dart';
 import 'package:hackathon_reading/features/reader/pdf_reader_providers.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
@@ -149,7 +150,8 @@ void main() {
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
 
-    expect(find.text('我的 小说'), findsOneWidget);
+    expect(find.byType(BookCard), findsOneWidget);
+    expect(find.text('我的 小说'), findsWidgets);
     expect(Directory('${temp.path}/books').listSync(), hasLength(1));
     await disposeApp(tester);
   });
@@ -160,9 +162,9 @@ void main() {
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    expect(find.text('novel'), findsOneWidget);
+    expect(find.text('novel'), findsWidgets);
 
-    await flushIo(tester, () => tester.tap(find.text('novel')));
+    await flushIo(tester, () => tester.tap(find.byType(BookCard)));
     expect(find.byType(ReaderPage), findsOneWidget);
     await disposeApp(tester);
   });
@@ -178,9 +180,9 @@ void main() {
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    expect(find.text('novel'), findsOneWidget);
+    expect(find.text('novel'), findsWidgets);
 
-    await flushIo(tester, () => tester.tap(find.text('novel')));
+    await flushIo(tester, () => tester.tap(find.byType(BookCard)));
     expect(find.byType(ReaderPage), findsOneWidget);
     await disposeApp(tester);
   });
@@ -192,7 +194,7 @@ void main() {
     await pumpApp(tester, source.path);
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
 
-    expect(find.text('paper'), findsOneWidget);
+    expect(find.text('paper'), findsWidgets);
 
     final stored = await tester.runAsync(() => BookRepository(db).getAll());
     expect(stored, hasLength(1));
@@ -211,9 +213,9 @@ void main() {
     await pumpPdfApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    expect(find.text('paper'), findsOneWidget);
+    expect(find.text('paper'), findsWidgets);
 
-    await flushIo(tester, () => tester.tap(find.text('paper')));
+    await flushIo(tester, () => tester.tap(find.byType(BookCard)));
     expect(find.byType(PdfReaderPage), findsOneWidget);
     expect(find.text('1 / 3'), findsOneWidget);
     await disposeApp(tester);
@@ -227,7 +229,7 @@ void main() {
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    await flushIo(tester, () => tester.tap(find.text('novel')));
+    await flushIo(tester, () => tester.tap(find.byType(BookCard)));
     expect(find.byType(ReaderPage), findsOneWidget);
 
     await flushIo(tester, () => tester.tap(find.byType(BackButton)));
@@ -241,7 +243,7 @@ void main() {
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    expect(find.text('t'), findsOneWidget);
+    expect(find.text('t'), findsWidgets);
 
     final stored = await tester.runAsync(() => BookRepository(db).getAll());
     final id = stored!.single.id;
@@ -286,11 +288,11 @@ void main() {
     await pumpApp(tester, source.path);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
-    expect(find.text('novel'), findsOneWidget);
+    expect(find.text('novel'), findsWidgets);
 
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
     expect(find.text('这本书已经在书架中'), findsOneWidget);
-    expect(find.text('novel'), findsOneWidget);
+    expect(find.text('novel'), findsWidgets);
     await disposeApp(tester);
   });
 

@@ -35,4 +35,26 @@ void main() {
       expect(find.text(label), findsOneWidget);
     }
   });
+
+  testWidgets('falls back to a typeset title and the format label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 160,
+            height: 220,
+            child: BookCover(book: bookFor(BookFormat.txt)),
+          ),
+        ),
+      ),
+    );
+
+    final title = tester.widget<Text>(find.text('示例书'));
+    expect(title.maxLines, 2);
+    expect(title.textAlign, TextAlign.center);
+    expect(title.style?.fontFamily, 'Source Han Serif SC');
+    expect(find.text('TXT'), findsOneWidget);
+  });
 }
