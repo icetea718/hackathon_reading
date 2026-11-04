@@ -146,6 +146,27 @@ void main() {
     );
   });
 
+  test('a running job can be cancelled and its late result is ignored',
+      () async {
+    final completer = Completer<IllustrationResult>();
+    final container = _container((onStage) => completer.future);
+    addTearDown(container.dispose);
+    final notifier = container.read(illustrationJobProvider.notifier);
+
+    notifier.start(text: '一段文字', label: '测试');
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(illustrationJobProvider)!.isRunning, isTrue);
+
+    notifier.cancel();
+    expect(container.read(illustrationJobProvider), isNull);
+
+    completer.complete(_result());
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(illustrationJobProvider), isNull);
+  });
+
   test('a finished job can be dismissed but a running one cannot', () async {
     final completer = Completer<IllustrationResult>();
     final container = _container((onStage) => completer.future);

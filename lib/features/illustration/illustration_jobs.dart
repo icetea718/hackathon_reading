@@ -39,6 +39,8 @@ final illustrationJobProvider =
 );
 
 class IllustrationJobController extends Notifier<IllustrationJob?> {
+  IllustrationService? _activeService;
+
   @override
   IllustrationJob? build() => null;
 
@@ -72,6 +74,7 @@ class IllustrationJobController extends Notifier<IllustrationJob?> {
         );
       }
       service = ref.read(illustrationServiceFactoryProvider)(effective);
+      _activeService = service;
       final result = await service.generate(
         input,
         onStage: (stage) {
@@ -108,8 +111,18 @@ class IllustrationJobController extends Notifier<IllustrationJob?> {
         );
       }
     } finally {
+      if (identical(_activeService, service)) _activeService = null;
       service?.dispose();
     }
+  }
+
+  /// Stops the running job and drops its in-flight result.
+  void cancel() {
+    if (!(state?.isRunning ?? false)) return;
+    state = null;
+    final service = _activeService;
+    _activeService = null;
+    service?.dispose();
   }
 
   void dismiss() {

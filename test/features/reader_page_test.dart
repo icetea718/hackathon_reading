@@ -1519,6 +1519,59 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('a running illustration opens its progress and can be stopped',
+      (tester) async {
+    final completer = Completer<IllustrationResult>();
+    await pumpReader(
+      tester,
+      'b1',
+      overrides: [
+        illustrationConfigProvider.overrideWith((ref) async => _jobConfig),
+        llmConfigProvider.overrideWith((ref) async => _jobLlm),
+        illustrationServiceFactoryProvider.overrideWithValue(
+          (_) => _ReaderFakeService((onStage) {
+            onStage?.call(IllustrationStage.planning);
+            return completer.future;
+          }),
+        ),
+      ],
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    container.read(illustrationJobProvider.notifier).start(
+          text: '第一章的内容',
+          label: '测试 · 整章',
+        );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('reader-illustration-job-open')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(IllustrationComposerPage), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(IllustrationComposerPage),
+        matching: find.textContaining('正在分析文段'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pageBack();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const Key('reader-illustration-job-stop')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('reader-illustration-job')), findsNothing);
+    expect(container.read(illustrationJobProvider), isNull);
+    await disposeApp(tester);
+  });
+
   testWidgets('TOC jumps land on the chapter first page', (tester) async {
     await seedTwoChapterBook();
     await pumpReader(tester, 'jb');

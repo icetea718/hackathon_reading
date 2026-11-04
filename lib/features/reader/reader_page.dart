@@ -1381,14 +1381,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   style: TextStyle(fontSize: 12, color: _colors.$2),
                 ),
               ),
-              if (done) ...[
-                const SizedBox(width: 6),
-                Text(
-                  '查看',
-                  style: TextStyle(fontSize: 12, color: _accent),
-                ),
-              ],
-              if (!running)
+              const SizedBox(width: 6),
+              Text(
+                running ? '查看进度' : '查看',
+                style: TextStyle(fontSize: 12, color: _accent),
+              ),
+              if (running)
+                IconButton(
+                  key: const Key('reader-illustration-job-stop'),
+                  tooltip: '停止生成',
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 28,
+                    height: 28,
+                  ),
+                  onPressed: () =>
+                      ref.read(illustrationJobProvider.notifier).cancel(),
+                  icon: Icon(Icons.stop_circle_outlined, color: _colors.$2),
+                )
+              else
                 IconButton(
                   key: const Key('reader-illustration-job-dismiss'),
                   tooltip: '关闭提示',

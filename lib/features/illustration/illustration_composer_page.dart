@@ -252,15 +252,22 @@ class _IllustrationComposerPageState
             const SizedBox(height: 12),
             const LinearProgressIndicator(),
             const SizedBox(height: 8),
-            Row(
+            const Text(
+              '生成一张需要几十秒，可以先去读，画完会通知你。',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                const Expanded(
-                  child: Text(
-                    '生成一张需要几十秒，可以先去读，画完会通知你。',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
+                OutlinedButton.icon(
+                  key: const Key('illustration-stop'),
+                  onPressed: _stop,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
+                  label: const Text('停止生成'),
                 ),
-                const SizedBox(width: 12),
                 OutlinedButton.icon(
                   key: const Key('illustration-background'),
                   onPressed: () => Navigator.of(context).pop(),
@@ -421,6 +428,12 @@ class _IllustrationComposerPageState
       setState(() => _saving = false);
       _snack('保存失败：$error');
     }
+  }
+
+  void _stop() {
+    ref.read(illustrationJobProvider.notifier).cancel();
+    setState(() => _jobId = null);
+    _snack('已停止生成。');
   }
 
   void _reset() {

@@ -164,6 +164,29 @@ void main() {
     );
   });
 
+  testWidgets('a running generation can be stopped from the composer',
+      (tester) async {
+    final completer = Completer<IllustrationResult>();
+    await _pumpHost(tester, (onStage) => completer.future);
+
+    await tester.tap(find.byKey(const Key('open-composer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('开始生成'));
+    await tester.pump();
+
+    expect(find.byKey(const Key('illustration-stop')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('illustration-stop')));
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(IllustrationComposerPage)),
+    );
+    expect(container.read(illustrationJobProvider), isNull);
+    expect(find.textContaining('正在分析文段'), findsNothing);
+    expect(find.text('开始生成'), findsOneWidget);
+  });
+
   testWidgets('reopening the job shows the finished illustration',
       (tester) async {
     await _pumpHost(tester, (onStage) async {
