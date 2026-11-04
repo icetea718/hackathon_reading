@@ -15,12 +15,14 @@ class TtsConfig {
     required this.speed,
     required this.volume,
     required this.autoSpeak,
+    this.enabled = true,
   });
 
   static const String baseUrlKey = 'tts.baseUrl';
   static const String voiceKey = 'tts.voice';
   static const String speedKey = 'tts.speed';
   static const String volumeKey = 'tts.volume';
+  static const String enabledKey = 'tts.enabled';
   static const String autoSpeakKey = 'tts.autoSpeak';
 
   /// Voice used until the user picks another one.
@@ -36,6 +38,7 @@ class TtsConfig {
     speed: 1,
     volume: 1,
     autoSpeak: false,
+    enabled: true,
   );
 
   final String baseUrl;
@@ -49,9 +52,12 @@ class TtsConfig {
 
   /// Whether every finished reply is spoken without being asked.
   ///
-  /// The speaker button on a bubble and the companion's own lines always read,
-  /// whatever this switch says.
+  /// This only decides automatic playback; it never silences a tap on a
+  /// speaker icon or the companion's own lines. [enabled] is the master mute.
   final bool autoSpeak;
+
+  /// Master mute: when false nothing is spoken at all, including pet lines.
+  final bool enabled;
 
   TtsConfig copyWith({
     String? baseUrl,
@@ -59,6 +65,7 @@ class TtsConfig {
     double? speed,
     double? volume,
     bool? autoSpeak,
+    bool? enabled,
   }) {
     return TtsConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -66,13 +73,14 @@ class TtsConfig {
       speed: speed ?? this.speed,
       volume: volume ?? this.volume,
       autoSpeak: autoSpeak ?? this.autoSpeak,
+      enabled: enabled ?? this.enabled,
     );
   }
 
   @override
   String toString() =>
       'TtsConfig(baseUrl: $baseUrl, voice: $voice, speed: $speed, '
-      'volume: $volume, autoSpeak: $autoSpeak)';
+      'volume: $volume, autoSpeak: $autoSpeak, enabled: $enabled)';
 }
 
 /// Reads and writes [TtsConfig] through the settings table.
@@ -102,6 +110,8 @@ class TtsConfigStore {
           fallback.volume,
       autoSpeak: _parseBool(await _settings.get(TtsConfig.autoSpeakKey)) ??
           fallback.autoSpeak,
+      enabled: _parseBool(await _settings.get(TtsConfig.enabledKey)) ??
+          fallback.enabled,
     );
   }
 
@@ -110,6 +120,7 @@ class TtsConfigStore {
     await _settings.set(TtsConfig.voiceKey, config.voice);
     await _settings.set(TtsConfig.speedKey, '${config.speed}');
     await _settings.set(TtsConfig.volumeKey, '${config.volume}');
+    await _settings.set(TtsConfig.enabledKey, '${config.enabled}');
     await _settings.set(TtsConfig.autoSpeakKey, '${config.autoSpeak}');
   }
 

@@ -33,6 +33,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _ttsVoice = TextEditingController();
   final _ttsSpeed = TextEditingController();
   final _ttsVolume = TextEditingController();
+  bool _ttsEnabled = TtsConfig.defaults.enabled;
   bool _ttsAutoSpeak = TtsConfig.defaults.autoSpeak;
 
   /// Picker contents: the app's built-in voices plus whatever the local
@@ -95,6 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _ttsVoice.text = voice.voice;
       _ttsSpeed.text = '${voice.speed}';
       _ttsVolume.text = '${voice.volume}';
+      _ttsEnabled = voice.enabled;
       _ttsAutoSpeak = voice.autoSpeak;
       _searchProvider = search.provider;
       _searchKey.text = search.apiKey;
@@ -176,6 +178,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       speed: (speed ?? TtsConfig.defaults.speed).clamp(0.6, 1.6).toDouble(),
       volume: (volume ?? TtsConfig.defaults.volume).clamp(0, 1).toDouble(),
       autoSpeak: _ttsAutoSpeak,
+      enabled: _ttsEnabled,
     );
   }
 
@@ -478,13 +481,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                 ),
                 SwitchListTile(
+                  key: const Key('tts-enabled'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('启用朗读'),
+                  subtitle: const Text('总开关；关掉后所有朗读都会停，'
+                      '包括喇叭按钮和桌宠台词'),
+                  value: _ttsEnabled,
+                  onChanged: (value) => setState(() => _ttsEnabled = value),
+                ),
+                SwitchListTile(
                   key: const Key('tts-auto-speak'),
                   contentPadding: EdgeInsets.zero,
                   title: const Text('自动朗读回复'),
                   subtitle: const Text('回复生成完就念，不用点喇叭；'
                       '关掉后喇叭按钮和宠物台词照样会读'),
                   value: _ttsAutoSpeak,
-                  onChanged: (value) => setState(() => _ttsAutoSpeak = value),
+                  onChanged: _ttsEnabled
+                      ? (value) => setState(() => _ttsAutoSpeak = value)
+                      : null,
                 ),
                 TextField(
                   key: const Key('tts-base-url'),

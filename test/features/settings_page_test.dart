@@ -202,11 +202,13 @@ void main() {
 
     await fillTts(tester, voice: 'dfy');
     await tapAt(tester, find.byKey(const Key('tts-auto-speak')));
+    await tapAt(tester, find.byKey(const Key('tts-enabled')));
     await tapAt(tester, find.text('保存'));
 
     final saved = await TtsConfigStore(SettingsRepository(db)).load();
     expect(saved.baseUrl, 'http://127.0.0.1:9880');
     expect(saved.voice, 'dfy');
+    expect(saved.enabled, isFalse);
     expect(saved.autoSpeak, isTrue);
   });
 

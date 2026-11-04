@@ -83,14 +83,14 @@ class TtsService {
 
   /// Speaks [reply], replacing any line already playing or being synthesized.
   ///
-  /// Every call speaks: whether a finished reply is read out on its own is the
-  /// caller's decision ([TtsConfig.autoSpeak]), so a tap on a speaker icon and
-  /// the companion's own lines are never silenced by a switch.
+  /// Whether a finished reply is read out on its own is the caller's decision
+  /// ([TtsConfig.autoSpeak]); [TtsConfig.enabled] is the master mute and stops
+  /// every line, including speaker taps and the companion's own lines.
   Future<void> speak(String reply) async {
     final settings = config();
     final chunks = _chunksFor(reply);
     await _halt();
-    if (chunks.isEmpty) return;
+    if (chunks.isEmpty || !settings.enabled) return;
 
     final generation = _generation;
     final pending = <Future<Uint8List?>>[];

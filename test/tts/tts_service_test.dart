@@ -64,6 +64,22 @@ void main() {
     );
   }
 
+  test('the master mute stops every line before synthesis', () async {
+    final client = FakeTtsClient();
+    final output = FakeAudioOutput();
+    final service = build(
+      client,
+      output,
+      config: () => _config.copyWith(enabled: false),
+    );
+    addTearDown(service.dispose);
+
+    await service.speak('福贵输了钱。');
+
+    expect(client.texts, isEmpty);
+    expect(output.played, isEmpty);
+  });
+
   test('speaks the reply sentence by sentence', () async {
     final client = FakeTtsClient();
     final output = FakeAudioOutput();
