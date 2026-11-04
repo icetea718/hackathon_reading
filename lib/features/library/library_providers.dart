@@ -78,7 +78,11 @@ final libraryViewProvider = Provider<AsyncValue<LibraryView>>((ref) {
     return LibraryView(
       allBooks: books,
       visibleBooks: filterBooks(sorted, query, effective, categoryIdsByBook),
-      categories: buildCategorySummaries(categories, categoryIdsByBook),
+      categories: buildCategorySummaries(
+        categories,
+        categoryIdsByBook,
+        existingBookIds: books.map((book) => book.id).toSet(),
+      ),
       categoryIdsByBook: categoryIdsByBook,
       progressByBook: percents,
       uncategorizedCount: countUncategorized(books, categoryIdsByBook),

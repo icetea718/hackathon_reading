@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,7 @@ import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
 import '../domain/models/book.dart';
 import '../domain/models/category.dart';
+import '../domain/models/comic_page.dart';
 import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
@@ -217,6 +219,12 @@ final bookStorageProvider = FutureProvider<BookStorage>((ref) async {
   return BookStorage(Directory(p.join(support.path, 'books')));
 });
 
+final comicPagesProvider =
+    FutureProvider.family<List<ComicPage>, String>((ref, bookId) async {
+  final storage = await ref.watch(bookStorageProvider.future);
+  return storage.loadComicPages(bookId);
+});
+
 final bookServiceProvider = FutureProvider<BookService>((ref) async {
   final service = BookService(
     books: ref.watch(bookRepositoryProvider),
@@ -230,6 +238,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     categories: ref.watch(categoryRepositoryProvider),
   );
   await service.backfillContentHashes();
+  unawaited(service.backfillCovers());
   return service;
 });
 

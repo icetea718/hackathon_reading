@@ -78,6 +78,19 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _comicMeta = const VerificationMeta('comic');
+  @override
+  late final GeneratedColumn<bool> comic = GeneratedColumn<bool>(
+    'comic',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("comic" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _addedAtMeta = const VerificationMeta(
     'addedAt',
   );
@@ -109,6 +122,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     sourcePath,
     coverPath,
     contentHash,
+    comic,
     addedAt,
     lastOpenedAt,
   ];
@@ -174,6 +188,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         ),
       );
     }
+    if (data.containsKey('comic')) {
+      context.handle(
+        _comicMeta,
+        comic.isAcceptableOrUnknown(data['comic']!, _comicMeta),
+      );
+    }
     if (data.containsKey('added_at')) {
       context.handle(
         _addedAtMeta,
@@ -228,6 +248,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         DriftSqlType.string,
         data['${effectivePrefix}content_hash'],
       ),
+      comic: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}comic'],
+      )!,
       addedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}added_at'],
@@ -253,6 +277,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
   final String sourcePath;
   final String? coverPath;
   final String? contentHash;
+  final bool comic;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
   const BookRow({
@@ -263,6 +288,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     required this.sourcePath,
     this.coverPath,
     this.contentHash,
+    required this.comic,
     required this.addedAt,
     this.lastOpenedAt,
   });
@@ -280,6 +306,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     if (!nullToAbsent || contentHash != null) {
       map['content_hash'] = Variable<String>(contentHash);
     }
+    map['comic'] = Variable<bool>(comic);
     map['added_at'] = Variable<DateTime>(addedAt);
     if (!nullToAbsent || lastOpenedAt != null) {
       map['last_opened_at'] = Variable<DateTime>(lastOpenedAt);
@@ -300,6 +327,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       contentHash: contentHash == null && nullToAbsent
           ? const Value.absent()
           : Value(contentHash),
+      comic: Value(comic),
       addedAt: Value(addedAt),
       lastOpenedAt: lastOpenedAt == null && nullToAbsent
           ? const Value.absent()
@@ -320,6 +348,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       sourcePath: serializer.fromJson<String>(json['sourcePath']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       contentHash: serializer.fromJson<String?>(json['contentHash']),
+      comic: serializer.fromJson<bool>(json['comic']),
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       lastOpenedAt: serializer.fromJson<DateTime?>(json['lastOpenedAt']),
     );
@@ -335,6 +364,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       'sourcePath': serializer.toJson<String>(sourcePath),
       'coverPath': serializer.toJson<String?>(coverPath),
       'contentHash': serializer.toJson<String?>(contentHash),
+      'comic': serializer.toJson<bool>(comic),
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'lastOpenedAt': serializer.toJson<DateTime?>(lastOpenedAt),
     };
@@ -348,6 +378,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     String? sourcePath,
     Value<String?> coverPath = const Value.absent(),
     Value<String?> contentHash = const Value.absent(),
+    bool? comic,
     DateTime? addedAt,
     Value<DateTime?> lastOpenedAt = const Value.absent(),
   }) => BookRow(
@@ -358,6 +389,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     sourcePath: sourcePath ?? this.sourcePath,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     contentHash: contentHash.present ? contentHash.value : this.contentHash,
+    comic: comic ?? this.comic,
     addedAt: addedAt ?? this.addedAt,
     lastOpenedAt: lastOpenedAt.present ? lastOpenedAt.value : this.lastOpenedAt,
   );
@@ -374,6 +406,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       contentHash: data.contentHash.present
           ? data.contentHash.value
           : this.contentHash,
+      comic: data.comic.present ? data.comic.value : this.comic,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
       lastOpenedAt: data.lastOpenedAt.present
           ? data.lastOpenedAt.value
@@ -391,6 +424,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
           ..write('contentHash: $contentHash, ')
+          ..write('comic: $comic, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt')
           ..write(')'))
@@ -406,6 +440,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     sourcePath,
     coverPath,
     contentHash,
+    comic,
     addedAt,
     lastOpenedAt,
   );
@@ -420,6 +455,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           other.sourcePath == this.sourcePath &&
           other.coverPath == this.coverPath &&
           other.contentHash == this.contentHash &&
+          other.comic == this.comic &&
           other.addedAt == this.addedAt &&
           other.lastOpenedAt == this.lastOpenedAt);
 }
@@ -432,6 +468,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   final Value<String> sourcePath;
   final Value<String?> coverPath;
   final Value<String?> contentHash;
+  final Value<bool> comic;
   final Value<DateTime> addedAt;
   final Value<DateTime?> lastOpenedAt;
   final Value<int> rowid;
@@ -443,6 +480,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.sourcePath = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.contentHash = const Value.absent(),
+    this.comic = const Value.absent(),
     this.addedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -455,6 +493,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     required String sourcePath,
     this.coverPath = const Value.absent(),
     this.contentHash = const Value.absent(),
+    this.comic = const Value.absent(),
     required DateTime addedAt,
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -471,6 +510,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Expression<String>? sourcePath,
     Expression<String>? coverPath,
     Expression<String>? contentHash,
+    Expression<bool>? comic,
     Expression<DateTime>? addedAt,
     Expression<DateTime>? lastOpenedAt,
     Expression<int>? rowid,
@@ -483,6 +523,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       if (sourcePath != null) 'source_path': sourcePath,
       if (coverPath != null) 'cover_path': coverPath,
       if (contentHash != null) 'content_hash': contentHash,
+      if (comic != null) 'comic': comic,
       if (addedAt != null) 'added_at': addedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
       if (rowid != null) 'rowid': rowid,
@@ -497,6 +538,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Value<String>? sourcePath,
     Value<String?>? coverPath,
     Value<String?>? contentHash,
+    Value<bool>? comic,
     Value<DateTime>? addedAt,
     Value<DateTime?>? lastOpenedAt,
     Value<int>? rowid,
@@ -509,6 +551,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       sourcePath: sourcePath ?? this.sourcePath,
       coverPath: coverPath ?? this.coverPath,
       contentHash: contentHash ?? this.contentHash,
+      comic: comic ?? this.comic,
       addedAt: addedAt ?? this.addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
       rowid: rowid ?? this.rowid,
@@ -539,6 +582,9 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     if (contentHash.present) {
       map['content_hash'] = Variable<String>(contentHash.value);
     }
+    if (comic.present) {
+      map['comic'] = Variable<bool>(comic.value);
+    }
     if (addedAt.present) {
       map['added_at'] = Variable<DateTime>(addedAt.value);
     }
@@ -561,6 +607,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
           ..write('contentHash: $contentHash, ')
+          ..write('comic: $comic, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt, ')
           ..write('rowid: $rowid')
@@ -646,6 +693,16 @@ class $ChaptersTable extends Chapters
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
+  @override
+  late final GeneratedColumn<int> level = GeneratedColumn<int>(
+    'level',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -655,6 +712,7 @@ class $ChaptersTable extends Chapters
     startOffset,
     endOffset,
     contentText,
+    level,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -730,6 +788,12 @@ class $ChaptersTable extends Chapters
     } else if (isInserting) {
       context.missing(_contentTextMeta);
     }
+    if (data.containsKey('level')) {
+      context.handle(
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
+      );
+    }
     return context;
   }
 
@@ -767,6 +831,10 @@ class $ChaptersTable extends Chapters
         DriftSqlType.string,
         data['${effectivePrefix}content_text'],
       )!,
+      level: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}level'],
+      )!,
     );
   }
 
@@ -784,6 +852,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
   final int startOffset;
   final int endOffset;
   final String contentText;
+  final int level;
   const ChapterRecord({
     required this.id,
     required this.bookId,
@@ -792,6 +861,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     required this.startOffset,
     required this.endOffset,
     required this.contentText,
+    required this.level,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -803,6 +873,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     map['start_offset'] = Variable<int>(startOffset);
     map['end_offset'] = Variable<int>(endOffset);
     map['content_text'] = Variable<String>(contentText);
+    map['level'] = Variable<int>(level);
     return map;
   }
 
@@ -815,6 +886,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       startOffset: Value(startOffset),
       endOffset: Value(endOffset),
       contentText: Value(contentText),
+      level: Value(level),
     );
   }
 
@@ -831,6 +903,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       startOffset: serializer.fromJson<int>(json['startOffset']),
       endOffset: serializer.fromJson<int>(json['endOffset']),
       contentText: serializer.fromJson<String>(json['contentText']),
+      level: serializer.fromJson<int>(json['level']),
     );
   }
   @override
@@ -844,6 +917,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       'startOffset': serializer.toJson<int>(startOffset),
       'endOffset': serializer.toJson<int>(endOffset),
       'contentText': serializer.toJson<String>(contentText),
+      'level': serializer.toJson<int>(level),
     };
   }
 
@@ -855,6 +929,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     int? startOffset,
     int? endOffset,
     String? contentText,
+    int? level,
   }) => ChapterRecord(
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
@@ -863,6 +938,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     startOffset: startOffset ?? this.startOffset,
     endOffset: endOffset ?? this.endOffset,
     contentText: contentText ?? this.contentText,
+    level: level ?? this.level,
   );
   ChapterRecord copyWithCompanion(ChaptersCompanion data) {
     return ChapterRecord(
@@ -879,6 +955,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       contentText: data.contentText.present
           ? data.contentText.value
           : this.contentText,
+      level: data.level.present ? data.level.value : this.level,
     );
   }
 
@@ -891,7 +968,8 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
           ..write('title: $title, ')
           ..write('startOffset: $startOffset, ')
           ..write('endOffset: $endOffset, ')
-          ..write('contentText: $contentText')
+          ..write('contentText: $contentText, ')
+          ..write('level: $level')
           ..write(')'))
         .toString();
   }
@@ -905,6 +983,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     startOffset,
     endOffset,
     contentText,
+    level,
   );
   @override
   bool operator ==(Object other) =>
@@ -916,7 +995,8 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
           other.title == this.title &&
           other.startOffset == this.startOffset &&
           other.endOffset == this.endOffset &&
-          other.contentText == this.contentText);
+          other.contentText == this.contentText &&
+          other.level == this.level);
 }
 
 class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
@@ -927,6 +1007,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
   final Value<int> startOffset;
   final Value<int> endOffset;
   final Value<String> contentText;
+  final Value<int> level;
   final Value<int> rowid;
   const ChaptersCompanion({
     this.id = const Value.absent(),
@@ -936,6 +1017,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     this.startOffset = const Value.absent(),
     this.endOffset = const Value.absent(),
     this.contentText = const Value.absent(),
+    this.level = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChaptersCompanion.insert({
@@ -946,6 +1028,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     required int startOffset,
     required int endOffset,
     required String contentText,
+    this.level = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        bookId = Value(bookId),
@@ -962,6 +1045,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     Expression<int>? startOffset,
     Expression<int>? endOffset,
     Expression<String>? contentText,
+    Expression<int>? level,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -972,6 +1056,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
       if (startOffset != null) 'start_offset': startOffset,
       if (endOffset != null) 'end_offset': endOffset,
       if (contentText != null) 'content_text': contentText,
+      if (level != null) 'level': level,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -984,6 +1069,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     Value<int>? startOffset,
     Value<int>? endOffset,
     Value<String>? contentText,
+    Value<int>? level,
     Value<int>? rowid,
   }) {
     return ChaptersCompanion(
@@ -994,6 +1080,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
       startOffset: startOffset ?? this.startOffset,
       endOffset: endOffset ?? this.endOffset,
       contentText: contentText ?? this.contentText,
+      level: level ?? this.level,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1022,6 +1109,9 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     if (contentText.present) {
       map['content_text'] = Variable<String>(contentText.value);
     }
+    if (level.present) {
+      map['level'] = Variable<int>(level.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1038,6 +1128,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
           ..write('startOffset: $startOffset, ')
           ..write('endOffset: $endOffset, ')
           ..write('contentText: $contentText, ')
+          ..write('level: $level, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4713,6 +4804,7 @@ typedef $$BooksTableCreateCompanionBuilder = BooksCompanion Function({
   required String sourcePath,
   Value<String?> coverPath,
   Value<String?> contentHash,
+  Value<bool> comic,
   required DateTime addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -4725,6 +4817,7 @@ typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
   Value<String> sourcePath,
   Value<String?> coverPath,
   Value<String?> contentHash,
+  Value<bool> comic,
   Value<DateTime> addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -4770,6 +4863,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get contentHash => $composableBuilder(
     column: $table.contentHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get comic => $composableBuilder(
+    column: $table.comic,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4828,6 +4926,11 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get comic => $composableBuilder(
+    column: $table.comic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get addedAt => $composableBuilder(
     column: $table.addedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4873,6 +4976,9 @@ class $$BooksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get comic =>
+      $composableBuilder(column: $table.comic, builder: (column) => column);
+
   GeneratedColumn<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
 
@@ -4917,6 +5023,7 @@ class $$BooksTableTableManager
                 Value<String> sourcePath = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> contentHash = const Value.absent(),
+                Value<bool> comic = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4928,6 +5035,7 @@ class $$BooksTableTableManager
                 sourcePath: sourcePath,
                 coverPath: coverPath,
                 contentHash: contentHash,
+                comic: comic,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,
@@ -4941,6 +5049,7 @@ class $$BooksTableTableManager
                 required String sourcePath,
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> contentHash = const Value.absent(),
+                Value<bool> comic = const Value.absent(),
                 required DateTime addedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4952,6 +5061,7 @@ class $$BooksTableTableManager
                 sourcePath: sourcePath,
                 coverPath: coverPath,
                 contentHash: contentHash,
+                comic: comic,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,
@@ -4995,6 +5105,7 @@ typedef $$ChaptersTableCreateCompanionBuilder = ChaptersCompanion Function({
   required int startOffset,
   required int endOffset,
   required String contentText,
+  Value<int> level,
   Value<int> rowid,
 });
 typedef $$ChaptersTableUpdateCompanionBuilder = ChaptersCompanion Function({
@@ -5005,6 +5116,7 @@ typedef $$ChaptersTableUpdateCompanionBuilder = ChaptersCompanion Function({
   Value<int> startOffset,
   Value<int> endOffset,
   Value<String> contentText,
+  Value<int> level,
   Value<int> rowid,
 });
 
@@ -5049,6 +5161,11 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<String> get contentText => $composableBuilder(
     column: $table.contentText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5096,6 +5213,11 @@ class $$ChaptersTableOrderingComposer
     column: $table.contentText,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChaptersTableAnnotationComposer
@@ -5133,6 +5255,9 @@ class $$ChaptersTableAnnotationComposer
     column: $table.contentText,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
 }
 
 class $$ChaptersTableTableManager
@@ -5173,6 +5298,7 @@ class $$ChaptersTableTableManager
                 Value<int> startOffset = const Value.absent(),
                 Value<int> endOffset = const Value.absent(),
                 Value<String> contentText = const Value.absent(),
+                Value<int> level = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion(
                 id: id,
@@ -5182,6 +5308,7 @@ class $$ChaptersTableTableManager
                 startOffset: startOffset,
                 endOffset: endOffset,
                 contentText: contentText,
+                level: level,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5193,6 +5320,7 @@ class $$ChaptersTableTableManager
                 required int startOffset,
                 required int endOffset,
                 required String contentText,
+                Value<int> level = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion.insert(
                 id: id,
@@ -5202,6 +5330,7 @@ class $$ChaptersTableTableManager
                 startOffset: startOffset,
                 endOffset: endOffset,
                 contentText: contentText,
+                level: level,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

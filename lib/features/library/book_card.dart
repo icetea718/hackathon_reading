@@ -75,7 +75,8 @@ class BookCard extends StatelessWidget {
                         ),
                         PopupMenuItem(
                           value: _BookAction.distill,
-                          enabled: book.format != BookFormat.pdf,
+                          enabled:
+                              book.format != BookFormat.pdf && !book.comic,
                           child: const Text('蒸馏'),
                         ),
                         const PopupMenuItem(
@@ -99,15 +100,6 @@ class BookCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    book.author.trim().isEmpty ? '未知作者' : book.author,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
                   ),
                   const SizedBox(height: 6),
                   if (percent == null)

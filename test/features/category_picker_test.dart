@@ -18,19 +18,19 @@ Book book(String id) => Book(
   addedAt: DateTime(2026, 1, 1),
 );
 
-class Harness extends ConsumerWidget {
+class Harness extends StatelessWidget {
   const Harness({super.key, required this.bookIds});
 
   final Set<String> bookIds;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: TextButton(
           key: const Key('open-picker'),
           onPressed: () =>
-              showCategoryPickerDialog(context, ref, bookIds: bookIds),
+              showCategoryPickerDialog(context, bookIds: bookIds),
           child: const Text('打开'),
         ),
       ),

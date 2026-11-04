@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
+import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
 import 'package:hackathon_reading/features/reader/reader_position.dart';
 
 Chapter _chapter(int index, int start, String text) {
@@ -43,10 +44,22 @@ void main() {
     expect(location.fraction, 0.0);
   });
 
-  test('maps an offset at a chapter end to that chapter', () {
+  test('maps a boundary offset to the start of the next chapter', () {
     final location = locateAnchor(chapters, 6);
-    expect(location.chapterIndex, 0);
-    expect(location.fraction, 1.0);
+    expect(location.chapterIndex, 1);
+    expect(location.fraction, 0.0);
+  });
+
+  test('shifts a page-local selection into the book', () {
+    final chapter = _chapter(1, 6, 'ghij');
+    expect(
+      absoluteOffsetForPageSelection(
+        chapter,
+        const PageSlice(start: 2, end: 4),
+        1,
+      ),
+      9,
+    );
   });
 
   test('uses offsets when chapter content is not loaded', () {
@@ -67,24 +80,23 @@ void main() {
     expect(location.fraction, closeTo(0.5, 1e-9));
   });
 
-  test('anchor offsets stay inside the chapter at both ends', () {
-    final chapter = _chapter(0, 10, '0123456789');
-    expect(anchorOffsetForFraction(chapter, 0.0), chapter.startOffset + 1);
-    expect(anchorOffsetForFraction(chapter, 1.0), chapter.endOffset - 1);
-
-    final top = locateAnchor([chapter], anchorOffsetForFraction(chapter, 0.0));
-    expect(top.chapterIndex, 0);
-    final bottom = locateAnchor(
-      [chapter],
-      anchorOffsetForFraction(chapter, 1.0),
+  test('formats the chapter and whole-book footer, with placeholders', () {
+    expect(
+      readingFooterText(pageIndex: 2, chapterPageCount: 12),
+      '第 3 / 12 页 · 全书 … / … 页',
     );
-    expect(bottom.chapterIndex, 0);
-  });
-
-  test('offsetForPosition never exceeds chapter end', () {
-    final chapter = _chapter(0, 10, '0123456789');
-    expect(offsetForPosition(chapter, 1.0), chapter.startOffset + 10);
-    expect(offsetForPosition(chapter, 2.0), chapter.endOffset);
-    expect(offsetForPosition(chapter, -1.0), chapter.startOffset);
+    expect(
+      readingFooterText(
+        pageIndex: 2,
+        chapterPageCount: 12,
+        bookPageIndex: 56,
+        bookPageTotal: 320,
+      ),
+      '第 3 / 12 页 · 全书 56 / 320 页',
+    );
+    expect(
+      bookPageAt(chapterPageCounts: [5, 7, 3], chapterIndex: 2, pageIndex: 1),
+      14,
+    );
   });
 }

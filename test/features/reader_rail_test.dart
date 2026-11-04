@@ -8,7 +8,6 @@ import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
-import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/repositories/settings_repository.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
@@ -86,10 +85,26 @@ void main() {
     );
   }
 
-  ScrollController readerController(WidgetTester tester) {
-    return tester
-        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
-        .controller!;
+  String pageText(WidgetTester tester) {
+    final selectable = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    final buffer = StringBuffer();
+    void write(InlineSpan span) {
+      if (span is! TextSpan) return;
+      buffer.write(span.text ?? '');
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        write(child);
+      }
+    }
+
+    write(selectable.textSpan!);
+    return buffer.toString();
+  }
+
+  Future<void> tapNextZone(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('reader-next-zone')));
+    await tester.pumpAndSettle();
   }
 
   testWidgets('starts in immersive mode A', (tester) async {
@@ -123,7 +138,7 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('the pin switch unpins and hides the rail', (tester) async {
+  testWidgets('the pin switch unpins into the floating rail', (tester) async {
     await SettingsRepository(db).set('reader.railPinned', 'true');
     await pumpReader(tester, 'long');
     expect(find.text('已固定'), findsOneWidget);
@@ -132,7 +147,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.byKey(const Key('reader-rail-pinned')), findsNothing);
+    expect(find.byKey(const Key('reader-rail-overlay')), findsOneWidget);
+
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.byKey(const Key('reader-rail-overlay')), findsNothing);
+
     await settleAfterIo(tester);
     expect(await storedRailPinned(tester), 'false');
     await disposeApp(tester);
@@ -159,16 +179,68 @@ void main() {
 
   testWidgets('pinning keeps the reading position', (tester) async {
     await pumpReader(tester, 'long');
-    final controller = readerController(tester);
-    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
-    await tester.pump();
-    final before = controller.offset / controller.position.maxScrollExtent;
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchorText = pageText(tester).substring(0, 10);
 
     await tester.tap(find.byKey(const Key('reader-pin-button')));
     await tester.pumpAndSettle();
 
-    final after = controller.offset / controller.position.maxScrollExtent;
-    expect(after, closeTo(before, 0.02));
+    expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+    expect(pageText(tester), contains(anchorText));
+    await disposeApp(tester);
+  });
+
+  testWidgets('unpinning from the rail keeps it until the mouse leaves', (
+    tester,
+  ) async {
+    await SettingsRepository(db).set('reader.railPinned', 'true');
+    await pumpReader(tester, 'long');
+
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: tester.getCenter(find.text('已固定')));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+
+    await tester.tap(find.text('已固定'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('reader-rail-overlay')), findsOneWidget);
+
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const Key('reader-rail-overlay'))),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    await gesture.moveTo(const Offset(500, 300));
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byKey(const Key('reader-rail-overlay')), findsNothing);
+    await disposeApp(tester);
+  });
+
+  testWidgets('the floating rail casts a shadow', (tester) async {
+    await pumpReader(tester, 'long');
+    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.addPointer(location: const Offset(5, 300));
+    addTearDown(gesture.removePointer);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final containers = tester.widgetList<Container>(
+      find.descendant(
+        of: find.byKey(const Key('reader-rail-overlay')),
+        matching: find.byType(Container),
+      ),
+    );
+    expect(
+      containers.any((container) {
+        final decoration = container.decoration;
+        return decoration is BoxDecoration &&
+            (decoration.boxShadow?.isNotEmpty ?? false);
+      }),
+      isTrue,
+    );
     await disposeApp(tester);
   });
 
@@ -214,23 +286,20 @@ void main() {
   testWidgets('unpinning keeps the reading position', (tester) async {
     await SettingsRepository(db).set('reader.railPinned', 'true');
     await pumpReader(tester, 'long');
-    final controller = readerController(tester);
-    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
-    await tester.pump();
-    final before = controller.offset / controller.position.maxScrollExtent;
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchorText = pageText(tester).substring(0, 10);
 
     await tester.tap(find.text('已固定'));
     await tester.pumpAndSettle();
 
-    final after = controller.offset / controller.position.maxScrollExtent;
-    expect(after, closeTo(before, 0.02));
+    expect(pageText(tester), contains(anchorText));
 
     await disposeApp(tester);
     await settleAfterIo(tester);
-    final progress = await tester.runAsync(
-      () => ProgressRepository(db).get('long'),
-    );
-    expect(progress!.percent, closeTo(before, 0.05));
+    await pumpReader(tester, 'long');
+    expect(pageText(tester), contains(anchorText));
+    await disposeApp(tester);
   });
 
   testWidgets('escape hides the floating rail', (tester) async {

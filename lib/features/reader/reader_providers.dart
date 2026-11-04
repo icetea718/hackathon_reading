@@ -19,7 +19,7 @@ class ReaderData {
 }
 
 final readerDataProvider =
-    FutureProvider.family<ReaderData, String>((ref, bookId) async {
+    FutureProvider.autoDispose.family<ReaderData, String>((ref, bookId) async {
   final book = await ref.watch(bookRepositoryProvider).getById(bookId);
   final chapters =
       await ref.watch(chapterRepositoryProvider).getSummariesForBook(bookId);

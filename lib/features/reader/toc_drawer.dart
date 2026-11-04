@@ -53,11 +53,25 @@ class TocDrawer extends StatelessWidget {
   }
 
   Widget _chapterList(BuildContext context) {
+    final theme = Theme.of(context);
     return ListView.builder(
       itemCount: chapters.length,
       itemBuilder: (context, index) {
+        final chapter = chapters[index];
+        final nested = chapter.level > 1;
         return ListTile(
-          title: Text(chapters[index].title),
+          contentPadding: EdgeInsetsDirectional.only(
+            start: nested ? 40 : 16,
+            end: 16,
+          ),
+          title: Text(
+            chapter.title,
+            style: TextStyle(
+              fontSize: nested ? 14 : 16,
+              fontWeight: nested ? FontWeight.w400 : FontWeight.w600,
+              color: nested ? theme.colorScheme.onSurfaceVariant : null,
+            ),
+          ),
           selected: index == currentIndex,
           onTap: () {
             Navigator.of(context).pop();

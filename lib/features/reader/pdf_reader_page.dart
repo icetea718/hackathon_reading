@@ -109,6 +109,7 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
       sourcePath: book.sourcePath,
       coverPath: book.coverPath,
       contentHash: book.contentHash,
+      comic: book.comic,
       addedAt: book.addedAt,
       lastOpenedAt: DateTime.now(),
     );

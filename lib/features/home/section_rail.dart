@@ -9,22 +9,28 @@ class SectionRail extends StatelessWidget {
     required this.onSelectSection,
     required this.onSettings,
     this.settingsTooltip = '设置',
+    this.companionEnabled = true,
+    this.companionTooltip = '陪读',
     this.footer,
     this.backgroundColor,
     this.foregroundColor,
     this.selectedBackgroundColor,
     this.selectedForegroundColor,
+    this.elevated = false,
   });
 
   final AppSection? activeSection;
   final ValueChanged<AppSection> onSelectSection;
   final VoidCallback onSettings;
+  final bool companionEnabled;
+  final String companionTooltip;
   final String settingsTooltip;
   final Widget? footer;
   final Color? backgroundColor;
   final Color? foregroundColor;
   final Color? selectedBackgroundColor;
   final Color? selectedForegroundColor;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
@@ -64,24 +70,40 @@ class SectionRail extends StatelessWidget {
         border: Border(
           right: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
+        boxShadow: elevated
+            ? const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 16,
+                  offset: Offset(4, 0),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         children: [
           const SizedBox(height: 12),
           Container(
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '阅',
               style: TextStyle(
                 color: theme.colorScheme.onPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                height: 1,
+                fontFamily: 'Source Han Serif SC',
+                fontFamilyFallback: const [
+                  'Noto Serif CJK SC',
+                  'SimSun',
+                  'Georgia',
+                ],
               ),
             ),
           ),
@@ -95,10 +117,12 @@ class SectionRail extends StatelessWidget {
           ),
           button(
             key: const Key('rail-companion'),
-            tooltip: '陪读',
+            tooltip: companionTooltip,
             icon: Icons.chat_bubble_outline,
             active: activeSection == AppSection.companion,
-            onPressed: () => onSelectSection(AppSection.companion),
+            onPressed: companionEnabled
+                ? () => onSelectSection(AppSection.companion)
+                : null,
           ),
           button(
             key: const Key('rail-add'),

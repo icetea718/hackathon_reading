@@ -5,6 +5,12 @@ enum BookFormat {
 
   String get extension => name;
 
+  String get label => switch (this) {
+        BookFormat.epub => 'EPUB',
+        BookFormat.txt => 'TXT',
+        BookFormat.pdf => 'PDF',
+      };
+
   static BookFormat? fromExtension(String pathOrName) {
     final dot = pathOrName.lastIndexOf('.');
     if (dot == -1 || dot == pathOrName.length - 1) return null;
@@ -26,6 +32,7 @@ class Book {
     required this.addedAt,
     this.coverPath,
     this.contentHash,
+    this.comic = false,
     this.lastOpenedAt,
   });
 
@@ -36,6 +43,9 @@ class Book {
   final String sourcePath;
   final String? coverPath;
   final String? contentHash;
+
+  /// True when the EPUB is a page-image comic rather than flowing text.
+  final bool comic;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
 }
