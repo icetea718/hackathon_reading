@@ -14,6 +14,23 @@ class EpubParseException implements Exception {
   String toString() => 'EpubParseException: $message';
 }
 
+/// A raster illustration extracted from an EPUB content document.
+class EpubIllustration {
+  const EpubIllustration({
+    required this.bytes,
+    required this.extension,
+    required this.offset,
+  });
+
+  final List<int> bytes;
+
+  /// Lowercase file extension such as `jpg` or `png`.
+  final String extension;
+
+  /// Character offset into the chapter's `contentText`.
+  final int offset;
+}
+
 /// A chapter extracted from an EPUB, with offsets relative to the whole book.
 class EpubBookChapter {
   const EpubBookChapter({
@@ -22,6 +39,7 @@ class EpubBookChapter {
     required this.endOffset,
     required this.contentText,
     this.level = 1,
+    this.illustrations = const [],
   });
 
   final String title;
@@ -31,6 +49,9 @@ class EpubBookChapter {
 
   /// 1 for a part/chapter, 2 for a section nested inside it.
   final int level;
+
+  /// Inline raster illustrations anchored to [contentText] offsets.
+  final List<EpubIllustration> illustrations;
 }
 
 class EpubCover {
@@ -54,6 +75,9 @@ class EpubDocument {
 
   /// True for pre-paginated/comic packages whose pages are images.
   final bool fixedLayout;
+
+  List<EpubIllustration> get illustrations =>
+      [for (final chapter in chapters) ...chapter.illustrations];
 }
 
 /// One raster page of a comic EPUB, already decoded from the archive.
@@ -175,8 +199,24 @@ class _EpubParser {
       entriesByPath.putIfAbsent(entry.path, () => []).add(entry);
     }
 
+    final coverPath = _coverItem(opf, manifest)?.path;
+    final excludedImages = <String>{
+      if (coverPath != null) _normalizePath(coverPath),
+    };
+
     final chapters = <EpubBookChapter>[];
+    final pending = <EpubIllustration>[];
     var cursor = 0;
+
+    List<EpubIllustration> takePending() {
+      if (pending.isEmpty) return const [];
+      final taken = [
+        for (final image in pending) _withOffset(image, 0),
+      ];
+      pending.clear();
+      return taken;
+    }
+
     for (final itemref in spine.findAllElements('itemref', namespaceUri: '*')) {
       final idref = itemref.getAttribute('idref');
       if (idref == null) continue;
@@ -194,11 +234,25 @@ class _EpubParser {
         for (final entry in itemEntries)
           if (entry.fragment != null) entry.fragment!,
       };
-      final extracted = _extractPlainTextWithAnchors(item.path, fragmentIds);
+      final extracted = _extractPlainTextWithAnchors(
+        item.path,
+        fragmentIds,
+        excludedImages,
+      );
       final text = extracted.text;
-      if (text.isEmpty) continue;
+      if (text.isEmpty) {
+        for (final image in extracted.illustrations) {
+          pending.add(_withOffset(image, 0));
+        }
+        continue;
+      }
 
-      final segments = _chapterSegments(text, itemEntries, extracted.anchors);
+      final segments = _chapterSegments(
+        text,
+        itemEntries,
+        extracted.anchors,
+        extracted.illustrations,
+      );
       if (segments.isEmpty) {
         final title = itemEntries.isEmpty
             ? _fallbackTitle(item.path, chapters.length + 1)
@@ -208,21 +262,43 @@ class _EpubParser {
           startOffset: cursor,
           endOffset: cursor + text.length,
           contentText: text,
+          illustrations: [...takePending(), ...extracted.illustrations],
         ));
         cursor += text.length;
         continue;
       }
 
-      for (final segment in segments) {
+      for (var i = 0; i < segments.length; i++) {
+        final segment = segments[i];
         chapters.add(EpubBookChapter(
           title: segment.title,
           level: segment.level,
           startOffset: cursor,
           endOffset: cursor + segment.text.length,
           contentText: segment.text,
+          illustrations: [
+            if (i == 0) ...takePending(),
+            ...segment.illustrations,
+          ],
         ));
         cursor += segment.text.length;
       }
+    }
+
+    if (pending.isNotEmpty && chapters.isNotEmpty) {
+      final last = chapters.removeLast();
+      chapters.add(EpubBookChapter(
+        title: last.title,
+        startOffset: last.startOffset,
+        endOffset: last.endOffset,
+        contentText: last.contentText,
+        level: last.level,
+        illustrations: [
+          ...last.illustrations,
+          for (final image in pending)
+            _withOffset(image, last.contentText.length),
+        ],
+      ));
     }
 
     return EpubDocument(
@@ -551,10 +627,17 @@ class _EpubParser {
     }
   }
 
-  List<({String title, int level, String text})> _chapterSegments(
+  List<
+      ({
+        String title,
+        int level,
+        String text,
+        List<EpubIllustration> illustrations,
+      })> _chapterSegments(
     String text,
     List<_TocEntry> entries,
     Map<String, int> anchors,
+    List<EpubIllustration> illustrations,
   ) {
     if (entries.isEmpty) return const [];
 
@@ -568,13 +651,40 @@ class _EpubParser {
     if (starts.isEmpty) return const [];
     starts.sort((a, b) => a.offset.compareTo(b.offset));
 
-    final segments = <({String title, int level, String text})>[];
+    List<EpubIllustration> imagesIn(
+      int start,
+      int end, {
+      required bool isLast,
+    }) {
+      final raw = text.substring(start, end);
+      final leading = raw.length - raw.trimLeft().length;
+      final trimmedLength = raw.trim().length;
+      return [
+        for (final image in illustrations)
+          if (image.offset >= start &&
+              (image.offset < end ||
+                  (isLast && image.offset == text.length)))
+            _withOffset(
+              image,
+              (image.offset - start - leading).clamp(0, trimmedLength),
+            ),
+      ];
+    }
+
+    final segments = <
+        ({
+          String title,
+          int level,
+          String text,
+          List<EpubIllustration> illustrations,
+        })>[];
     final firstOffset = starts.first.offset;
     if (firstOffset > 0) {
       segments.add((
         title: '前言',
         level: 1,
         text: text.substring(0, firstOffset).trim(),
+        illustrations: imagesIn(0, firstOffset, isLast: false),
       ));
     }
     for (var i = 0; i < starts.length; i++) {
@@ -585,6 +695,7 @@ class _EpubParser {
         title: starts[i].entry.title,
         level: starts[i].entry.level,
         text: text.substring(start, end).trim(),
+        illustrations: imagesIn(start, end, isLast: i == starts.length - 1),
       ));
     }
     return segments;
@@ -637,9 +748,14 @@ class _EpubParser {
     return null;
   }
 
-  ({String text, Map<String, int> anchors}) _extractPlainTextWithAnchors(
+  ({
+    String text,
+    Map<String, int> anchors,
+    List<EpubIllustration> illustrations,
+  }) _extractPlainTextWithAnchors(
     String path,
     Set<String> anchorIds,
+    Set<String> excludedImages,
   ) {
     final source = _readText(path);
     try {
@@ -651,20 +767,29 @@ class _EpubParser {
       final container = body ?? document;
       final buffer = StringBuffer();
       final anchorOrder = <String>[];
+      final images = <EpubIllustration>[];
       for (final child in container.children) {
         _collectText(
           child,
           buffer,
           anchorIds: anchorIds,
           anchorOrder: anchorOrder,
+          basePath: path,
+          excludedImages: excludedImages,
+          images: images,
         );
       }
-      return _normalizeTextTrackingAnchors(buffer.toString(), anchorOrder);
+      return _normalizeTextTrackingAnchors(
+        buffer.toString(),
+        anchorOrder,
+        images,
+      );
     } catch (_) {
       // Tolerate slightly malformed XHTML instead of losing the whole book.
       return (
         text: _normalizePlainText(_stripTagsFallback(source)),
         anchors: const <String, int>{},
+        illustrations: const <EpubIllustration>[],
       );
     }
   }
@@ -674,6 +799,9 @@ class _EpubParser {
     StringBuffer buffer, {
     Set<String> anchorIds = const {},
     List<String>? anchorOrder,
+    String basePath = '',
+    Set<String> excludedImages = const {},
+    List<EpubIllustration>? images,
   }) {
     if (node is XmlText) {
       buffer.write(node.value);
@@ -682,6 +810,25 @@ class _EpubParser {
     if (node is! XmlElement) return;
 
     final tag = node.name.local.toLowerCase();
+    if (tag == 'img' || tag == 'image') {
+      final image = _inlineImage(node, basePath, excludedImages);
+      if (image != null) {
+        buffer.writeCharCode(0x0002);
+        images?.add(image);
+      }
+      return;
+    }
+    if (tag == 'svg') {
+      for (final element in node.descendants.whereType<XmlElement>()) {
+        if (element.name.local.toLowerCase() != 'image') continue;
+        final image = _inlineImage(element, basePath, excludedImages);
+        if (image != null) {
+          buffer.writeCharCode(0x0002);
+          images?.add(image);
+        }
+      }
+      return;
+    }
     if (_ignoredTags.contains(tag)) return;
     if (tag == 'br') {
       buffer.write('\n');
@@ -702,28 +849,108 @@ class _EpubParser {
         buffer,
         anchorIds: anchorIds,
         anchorOrder: anchorOrder,
+        basePath: basePath,
+        excludedImages: excludedImages,
+        images: images,
       );
     }
     if (isBlock) buffer.write('\n');
   }
 
-  ({String text, Map<String, int> anchors}) _normalizeTextTrackingAnchors(
+  EpubIllustration? _inlineImage(
+    XmlElement element,
+    String basePath,
+    Set<String> excludedImages,
+  ) {
+    final href = _hrefOf(element);
+    if (href == null || href.trim().isEmpty) return null;
+    final trimmed = href.trim();
+    if (trimmed.toLowerCase().startsWith('data:') ||
+        trimmed.contains('://')) {
+      return null;
+    }
+    final resolved = _normalizePath(_resolvePath(basePath, trimmed));
+    if (excludedImages.contains(resolved)) return null;
+    final file = _files[resolved];
+    if (file == null) return null;
+    final extension =
+        p.url.extension(resolved).replaceFirst('.', '').toLowerCase();
+    if (!_rasterExtensions.contains(extension)) return null;
+    final data = file.content;
+    if (data.isEmpty) return null;
+    return EpubIllustration(
+      bytes: data,
+      extension: extension == 'jpeg' ? 'jpg' : extension,
+      offset: 0,
+    );
+  }
+
+  EpubIllustration _withOffset(EpubIllustration image, int offset) =>
+      EpubIllustration(
+        bytes: image.bytes,
+        extension: image.extension,
+        offset: offset,
+      );
+
+  ({
+    String text,
+    Map<String, int> anchors,
+    List<EpubIllustration> illustrations,
+  }) _normalizeTextTrackingAnchors(
     String raw,
     List<String> anchorOrder,
+    List<EpubIllustration> rawImages,
   ) {
     final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     final buffer = StringBuffer();
     final anchors = <String, int>{};
+    final placed = List<EpubIllustration?>.filled(rawImages.length, null);
+    final pending = <int>[];
     var anchorIndex = 0;
+    var imageIndex = 0;
     var written = 0;
     var hasLine = false;
+
+    void placePending() {
+      for (final index in pending) {
+        placed[index] = _withOffset(rawImages[index], written);
+      }
+      pending.clear();
+    }
+
     for (final line in normalized.split('\n')) {
       final collapsed = line.replaceAll(RegExp(r'\s+'), ' ').trim();
       if (collapsed.isEmpty) continue;
+
+      final imageMarker = String.fromCharCode(0x0002);
+      final anchorMarker = String.fromCharCode(0x0001);
+      final hasImageMarker = collapsed.contains(imageMarker);
+      final visible = collapsed
+          .replaceAll(anchorMarker, '')
+          .replaceAll(imageMarker, '');
+      if (hasImageMarker && visible.trim().isEmpty) {
+        // A line holding only markers must not create a blank line: defer its
+        // images to the next visible line so all downstream offsets stay put.
+        for (var i = 0; i < collapsed.length; i++) {
+          final code = collapsed.codeUnitAt(i);
+          if (code == 0x0001) {
+            if (anchorIndex < anchorOrder.length) {
+              anchors.putIfAbsent(anchorOrder[anchorIndex], () => written);
+            }
+            anchorIndex++;
+          } else if (code == 0x0002) {
+            if (imageIndex < rawImages.length) pending.add(imageIndex);
+            imageIndex++;
+          }
+        }
+        continue;
+      }
+
       if (hasLine) {
         buffer.write('\n');
         written += 1;
       }
+      placePending();
       for (var i = 0; i < collapsed.length; i++) {
         final code = collapsed.codeUnitAt(i);
         if (code == 0x0001) {
@@ -733,12 +960,26 @@ class _EpubParser {
           anchorIndex++;
           continue;
         }
+        if (code == 0x0002) {
+          if (imageIndex < rawImages.length) {
+            placed[imageIndex] = _withOffset(rawImages[imageIndex], written);
+          }
+          imageIndex++;
+          continue;
+        }
         buffer.writeCharCode(code);
         written += 1;
       }
       hasLine = true;
     }
-    return (text: buffer.toString(), anchors: anchors);
+    placePending();
+    return (
+      text: buffer.toString(),
+      anchors: anchors,
+      illustrations: [
+        for (final image in placed) ?image,
+      ],
+    );
   }
 
   String _stripTagsFallback(String source) {
