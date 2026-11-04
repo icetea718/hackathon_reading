@@ -20,6 +20,7 @@ Book mkBook(
   required String title,
   String author = '',
   BookFormat format = BookFormat.txt,
+  String? coverPath,
 }) {
   return Book(
     id: id,
@@ -27,6 +28,7 @@ Book mkBook(
     author: author,
     format: format,
     sourcePath: 'C:/books/$id.${format.name}',
+    coverPath: coverPath,
     contentHash: 'hash-$id',
     addedAt: DateTime(2026, 1, 1),
   );
@@ -213,6 +215,33 @@ void main() {
     final books = await tester.runAsync(() => BookRepository(db).getAll());
     expect(books, isEmpty);
     await disposeShelf(tester);
+  });
+
+  testWidgets('a missing cover file falls back to the generated cover', (
+    tester,
+  ) async {
+    final book = mkBook(
+      'b1',
+      title: '三体',
+      coverPath: '${temp.path}/missing-cover.jpg',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 120,
+            height: 160,
+            child: BookCover(book: book),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('三'), findsOneWidget);
   });
 
   testWidgets('cover helpers are deterministic', (tester) async {

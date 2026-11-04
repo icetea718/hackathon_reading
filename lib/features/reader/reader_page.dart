@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
+import '../../app/theme/app_theme.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
@@ -380,8 +381,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   Color get _accent => _background == ReaderBackground.dark
-      ? const Color(0xFF7FA3FF)
-      : const Color(0xFF3D6AE0);
+      ? AppTheme.darkAccent
+      : AppTheme.accent;
 
   void _toggleRailPinned() {
     final anchor = _currentProgress()?.anchor.charOffset;

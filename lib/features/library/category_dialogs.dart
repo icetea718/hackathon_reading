@@ -49,8 +49,7 @@ Future<bool> confirmDeleteCategory(
 }
 
 Future<void> showCategoryPickerDialog(
-  BuildContext context,
-  WidgetRef ref, {
+  BuildContext context, {
   required Set<String> bookIds,
 }) {
   return showDialog<void>(

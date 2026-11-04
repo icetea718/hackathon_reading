@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_theme.dart';
+
 class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   const ReaderTopBar({
     super.key,
@@ -36,8 +38,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final accent = background.computeLuminance() < 0.5
-        ? const Color(0xFF7FA3FF)
-        : const Color(0xFF3D6AE0);
+        ? AppTheme.darkAccent
+        : AppTheme.accent;
 
     return Material(
       color: background,
