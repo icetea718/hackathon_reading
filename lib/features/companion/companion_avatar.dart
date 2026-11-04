@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// The bundled sprite the reader shows next to the page.
+const companionSprite = 'assets/companion/chibi.png';
+
 /// A small 2D character that sits beside the page while the reader is reading.
 ///
 /// The sprite is a placeholder drawn with a [CustomPainter] until real art
@@ -65,6 +68,8 @@ class _CompanionAvatarState extends State<CompanionAvatar>
             : Image.asset(
                 widget.assetPath!,
                 fit: BoxFit.contain,
+                alignment: Alignment.bottomCenter,
+                filterQuality: FilterQuality.medium,
                 errorBuilder: (context, _, _) => _placeholder(context),
               ),
       ),

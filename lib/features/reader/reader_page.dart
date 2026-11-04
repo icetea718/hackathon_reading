@@ -16,6 +16,8 @@ import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
+import '../companion/companion_avatar.dart';
+import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
 import '../companion/companion_presence.dart';
 import '../settings/settings_page.dart';
@@ -1006,6 +1008,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   baseStyle: baseStyle,
                 );
                 final pageContent = text.substring(page.start, page.end);
+                _pageText = pageContent;
                 return Stack(
                   key: const Key('reader-page'),
                   fit: StackFit.expand,
@@ -1072,7 +1075,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           },
         );
 
-        final body = _decorateBody(contentBody);
+        final body = _decorateBody(
+          contentBody,
+          greetingLoader: () => _companionGreeting(currentChapter, _pageText),
+          onOpenChat: () => unawaited(_openCompanion()),
+        );
 
         return Scaffold(
           key: _scaffoldKey,
@@ -1120,10 +1127,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  /// Greeting lines already requested, keyed by chapter id.
+  final Map<String, Future<String?>> _greetings = {};
+
+  /// Text of the page currently on screen, used to ground the companion line.
+  String _pageText = '';
+
   Widget _decorateBody(
     Widget contentBody, {
     bool companionEnabled = true,
     String companionTooltip = '陪读',
+    Future<String?> Function()? greetingLoader,
+    VoidCallback? onOpenChat,
   }) {
     if (_railPinned) {
       return AnimatedSize(
@@ -1146,7 +1161,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               companionTooltip: companionTooltip,
             ),
             Expanded(
-              child: companionEnabled ? _withAvatar(contentBody) : contentBody,
+              child: companionEnabled
+                  ? _withAvatar(
+                      contentBody,
+                      greetingLoader: greetingLoader,
+                      onOpenChat: onOpenChat,
+                    )
+                  : contentBody,
             ),
           ],
         ),
@@ -1156,7 +1177,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        companionEnabled ? _withAvatar(contentBody) : contentBody,
+        companionEnabled
+            ? _withAvatar(
+                contentBody,
+                greetingLoader: greetingLoader,
+                onOpenChat: onOpenChat,
+              )
+            : contentBody,
         Positioned(
           left: 0,
           top: 0,
@@ -1214,7 +1241,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   /// Overlays the companion character on the reading area. It is placed after
   /// the page content (and therefore above the tap zones) so tapping it never
   /// turns the page.
-  Widget _withAvatar(Widget content) {
+  Widget _withAvatar(
+    Widget content, {
+    Future<String?> Function()? greetingLoader,
+    VoidCallback? onOpenChat,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columnWidth = constraints.maxWidth < 720
@@ -1234,13 +1265,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               bottom: roomy ? 24 : 12,
               child: CompanionPresence(
                 key: const Key('companion-presence'),
+                assetPath: companionSprite,
                 height: height,
+                greetingLoader: greetingLoader,
+                onOpenChat: onOpenChat,
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  /// One line about the page being read, cached per chapter so that paging
+  /// inside a chapter does not re-ask the model.
+  Future<String?> _companionGreeting(Chapter chapter, String pageText) {
+    return _greetings.putIfAbsent(chapter.id, () {
+      final offset =
+          (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+          chapter.startOffset;
+      return ref.read(companionGreeterProvider)(
+        CompanionGreetingRequest(
+          bookId: widget.bookId,
+          chapterIndex: chapter.index,
+          chapterTitle: chapter.title,
+          chapterText: chapter.contentText,
+          pageText: pageText,
+          readerOffset: offset < 0 ? 0 : offset,
+          bookTitle: _cachedData?.book?.title ?? '',
+          author: _cachedData?.book?.author ?? '',
+        ),
+      );
+    });
   }
 
   Widget _buildComic(ReaderData data, String title) {

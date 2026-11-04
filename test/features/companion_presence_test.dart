@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/features/companion/companion_presence.dart';
@@ -84,5 +86,88 @@ void main() {
     final avatar = tester.getRect(find.byKey(const Key('companion-avatar')));
     expect(bubble.bottom, lessThanOrEqualTo(avatar.top + 1));
     expect(bubble.right, closeTo(avatar.right, 1));
+  });
+
+  testWidgets('says the line its loader picked', (tester) async {
+    final loaded = Completer<String?>();
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          greetingLoader: () => loaded.future,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byKey(const Key('companion-bubble')), findsNothing);
+
+    loaded.complete('这一页的鞋跟真低呀。');
+    await tester.pumpAndSettle();
+
+    expect(find.text('这一页的鞋跟真低呀。'), findsOneWidget);
+    expect(find.text('读到哪儿了？'), findsNothing);
+  });
+
+  testWidgets('falls back to the default line when the loader is slow', (
+    tester,
+  ) async {
+    final never = Completer<String?>();
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          greetingLoader: () => never.future,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(find.text('读到哪儿了？'), findsOneWidget);
+  });
+
+  testWidgets('tapping the avatar opens the chat when a handler is given', (
+    tester,
+  ) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          onOpenChat: () => opened++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    expect(opened, 1);
+    expect(find.byKey(const Key('companion-bubble')), findsNothing);
+  });
+
+  testWidgets('tapping the bubble opens the chat too', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          greetingLoader: () async => '陪你读这一页。',
+          onOpenChat: () => opened++,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('companion-bubble')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-bubble')));
+    await tester.pumpAndSettle();
+
+    expect(opened, 1);
+    expect(find.byKey(const Key('companion-bubble')), findsNothing);
   });
 }

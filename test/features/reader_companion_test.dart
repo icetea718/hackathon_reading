@@ -58,4 +58,25 @@ void main() {
     expect(find.textContaining('陪读 · 第一章'), findsOneWidget);
     expect(find.textContaining('未配置 AI 服务'), findsOneWidget);
   });
+
+  testWidgets('tapping the companion avatar opens the panel too', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        child: const MaterialApp(home: ReaderPage(bookId: 'b1')),
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('companion-avatar')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('陪读 · 第一章'), findsOneWidget);
+  });
 }

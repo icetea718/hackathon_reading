@@ -17,6 +17,7 @@ import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:hackathon_reading/features/companion/companion_avatar.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
@@ -1579,6 +1580,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pageText(), before);
+      await disposeApp(tester);
+    });
+
+    testWidgets('wears the bundled sprite', (tester) async {
+      await pumpReader(tester, 'b1');
+
+      final avatar = tester.widget<CompanionAvatar>(
+        find.byType(CompanionAvatar),
+      );
+      expect(avatar.assetPath, companionSprite);
       await disposeApp(tester);
     });
   });
