@@ -4631,6 +4631,337 @@ class BookCategoriesCompanion extends UpdateCompanion<BookCategoryRecord> {
   }
 }
 
+class $TranslationCachesTable extends TranslationCaches
+    with TableInfo<$TranslationCachesTable, TranslationCacheRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TranslationCachesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sourceHashMeta = const VerificationMeta(
+    'sourceHash',
+  );
+  @override
+  late final GeneratedColumn<String> sourceHash = GeneratedColumn<String>(
+    'source_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetLangMeta = const VerificationMeta(
+    'targetLang',
+  );
+  @override
+  late final GeneratedColumn<String> targetLang = GeneratedColumn<String>(
+    'target_lang',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _translatedTextMeta = const VerificationMeta(
+    'translatedText',
+  );
+  @override
+  late final GeneratedColumn<String> translatedText = GeneratedColumn<String>(
+    'translated_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    sourceHash,
+    targetLang,
+    translatedText,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'translation_caches';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TranslationCacheRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('source_hash')) {
+      context.handle(
+        _sourceHashMeta,
+        sourceHash.isAcceptableOrUnknown(data['source_hash']!, _sourceHashMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceHashMeta);
+    }
+    if (data.containsKey('target_lang')) {
+      context.handle(
+        _targetLangMeta,
+        targetLang.isAcceptableOrUnknown(data['target_lang']!, _targetLangMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_targetLangMeta);
+    }
+    if (data.containsKey('translated_text')) {
+      context.handle(
+        _translatedTextMeta,
+        translatedText.isAcceptableOrUnknown(
+          data['translated_text']!,
+          _translatedTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_translatedTextMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sourceHash, targetLang};
+  @override
+  TranslationCacheRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TranslationCacheRow(
+      sourceHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_hash'],
+      )!,
+      targetLang: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_lang'],
+      )!,
+      translatedText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}translated_text'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $TranslationCachesTable createAlias(String alias) {
+    return $TranslationCachesTable(attachedDatabase, alias);
+  }
+}
+
+class TranslationCacheRow extends DataClass
+    implements Insertable<TranslationCacheRow> {
+  final String sourceHash;
+  final String targetLang;
+  final String translatedText;
+  final DateTime createdAt;
+  const TranslationCacheRow({
+    required this.sourceHash,
+    required this.targetLang,
+    required this.translatedText,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['source_hash'] = Variable<String>(sourceHash);
+    map['target_lang'] = Variable<String>(targetLang);
+    map['translated_text'] = Variable<String>(translatedText);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  TranslationCachesCompanion toCompanion(bool nullToAbsent) {
+    return TranslationCachesCompanion(
+      sourceHash: Value(sourceHash),
+      targetLang: Value(targetLang),
+      translatedText: Value(translatedText),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory TranslationCacheRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TranslationCacheRow(
+      sourceHash: serializer.fromJson<String>(json['sourceHash']),
+      targetLang: serializer.fromJson<String>(json['targetLang']),
+      translatedText: serializer.fromJson<String>(json['translatedText']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sourceHash': serializer.toJson<String>(sourceHash),
+      'targetLang': serializer.toJson<String>(targetLang),
+      'translatedText': serializer.toJson<String>(translatedText),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  TranslationCacheRow copyWith({
+    String? sourceHash,
+    String? targetLang,
+    String? translatedText,
+    DateTime? createdAt,
+  }) => TranslationCacheRow(
+    sourceHash: sourceHash ?? this.sourceHash,
+    targetLang: targetLang ?? this.targetLang,
+    translatedText: translatedText ?? this.translatedText,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  TranslationCacheRow copyWithCompanion(TranslationCachesCompanion data) {
+    return TranslationCacheRow(
+      sourceHash: data.sourceHash.present
+          ? data.sourceHash.value
+          : this.sourceHash,
+      targetLang: data.targetLang.present
+          ? data.targetLang.value
+          : this.targetLang,
+      translatedText: data.translatedText.present
+          ? data.translatedText.value
+          : this.translatedText,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationCacheRow(')
+          ..write('sourceHash: $sourceHash, ')
+          ..write('targetLang: $targetLang, ')
+          ..write('translatedText: $translatedText, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(sourceHash, targetLang, translatedText, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TranslationCacheRow &&
+          other.sourceHash == this.sourceHash &&
+          other.targetLang == this.targetLang &&
+          other.translatedText == this.translatedText &&
+          other.createdAt == this.createdAt);
+}
+
+class TranslationCachesCompanion extends UpdateCompanion<TranslationCacheRow> {
+  final Value<String> sourceHash;
+  final Value<String> targetLang;
+  final Value<String> translatedText;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const TranslationCachesCompanion({
+    this.sourceHash = const Value.absent(),
+    this.targetLang = const Value.absent(),
+    this.translatedText = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TranslationCachesCompanion.insert({
+    required String sourceHash,
+    required String targetLang,
+    required String translatedText,
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : sourceHash = Value(sourceHash),
+       targetLang = Value(targetLang),
+       translatedText = Value(translatedText),
+       createdAt = Value(createdAt);
+  static Insertable<TranslationCacheRow> custom({
+    Expression<String>? sourceHash,
+    Expression<String>? targetLang,
+    Expression<String>? translatedText,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sourceHash != null) 'source_hash': sourceHash,
+      if (targetLang != null) 'target_lang': targetLang,
+      if (translatedText != null) 'translated_text': translatedText,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TranslationCachesCompanion copyWith({
+    Value<String>? sourceHash,
+    Value<String>? targetLang,
+    Value<String>? translatedText,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return TranslationCachesCompanion(
+      sourceHash: sourceHash ?? this.sourceHash,
+      targetLang: targetLang ?? this.targetLang,
+      translatedText: translatedText ?? this.translatedText,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sourceHash.present) {
+      map['source_hash'] = Variable<String>(sourceHash.value);
+    }
+    if (targetLang.present) {
+      map['target_lang'] = Variable<String>(targetLang.value);
+    }
+    if (translatedText.present) {
+      map['translated_text'] = Variable<String>(translatedText.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TranslationCachesCompanion(')
+          ..write('sourceHash: $sourceHash, ')
+          ..write('targetLang: $targetLang, ')
+          ..write('translatedText: $translatedText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4647,6 +4978,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $CategoriesTable categories = $CategoriesTable(this);
   late final $BookCategoriesTable bookCategories = $BookCategoriesTable(this);
+  late final $TranslationCachesTable translationCaches =
+      $TranslationCachesTable(this);
   late final Index booksContentHash = Index(
     'books_content_hash',
     'CREATE INDEX books_content_hash ON books (content_hash)',
@@ -4694,6 +5027,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     distillArtifacts,
     categories,
     bookCategories,
+    translationCaches,
     booksContentHash,
     chaptersBookIndex,
     annotationsBookId,
@@ -7221,6 +7555,217 @@ typedef $$BookCategoriesTableProcessedTableManager =
       BookCategoryRecord,
       PrefetchHooks Function()
     >;
+typedef $$TranslationCachesTableCreateCompanionBuilder =
+    TranslationCachesCompanion Function({
+      required String sourceHash,
+      required String targetLang,
+      required String translatedText,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$TranslationCachesTableUpdateCompanionBuilder =
+    TranslationCachesCompanion Function({
+      Value<String> sourceHash,
+      Value<String> targetLang,
+      Value<String> translatedText,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$TranslationCachesTableFilterComposer
+    extends Composer<_$AppDatabase, $TranslationCachesTable> {
+  $$TranslationCachesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sourceHash => $composableBuilder(
+    column: $table.sourceHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get translatedText => $composableBuilder(
+    column: $table.translatedText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TranslationCachesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TranslationCachesTable> {
+  $$TranslationCachesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sourceHash => $composableBuilder(
+    column: $table.sourceHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get translatedText => $composableBuilder(
+    column: $table.translatedText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TranslationCachesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TranslationCachesTable> {
+  $$TranslationCachesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sourceHash => $composableBuilder(
+    column: $table.sourceHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get targetLang => $composableBuilder(
+    column: $table.targetLang,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get translatedText => $composableBuilder(
+    column: $table.translatedText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$TranslationCachesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TranslationCachesTable,
+          TranslationCacheRow,
+          $$TranslationCachesTableFilterComposer,
+          $$TranslationCachesTableOrderingComposer,
+          $$TranslationCachesTableAnnotationComposer,
+          $$TranslationCachesTableCreateCompanionBuilder,
+          $$TranslationCachesTableUpdateCompanionBuilder,
+          (
+            TranslationCacheRow,
+            BaseReferences<
+              _$AppDatabase,
+              $TranslationCachesTable,
+              TranslationCacheRow
+            >,
+          ),
+          TranslationCacheRow,
+          PrefetchHooks Function()
+        > {
+  $$TranslationCachesTableTableManager(
+    _$AppDatabase db,
+    $TranslationCachesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TranslationCachesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TranslationCachesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TranslationCachesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> sourceHash = const Value.absent(),
+                Value<String> targetLang = const Value.absent(),
+                Value<String> translatedText = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationCachesCompanion(
+                sourceHash: sourceHash,
+                targetLang: targetLang,
+                translatedText: translatedText,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sourceHash,
+                required String targetLang,
+                required String translatedText,
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => TranslationCachesCompanion.insert(
+                sourceHash: sourceHash,
+                targetLang: targetLang,
+                translatedText: translatedText,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TranslationCachesTable, TranslationCacheRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $TranslationCachesTable,
+                    TranslationCacheRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TranslationCachesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TranslationCachesTable,
+      TranslationCacheRow,
+      $$TranslationCachesTableFilterComposer,
+      $$TranslationCachesTableOrderingComposer,
+      $$TranslationCachesTableAnnotationComposer,
+      $$TranslationCachesTableCreateCompanionBuilder,
+      $$TranslationCachesTableUpdateCompanionBuilder,
+      (
+        TranslationCacheRow,
+        BaseReferences<
+          _$AppDatabase,
+          $TranslationCachesTable,
+          TranslationCacheRow
+        >,
+      ),
+      TranslationCacheRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7248,4 +7793,6 @@ class $AppDatabaseManager {
       $$CategoriesTableTableManager(_db, _db.categories);
   $$BookCategoriesTableTableManager get bookCategories =>
       $$BookCategoriesTableTableManager(_db, _db.bookCategories);
+  $$TranslationCachesTableTableManager get translationCaches =>
+      $$TranslationCachesTableTableManager(_db, _db.translationCaches);
 }

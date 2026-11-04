@@ -20,6 +20,7 @@ import '../data/repositories/distill_job_repository.dart';
 import '../data/repositories/distill_unit_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
+import '../data/repositories/translation_cache_repository.dart';
 import '../data/storage/book_storage.dart';
 import '../distill/distill_digest.dart';
 import '../distill/llm/llm_client.dart';
@@ -84,6 +85,12 @@ final assistantServiceProvider = FutureProvider<AssistantService>((ref) async {
 /// Free, key-less translation backend used when no model is configured.
 final offlineTranslatorProvider = Provider<AssistantService>((ref) {
   return MyMemoryTranslator();
+});
+
+/// Remembers finished translations by source text, so a passage is only sent
+/// to the model or the public API once.
+final translationCacheProvider = Provider<TranslationCacheStore>((ref) {
+  return TranslationCacheRepository(ref.watch(appDatabaseProvider));
 });
 
 /// Translation always works: the configured model when there is one, the free

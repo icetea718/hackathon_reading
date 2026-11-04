@@ -8,7 +8,7 @@ void main() {
       setup: (raw) => raw.execute('PRAGMA user_version = 5;'),
     ));
 
-    expect(db.schemaVersion, 6);
+    expect(db.schemaVersion, 7);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -22,6 +22,36 @@ void main() {
     expect(
       indexNames,
       containsAll(['categories_name', 'book_categories_category']),
+    );
+
+    await db.close();
+  });
+
+  test('upgrades a v6 database by adding the translation cache', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) => raw.execute('PRAGMA user_version = 6;'),
+    ));
+
+    expect(db.schemaVersion, 7);
+    final rows = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .get();
+    final names = rows.map((row) => row.read<String>('name')).toSet();
+    expect(names, contains('translation_caches'));
+
+    await db.close();
+  });
+
+  test('creates every table on a fresh database', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+
+    final rows = await db
+        .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .get();
+    final names = rows.map((row) => row.read<String>('name')).toSet();
+    expect(
+      names,
+      containsAll(['books', 'chapters', 'translation_caches']),
     );
 
     await db.close();
