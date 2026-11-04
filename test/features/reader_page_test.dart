@@ -333,6 +333,40 @@ void main() {
       )
       .join();
 
+  double paneTextBottom(WidgetTester tester, SelectableText pane) {
+    final state = tester.state<EditableTextState>(
+      find.descendant(
+        of: find.byWidget(pane),
+        matching: find.byType(EditableText),
+      ),
+    );
+    final text = pane.textSpan!.children!
+        .cast<TextSpan>()
+        .map((span) => span.text ?? '')
+        .join()
+        .trimRight();
+    final boxes = state.renderEditable.getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: text.length),
+    );
+    return boxes.fold<double>(
+      0,
+      (value, box) => box.bottom > value ? box.bottom : value,
+    );
+  }
+
+  double paneClipHeight(WidgetTester tester, SelectableText pane) =>
+      tester
+          .renderObject<RenderBox>(
+            find
+                .ancestor(
+                  of: find.byWidget(pane),
+                  matching: find.byType(ClipRect),
+                )
+                .first,
+          )
+          .size
+          .height;
+
   testWidgets('flips pages with tap zones, keys, and footer buttons', (
     tester,
   ) async {
@@ -1356,6 +1390,54 @@ void main() {
     expect(find.byType(SelectableText), findsNWidgets(2));
     expect(spreadFooterText(tester), startsWith('第 1–2 / '));
     expect(spreadFooterText(tester), contains('全书 '));
+    await disposeApp(tester);
+  });
+
+  testWidgets('spread pages fit the style they are rendered with', (
+    tester,
+  ) async {
+    final paragraph = List.filled(200, 'a').join();
+    final text = List.filled(120, paragraph).join('\n');
+    await BookRepository(db).upsert(
+      Book(
+        id: 'spread-fit',
+        title: '宽度测试',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/spread-fit.txt',
+        addedAt: DateTime(2026, 1, 4),
+      ),
+    );
+    await ChapterRepository(db).replaceForBook('spread-fit', [
+      Chapter(
+        id: 'spread-fit-c0',
+        bookId: 'spread-fit',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: text.length,
+        contentText: text,
+      ),
+    ]);
+    addTearDown(tester.view.reset);
+    // 1304 logical pixels gives a 600px pane: the paginator fits 33 glyphs
+    // at 18px each, but the rendered SelectableText inherits the theme's
+    // 0.25 letterSpacing and fits only 32.
+    tester.view.physicalSize = const Size(1304, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.handleMetricsChanged();
+    await pumpReader(tester, 'spread-fit');
+
+    final panes = tester
+        .widgetList<SelectableText>(find.byType(SelectableText))
+        .toList();
+    expect(panes, hasLength(2));
+    for (final pane in panes) {
+      expect(
+        paneTextBottom(tester, pane),
+        lessThanOrEqualTo(paneClipHeight(tester, pane) + 0.5),
+      );
+    }
     await disposeApp(tester);
   });
 

@@ -1372,6 +1372,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             final textScaler = MediaQuery.textScalerOf(context);
             return LayoutBuilder(
               builder: (context, constraints) {
+                // SelectableText merges the ambient DefaultTextStyle into the
+                // spans it renders, so paginate with that same merged style or
+                // the measured line breaks drift from the painted ones.
+                final effectiveBaseStyle = DefaultTextStyle.of(
+                  context,
+                ).style.merge(baseStyle);
                 final doubleSpread = spreadApplies(
                   _spread,
                   constraints.maxWidth,
@@ -1403,7 +1409,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     text: text,
                     title: currentChapter.title,
                     level: currentChapter.level,
-                    baseStyle: baseStyle,
+                    baseStyle: effectiveBaseStyle,
                     width: textWidth,
                     height: textHeight,
                     textScaler: textScaler,
@@ -1421,7 +1427,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 if (bookSignature != _bookPageSignature) {
                   _bookPageSignature = bookSignature;
                   final layout = PageLayout(
-                    baseStyle: baseStyle,
+                    baseStyle: effectiveBaseStyle,
                     width: textWidth,
                     height: textHeight,
                     textScaler: textScaler,
