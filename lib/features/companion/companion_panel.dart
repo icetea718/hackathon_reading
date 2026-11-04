@@ -26,6 +26,12 @@ class CompanionPanel extends ConsumerStatefulWidget {
     required this.chapterTitle,
     required this.chapterText,
     required this.chapterCharOffset,
+    this.chapterPage,
+    this.chapterPageEnd,
+    this.chapterPageCount,
+    this.bookPage,
+    this.bookPageTotal,
+    this.currentPageText = '',
     this.bookTitle = '',
     this.author = '',
     this.docked = false,
@@ -38,6 +44,12 @@ class CompanionPanel extends ConsumerStatefulWidget {
   final String chapterTitle;
   final String chapterText;
   final int? chapterCharOffset;
+  final int? chapterPage;
+  final int? chapterPageEnd;
+  final int? chapterPageCount;
+  final int? bookPage;
+  final int? bookPageTotal;
+  final String currentPageText;
   final String bookTitle;
   final String author;
 
@@ -379,6 +391,12 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         bookId: widget.bookId,
         chapterIndex: widget.chapterIndex,
         chapterCharOffset: widget.chapterCharOffset,
+        chapterPage: widget.chapterPage,
+        chapterPageEnd: widget.chapterPageEnd,
+        chapterPageCount: widget.chapterPageCount,
+        bookPage: widget.bookPage,
+        bookPageTotal: widget.bookPageTotal,
+        currentPageText: widget.currentPageText,
       );
 
   Future<void> _stream(

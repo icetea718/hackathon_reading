@@ -131,6 +131,12 @@ Widget _host(
   ValueNotifier<int>? chapter,
   int chapterIndex = 1,
   ValueChanged<int>? onGoToChapter,
+  int? chapterPage,
+  int? chapterPageEnd,
+  int? chapterPageCount,
+  int? bookPage,
+  int? bookPageTotal,
+  String currentPageText = '',
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
@@ -148,6 +154,12 @@ Widget _host(
     chapter: chapter,
     chapterIndex: chapterIndex,
     onGoToChapter: onGoToChapter,
+    chapterPage: chapterPage,
+    chapterPageEnd: chapterPageEnd,
+    chapterPageCount: chapterPageCount,
+    bookPage: bookPage,
+    bookPageTotal: bookPageTotal,
+    currentPageText: currentPageText,
   );
 }
 
@@ -158,6 +170,12 @@ Widget _wrap(
   ValueNotifier<int>? chapter,
   int chapterIndex = 1,
   ValueChanged<int>? onGoToChapter,
+  int? chapterPage,
+  int? chapterPageEnd,
+  int? chapterPageCount,
+  int? bookPage,
+  int? bookPageTotal,
+  String currentPageText = '',
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
   if (db == null) addTearDown(database.close);
@@ -180,6 +198,12 @@ Widget _wrap(
             chapterTitle: '第${index + 1}章',
             chapterText: '福贵牵着老牛走在田埂上。',
             chapterCharOffset: 4,
+            chapterPage: chapterPage,
+            chapterPageEnd: chapterPageEnd,
+            chapterPageCount: chapterPageCount,
+            bookPage: bookPage,
+            bookPageTotal: bookPageTotal,
+            currentPageText: currentPageText,
             onGoToChapter: onGoToChapter,
           ),
         ),
@@ -246,6 +270,30 @@ void main() {
     expect(fake.prompts, contains('chat:福贵为什么败家？'));
     expect(find.text('福贵为什么败家？'), findsOneWidget);
     expect(find.textContaining('是因为赌博'), findsOneWidget);
+  });
+
+  testWidgets('the request carries the page being read', (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(
+      fake,
+      chapterPage: 3,
+      chapterPageEnd: 4,
+      chapterPageCount: 20,
+      bookPage: 42,
+      bookPageTotal: 300,
+      currentPageText: '这一页的正文。',
+    ));
+    await _settle(tester);
+
+    await _ask(tester);
+
+    final context = fake.lastContext!;
+    expect(context.chapterPage, 3);
+    expect(context.chapterPageEnd, 4);
+    expect(context.chapterPageCount, 20);
+    expect(context.bookPage, 42);
+    expect(context.bookPageTotal, 300);
+    expect(context.currentPageText, '这一页的正文。');
   });
 
   testWidgets('pressing enter sends the question', (tester) async {

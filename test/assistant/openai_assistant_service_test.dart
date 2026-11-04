@@ -91,6 +91,46 @@ void main() {
     expect(messages.last.content, '这一章讲了什么？');
   });
 
+  test('chat tells the model which page the reader is on', () async {
+    const paged = ReadingContext(
+      bookTitle: '活着',
+      chapterTitle: '第一章',
+      chapterText: '前后的正文。',
+      chapterPage: 3,
+      chapterPageEnd: 4,
+      chapterPageCount: 20,
+      bookPage: 42,
+      bookPageTotal: 300,
+      currentPageText: '这一页的正文。',
+    );
+    final client = FakeLlmClient(reply: '好的');
+    final service = OpenAiAssistantService(client: client, config: configured);
+
+    await service.chat(paged, const [], '这一页讲了什么？').toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains('第 3–4 / 20 页'));
+    expect(system, contains('全书第 42 / 300 页'));
+    expect(system, contains('【读者正在看的这一页】'));
+    expect(system, contains('这一页的正文。'));
+  });
+
+  test('a single page reports one page number', () async {
+    const paged = ReadingContext(
+      bookTitle: '活着',
+      chapterPage: 3,
+      chapterPageCount: 20,
+    );
+    final client = FakeLlmClient(reply: '好的');
+    final service = OpenAiAssistantService(client: client, config: configured);
+
+    await service.chat(paged, const [], '这一页讲了什么？').toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains('读者当前位置：第 3 / 20 页'));
+    expect(system, isNot(contains('–')));
+  });
+
   test('summarizeChapter asks for a summary of this chapter', () async {
     final client = FakeLlmClient(reply: '摘要');
     final service = OpenAiAssistantService(client: client, config: configured);

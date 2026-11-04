@@ -88,15 +88,35 @@ class OpenAiAssistantService implements AssistantService {
     if (context.chapterTitle.isNotEmpty) {
       lines.add('当前章节：${context.chapterTitle}');
     }
+    final location = _pageLocation(context);
+    if (location != null) {
+      lines.add('读者当前位置：$location');
+    }
     if (context.bookBrief.isNotEmpty) {
       lines.add('【全书蒸馏】\n${context.bookBrief}');
     }
     if (context.companionMemory.isNotEmpty) {
       lines.add('【此前章节的对话纪要】\n${context.companionMemory}');
     }
+    if (context.currentPageText.isNotEmpty) {
+      lines.add('【读者正在看的这一页】\n${context.currentPageText}');
+    }
     if (context.chapterText.isNotEmpty) {
       lines.add('【当前章节内容】\n${context.chapterText}');
     }
     return LlmMessage(LlmRole.system, lines.join('\n'));
+  }
+
+  String? _pageLocation(ReadingContext context) {
+    final page = context.chapterPage;
+    if (page == null || page <= 0) return null;
+    final count = context.chapterPageCount;
+    final end = context.chapterPageEnd;
+    final pages = end != null && end > page ? '第 $page–$end' : '第 $page';
+    final chapter = count == null ? '$pages 页' : '$pages / $count 页';
+    final book = context.bookPage;
+    if (book == null) return chapter;
+    final total = context.bookPageTotal;
+    return '$chapter · 全书第 $book${total == null ? ' 页' : ' / $total 页'}';
   }
 }

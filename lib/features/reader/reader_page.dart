@@ -928,6 +928,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final offset =
         (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
         chapter.startOffset;
+    final pageInfo = _companionPageInfo(index, data.chapters, text);
 
     // A side column narrows the reading area, so keep the reader on the same
     // passage across the re-pagination. Phones keep the bottom sheet.
@@ -941,6 +942,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           chapterTitle: chapter.title,
           chapterText: text,
           chapterCharOffset: offset < 0 ? 0 : offset,
+          chapterPage: pageInfo.page,
+          chapterPageEnd: pageInfo.pageEnd,
+          chapterPageCount: pageInfo.pageCount,
+          bookPage: pageInfo.bookPage,
+          bookPageTotal: pageInfo.bookPageTotal,
+          currentPageText: pageInfo.text,
           bookTitle: data.book?.title ?? '',
           author: data.book?.author ?? '',
           onGoToChapter: (index) {
@@ -1003,6 +1010,70 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     }
   }
 
+  ({
+    int? page,
+    int? pageEnd,
+    int? pageCount,
+    int? bookPage,
+    int? bookPageTotal,
+    String text,
+  }) _companionPageInfo(
+    int chapterIndex,
+    List<Chapter> chapters,
+    String chapterText,
+  ) {
+    const empty = (
+      page: null,
+      pageEnd: null,
+      pageCount: null,
+      bookPage: null,
+      bookPageTotal: null,
+      text: '',
+    );
+    final pagination = _pagination;
+    if (pagination == null ||
+        chapterIndex < 0 ||
+        chapterIndex >= chapters.length ||
+        _paginationChapterId != chapters[chapterIndex].id ||
+        pagination.pageCount == 0) {
+      return empty;
+    }
+    final startIndex = _pageIndex.clamp(0, pagination.pageCount - 1);
+    final spreadEnd = _doubleSpread && !_translationActive ? _pageEndIndex : null;
+    final endIndex = spreadEnd == null
+        ? startIndex
+        : spreadEnd.clamp(startIndex, pagination.pageCount - 1);
+    final start = pagination.pageAt(startIndex).start;
+    final end = pagination.pageAt(endIndex).end;
+    final pageText = start >= 0 && end > start && end <= chapterText.length
+        ? chapterText.substring(start, end).trim()
+        : '';
+    final counts = _bookPageCountsSignature != null &&
+            _bookPageCountsSignature == _bookPageSignature &&
+            _bookPageCounts != null &&
+            _bookPageCounts!.length == chapters.length
+        ? _bookPageCounts
+        : null;
+    int? bookPage;
+    int? bookPageTotal;
+    if (counts != null) {
+      bookPageTotal = counts.fold<int>(0, (sum, count) => sum + count);
+      bookPage = bookPageAt(
+        chapterPageCounts: counts,
+        chapterIndex: chapterIndex,
+        pageIndex: startIndex,
+      );
+    }
+    return (
+      page: startIndex + 1,
+      pageEnd: endIndex > startIndex ? endIndex + 1 : null,
+      pageCount: pagination.pageCount,
+      bookPage: bookPage,
+      bookPageTotal: bookPageTotal,
+      text: pageText,
+    );
+  }
+
   Widget? _buildCompanionPanel(
     ReaderData data,
     List<Chapter> chapters,
@@ -1022,6 +1093,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             _paginationChapterId == currentChapter.id
         ? pagination.pageAt(_pageIndex.clamp(0, pagination.pageCount - 1)).start
         : _companionCharOffset;
+    final pageInfo =
+        _companionPageInfo(panelIndex, chapters, _companionChapterText);
     return SizedBox(
       width: _companionPanelWidth,
       child: CompanionPanel(
@@ -1030,6 +1103,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         chapterTitle: panelChapter.title,
         chapterText: _companionChapterText,
         chapterCharOffset: offset,
+        chapterPage: pageInfo.page,
+        chapterPageEnd: pageInfo.pageEnd,
+        chapterPageCount: pageInfo.pageCount,
+        bookPage: pageInfo.bookPage,
+        bookPageTotal: pageInfo.bookPageTotal,
+        currentPageText: pageInfo.text,
         bookTitle: data.book?.title ?? '',
         author: data.book?.author ?? '',
         docked: true,

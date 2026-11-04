@@ -12,6 +12,7 @@ import 'package:hackathon_reading/data/repositories/companion_chat_repository.da
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
+import 'package:hackathon_reading/features/companion/companion_panel.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 
 class _EchoAssistant implements AssistantService {
@@ -157,6 +158,20 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
     expect(find.textContaining('陪读 · 第一章'), findsOneWidget);
     expect(find.textContaining('未配置 AI 服务'), findsOneWidget);
+  });
+
+  testWidgets('the companion knows which page is open', (tester) async {
+    useWindow(tester, const Size(1400, 900));
+    await pumpReader(tester);
+
+    await tester.tap(find.byTooltip('陪读'));
+    await tester.pumpAndSettle();
+
+    final panel =
+        tester.widget<CompanionPanel>(find.byType(CompanionPanel));
+    expect(panel.chapterPage, 1);
+    expect(panel.chapterPageCount, greaterThanOrEqualTo(1));
+    expect(panel.currentPageText, contains('第一章的内容'));
   });
 
   testWidgets('closing the side panel leaves the reader in place',
