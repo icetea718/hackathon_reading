@@ -7,6 +7,7 @@ import '../../search/search_book.dart';
 import '../root/app_mode.dart';
 import '../root/mode_switch.dart';
 import '../settings/settings_page.dart';
+import 'book_memory_sheet.dart';
 import 'book_picker.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
@@ -80,6 +81,11 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     );
   }
 
+  void _openBookMemory(String bookId) {
+    ref.invalidate(bookMemoryProvider(bookId));
+    showBookMemorySheet(context, bookId);
+  }
+
   Future<void> _pickBook() async {
     final picked = await showBookPicker(context);
     if (!mounted || picked == null) return;
@@ -139,6 +145,9 @@ class _SearchShellState extends ConsumerState<SearchShell> {
           children: [
             _Header(
               wide: wide,
+              bookSelected: bookId != null,
+              onOpenBookMemory:
+                  bookId == null ? null : () => _openBookMemory(bookId),
               onModeChanged: (mode) =>
                   ref.read(modeProvider.notifier).select(mode),
               onSettings: _openSettings,
@@ -210,13 +219,17 @@ class _SearchShellState extends ConsumerState<SearchShell> {
 class _Header extends StatelessWidget {
   const _Header({
     required this.wide,
+    required this.bookSelected,
     required this.onModeChanged,
     required this.onSettings,
+    this.onOpenBookMemory,
   });
 
   final bool wide;
+  final bool bookSelected;
   final ValueChanged<AppMode> onModeChanged;
   final VoidCallback onSettings;
+  final VoidCallback? onOpenBookMemory;
 
   @override
   Widget build(BuildContext context) {
@@ -242,6 +255,13 @@ class _Header extends StatelessWidget {
               ),
             ),
           const Spacer(),
+          if (bookSelected)
+            IconButton(
+              key: const Key('search-book-memory'),
+              tooltip: '本书资料',
+              onPressed: onOpenBookMemory,
+              icon: const Icon(Icons.auto_stories_outlined),
+            ),
           IconButton(
             key: const Key('chat-settings'),
             tooltip: '设置',

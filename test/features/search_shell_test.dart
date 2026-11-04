@@ -588,6 +588,22 @@ void main() {
     await disposeShell(tester);
   });
 
+  testWidgets('the book memory shortcut appears only with a book picked',
+      (tester) async {
+    await pumpShell(tester, client: InstantClient('ok'));
+
+    expect(find.byKey(const Key('search-book-memory')), findsNothing);
+
+    await tester.runAsync(
+      () => BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖')),
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    expect(find.byKey(const Key('search-book-memory')), findsOneWidget);
+    await disposeShell(tester);
+  });
+
   testWidgets('picking a book switches the sidebar to that book history',
       (tester) async {
     setWide(tester);
