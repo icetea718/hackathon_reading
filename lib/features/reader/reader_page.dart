@@ -1085,6 +1085,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                             ),
                             child: SelectableText.rich(
                               TextSpan(children: paneSpans),
+                              scrollBehavior: ScrollConfiguration.of(
+                                context,
+                              ).copyWith(scrollbars: false),
                               scrollPhysics: const NeverScrollableScrollPhysics(),
                               contextMenuBuilder: (context, state) =>
                                   _selectionToolbar(
@@ -1153,6 +1156,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                                 ),
                                 child: SelectableText.rich(
                                   TextSpan(children: spans),
+                                  scrollBehavior: ScrollConfiguration.of(
+                                    context,
+                                  ).copyWith(scrollbars: false),
                                   scrollPhysics:
                                       const NeverScrollableScrollPhysics(),
                                   contextMenuBuilder: (context, state) =>

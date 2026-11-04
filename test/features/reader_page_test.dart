@@ -81,11 +81,18 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpReader(WidgetTester tester, String bookId) async {
+  Future<void> pumpReader(
+    WidgetTester tester,
+    String bookId, {
+    TargetPlatform? platform,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
-        child: MaterialApp(home: ReaderPage(bookId: bookId)),
+        child: MaterialApp(
+          theme: platform == null ? null : ThemeData(platform: platform),
+          home: ReaderPage(bookId: bookId),
+        ),
       ),
     );
     await tester.runAsync(
@@ -371,12 +378,24 @@ void main() {
   testWidgets('locks the reading surface and hides desktop scrollbars', (
     tester,
   ) async {
-    await seedLongBook();
-    await pumpReader(tester, 'long');
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-    expect(find.byType(RawScrollbar), findsNothing);
-    final body = tester.widget<SelectableText>(find.byType(SelectableText));
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long', platform: TargetPlatform.windows);
+
+    expect(find.byType(Scrollbar), findsNothing);
+    final body = tester.widget<SelectableText>(
+      find.byType(SelectableText).first,
+    );
     expect(body.scrollPhysics, isA<NeverScrollableScrollPhysics>());
+
+    await tester.tap(find.byTooltip('目录'));
+    await tester.pumpAndSettle();
+    expect(find.text('第一章'), findsOneWidget);
+    expect(find.byType(Scrollbar), findsNothing);
 
     await disposeApp(tester);
   });
