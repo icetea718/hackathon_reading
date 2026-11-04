@@ -113,6 +113,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   static const _backgroundKey = 'reader.background';
   static const _spreadKey = 'reader.spread';
   static const _railPinnedKey = 'reader.railPinned';
+  static const _companionPanelWidth = 360.0;
+  static const _companionDockMinWidth = 900.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
@@ -162,6 +164,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   int _comicPageCount = 0;
   bool _comicInitialized = false;
   bool _comicDouble = false;
+  bool _companionOpen = false;
+  int? _companionChapterIndex;
+  int? _companionLoadingIndex;
+  String _companionChapterText = '';
+  int _companionCharOffset = 0;
+  int _companionLoadToken = 0;
 
   @override
   void initState() {
@@ -888,7 +896,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _goToOffset(anchor);
   }
 
-  Future<void> _openCompanion() async {
+  Future<void> _toggleCompanion() async {
+    if (_companionOpen) {
+      _closeCompanion();
+      return;
+    }
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     final index = _chapterIndex.clamp(0, data.chapters.length - 1);
@@ -900,17 +912,108 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final offset =
         (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
         chapter.startOffset;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => CompanionPanel(
+
+    // A side column narrows the reading area, so keep the reader on the same
+    // passage across the re-pagination. Phones keep the bottom sheet.
+    if (MediaQuery.sizeOf(context).width < _companionDockMinWidth) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => CompanionPanel(
+          bookId: widget.bookId,
+          chapterIndex: index,
+          chapterTitle: chapter.title,
+          chapterText: text,
+          chapterCharOffset: offset < 0 ? 0 : offset,
+          bookTitle: data.book?.title ?? '',
+          author: data.book?.author ?? '',
+        ),
+      );
+      return;
+    }
+
+    final anchor = _currentPageStartOffset(data.chapters);
+    ++_companionLoadToken;
+    setState(() {
+      if (anchor != null) _pendingOffset = anchor;
+      _companionOpen = true;
+      _companionChapterIndex = index;
+      _companionLoadingIndex = null;
+      _companionChapterText = text;
+      _companionCharOffset = offset < 0 ? 0 : offset;
+    });
+  }
+
+  void _closeCompanion() {
+    ++_companionLoadToken;
+    final anchor = _currentPageStartOffset(_cachedData?.chapters ?? const []);
+    setState(() {
+      if (anchor != null) _pendingOffset = anchor;
+      _companionOpen = false;
+      _companionLoadingIndex = null;
+    });
+  }
+
+  void _ensureCompanionChapter(int index) {
+    if (_companionChapterIndex == index || _companionLoadingIndex == index) {
+      return;
+    }
+    unawaited(_loadCompanionChapter(index));
+  }
+
+  Future<void> _loadCompanionChapter(int index) async {
+    final data = _cachedData;
+    if (data == null || index < 0 || index >= data.chapters.length) return;
+    _companionLoadingIndex = index;
+    final token = ++_companionLoadToken;
+    try {
+      final text = await ref.read(
+        chapterContentProvider((bookId: widget.bookId, index: index)).future,
+      );
+      if (!mounted || token != _companionLoadToken || !_companionOpen) return;
+      setState(() {
+        _companionChapterIndex = index;
+        _companionChapterText = text;
+        _companionCharOffset = 0;
+      });
+    } finally {
+      if (mounted && _companionLoadingIndex == index) {
+        _companionLoadingIndex = null;
+      }
+    }
+  }
+
+  Widget? _buildCompanionPanel(
+    ReaderData data,
+    List<Chapter> chapters,
+    int currentIndex,
+    Chapter currentChapter,
+  ) {
+    if (!_companionOpen) return null;
+    final loadedIndex = _companionChapterIndex;
+    if (loadedIndex == null) return null;
+    final panelIndex = loadedIndex.clamp(0, chapters.length - 1);
+    final panelChapter = chapters[panelIndex];
+    final pagination = _pagination;
+    final offset =
+        panelIndex == currentIndex &&
+            pagination != null &&
+            pagination.pageCount > 0 &&
+            _paginationChapterId == currentChapter.id
+        ? pagination.pageAt(_pageIndex.clamp(0, pagination.pageCount - 1)).start
+        : _companionCharOffset;
+    return SizedBox(
+      width: _companionPanelWidth,
+      child: CompanionPanel(
         bookId: widget.bookId,
-        chapterIndex: index,
-        chapterTitle: chapter.title,
-        chapterText: text,
-        chapterCharOffset: offset < 0 ? 0 : offset,
+        chapterIndex: panelIndex,
+        chapterTitle: panelChapter.title,
+        chapterText: _companionChapterText,
+        chapterCharOffset: offset,
         bookTitle: data.book?.title ?? '',
         author: data.book?.author ?? '',
+        docked: true,
+        onClose: _closeCompanion,
       ),
     );
   }
@@ -1231,6 +1334,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             ref.watch(readerAnnotationListProvider(widget.bookId)).value ??
             const <Annotation>[];
         final currentChapter = chapters[index];
+        if (_companionOpen && _companionChapterIndex != index) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _companionOpen) _ensureCompanionChapter(index);
+          });
+        }
         final chapterBookmarked = bookmarks.any(
           (bookmark) => bookmark.chapterId == currentChapter.id,
         );
@@ -1539,7 +1647,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           },
         );
 
+        final companionPanel = _buildCompanionPanel(
+          readerData,
+          chapters,
+          index,
+          currentChapter,
+        );
         final body = _decorateBody(contentBody);
+        final readerBody = CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): () =>
+                _hideRailNow(suppressHotzone: true),
+            const SingleActivator(LogicalKeyboardKey.arrowLeft):
+                _goToPreviousPage,
+            const SingleActivator(LogicalKeyboardKey.arrowRight):
+                _goToNextPage,
+            const SingleActivator(LogicalKeyboardKey.pageUp):
+                _goToPreviousPage,
+            const SingleActivator(LogicalKeyboardKey.pageDown):
+                _goToNextPage,
+          },
+          child: Focus(autofocus: true, child: body),
+        );
+        final scaffoldBody = companionPanel == null
+            ? readerBody
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: readerBody),
+                  companionPanel,
+                ],
+              );
 
         return Scaffold(
           key: _scaffoldKey,
@@ -1561,7 +1699,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 _translationBusy &&
                 _translationChapterId == currentChapter.id,
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
-            onOpenCompanion: _openCompanion,
+            onOpenCompanion: _toggleCompanion,
             onOpenReaderSettings: _openSettings,
           ),
           endDrawer: TocDrawer(
@@ -1573,21 +1711,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onSelectBookmark: _goToOffset,
             onDeleteBookmark: _deleteBookmark,
           ),
-          body: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.escape): () =>
-                  _hideRailNow(suppressHotzone: true),
-              const SingleActivator(LogicalKeyboardKey.arrowLeft):
-                  _goToPreviousPage,
-              const SingleActivator(LogicalKeyboardKey.arrowRight):
-                  _goToNextPage,
-              const SingleActivator(LogicalKeyboardKey.pageUp):
-                  _goToPreviousPage,
-              const SingleActivator(LogicalKeyboardKey.pageDown):
-                  _goToNextPage,
-            },
-            child: Focus(autofocus: true, child: body),
-          ),
+          body: scaffoldBody,
           bottomNavigationBar: _navigationBar(index, chapters),
         );
       },
@@ -1612,7 +1736,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               pinned: true,
               onTogglePinned: _toggleRailPinned,
               onBackToLibrary: _backToLibrary,
-              onOpenCompanion: _openCompanion,
+              onOpenCompanion: _toggleCompanion,
               onOpenSettings: _openAppSettings,
               background: _colors.$1,
               foreground: _colors.$2,
@@ -1669,7 +1793,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   elevated: true,
                   onTogglePinned: _toggleRailPinned,
                   onBackToLibrary: _backToLibrary,
-                  onOpenCompanion: _openCompanion,
+                  onOpenCompanion: _toggleCompanion,
                   onOpenSettings: _openAppSettings,
                   background: _colors.$1,
                   foreground: _colors.$2,
@@ -2010,7 +2134,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           IconButton(
             tooltip: '陪读',
             icon: const Icon(Icons.forum_outlined),
-            onPressed: _openCompanion,
+            onPressed: _toggleCompanion,
           ),
           IconButton(
             tooltip: '设置',

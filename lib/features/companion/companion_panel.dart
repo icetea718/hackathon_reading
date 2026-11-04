@@ -11,7 +11,8 @@ import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
 
-/// Bottom-sheet companion chat for the chapter the reader is looking at.
+/// Companion chat for the chapter the reader is looking at. Laid out as a
+/// bottom sheet by default, or as a docked side column when [docked] is set.
 class CompanionPanel extends ConsumerStatefulWidget {
   const CompanionPanel({
     super.key,
@@ -22,6 +23,8 @@ class CompanionPanel extends ConsumerStatefulWidget {
     required this.chapterCharOffset,
     this.bookTitle = '',
     this.author = '',
+    this.docked = false,
+    this.onClose,
   });
 
   final String bookId;
@@ -31,6 +34,12 @@ class CompanionPanel extends ConsumerStatefulWidget {
   final int? chapterCharOffset;
   final String bookTitle;
   final String author;
+
+  /// Whether to fill the parent instead of sizing itself as a bottom sheet.
+  final bool docked;
+
+  /// Shown as a close button in the header when non-null.
+  final VoidCallback? onClose;
 
   @override
   ConsumerState<CompanionPanel> createState() => _CompanionPanelState();
@@ -188,13 +197,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         service.value.isConfigured;
     final loading = service is AsyncLoading<AssistantService>;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.7,
-        child: Column(
+    final panel = Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
@@ -218,6 +221,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                     onPressed: configured && !_busy ? _summarize : null,
                     child: const Text('总结本章'),
                   ),
+                  if (widget.onClose != null)
+                    IconButton(
+                      key: const Key('companion-close'),
+                      tooltip: '关闭陪读',
+                      icon: const Icon(Icons.close),
+                      onPressed: widget.onClose,
+                    ),
                 ],
               ),
             ),
@@ -316,7 +326,27 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               ),
             ],
           ],
+        );
+
+    if (widget.docked) {
+      final scheme = Theme.of(context).colorScheme;
+      return Container(
+        key: const Key('companion-docked'),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          border: Border(left: BorderSide(color: scheme.outlineVariant)),
         ),
+        child: SafeArea(left: false, child: panel),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: panel,
       ),
     );
   }
