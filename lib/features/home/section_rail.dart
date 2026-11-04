@@ -80,19 +80,26 @@ class SectionRail extends StatelessWidget {
         children: [
           const SizedBox(height: 12),
           Container(
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '阅',
               style: TextStyle(
                 color: theme.colorScheme.onPrimary,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                height: 1,
+                fontFamily: 'Source Han Serif SC',
+                fontFamilyFallback: const [
+                  'Noto Serif CJK SC',
+                  'SimSun',
+                  'Georgia',
+                ],
               ),
             ),
           ),

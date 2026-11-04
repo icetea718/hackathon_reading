@@ -70,6 +70,22 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('the brand mark uses the larger serif style', (tester) async {
+    await pumpApp(tester);
+
+    final mark = tester.widget<Text>(find.text('阅'));
+    expect(mark.style?.fontSize, 18);
+    expect(mark.style?.fontWeight, FontWeight.w600);
+    expect(mark.style?.fontFamily, 'Source Han Serif SC');
+
+    final box = tester.widget<Container>(
+      find.ancestor(of: find.text('阅'), matching: find.byType(Container)).first,
+    );
+    final decoration = box.decoration! as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(10));
+    await disposeApp(tester);
+  });
+
   testWidgets('the new-section entry is disabled', (tester) async {
     await pumpApp(tester);
     final button = tester.widget<IconButton>(
