@@ -65,7 +65,7 @@ class _CompanionAvatarState extends State<CompanionAvatar>
             : Image.asset(
                 widget.assetPath!,
                 fit: BoxFit.contain,
-                errorBuilder: (context, _, __) => _placeholder(context),
+                errorBuilder: (context, _, _) => _placeholder(context),
               ),
       ),
     );
