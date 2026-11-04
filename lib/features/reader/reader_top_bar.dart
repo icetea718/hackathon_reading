@@ -16,6 +16,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onOpenToc,
     this.onOpenCompanion,
     this.onOpenReaderSettings,
+    this.onToggleSpread,
+    this.doubleSpread = false,
     this.comicMode = false,
   });
 
@@ -32,6 +34,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onOpenToc;
   final VoidCallback? onOpenCompanion;
   final VoidCallback? onOpenReaderSettings;
+  final VoidCallback? onToggleSpread;
+  final bool doubleSpread;
   final bool comicMode;
 
   @override
@@ -78,6 +82,17 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                   ).textTheme.titleMedium?.copyWith(color: foreground),
                 ),
               ),
+              if (onToggleSpread != null)
+                IconButton(
+                  key: const Key('reader-spread-toggle'),
+                  tooltip: doubleSpread ? '双页' : '单页',
+                  icon: Icon(
+                    doubleSpread
+                        ? Icons.auto_stories_outlined
+                        : Icons.crop_portrait,
+                  ),
+                  onPressed: onToggleSpread,
+                ),
               IconButton(
                 tooltip: '目录',
                 icon: const Icon(Icons.menu),

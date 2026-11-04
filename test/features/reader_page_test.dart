@@ -1548,6 +1548,14 @@ void main() {
       await tester.pump();
     }
 
+    Future<void> pumpComicWide(WidgetTester tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.binding.handleMetricsChanged();
+      await pumpComic(tester);
+    }
+
     IconButton toolbarButton(WidgetTester tester, String tooltip) {
       return tester.widget<IconButton>(
         find.ancestor(
@@ -1791,6 +1799,103 @@ void main() {
       );
       expect(saved!.anchor.page, 3);
       expect(saved.percent, closeTo(1.0, 0.001));
+      await disposeApp(tester);
+    });
+
+    testWidgets('renders two comic pages per spread on a wide window', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.text('第 1 / 3 页 · 33%'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('moves comic spreads with buttons and keys', (tester) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
+      expect(find.text('第 3 / 3 页 · 100%'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '上一页'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the top bar toggles the spread and persists it', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+      expect(find.byTooltip('双页'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('reader-spread-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comic-page-1')), findsNothing);
+      expect(find.byTooltip('单页'), findsOneWidget);
+
+      final stored = await tester.runAsync(
+        () => SettingsRepository(db).get('reader.spread'),
+      );
+      expect(stored, 'single');
+
+      await tester.tap(find.byKey(const Key('reader-spread-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('a saved comic page opens its spread', (tester) async {
+      await ProgressRepository(db).save(
+        ReadingProgress(
+          bookId: 'manga',
+          anchor: const ReadingAnchor.page(2),
+          percent: 2 / 3,
+          updatedAt: DateTime(2026, 1, 6),
+        ),
+      );
+      await pumpComicWide(tester);
+
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the drawer jump opens the spread containing the page', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.byTooltip('目录'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('第一话'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('pinning the rail keeps a coherent spread', (tester) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.byTooltip('固定左栏'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
       await disposeApp(tester);
     });
   });

@@ -144,6 +144,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   int _comicPageIndex = 0;
   int _comicPageCount = 0;
   bool _comicInitialized = false;
+  bool _comicDouble = false;
 
   @override
   void initState() {
@@ -1348,17 +1349,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           );
         }
         final total = pages.length;
+        final doubleSpread = spreadApplies(
+          _spread,
+          MediaQuery.sizeOf(context).width,
+        );
         if (!_comicInitialized) {
           _comicInitialized = true;
           _comicPageCount = total;
           final saved = data.progress?.anchor.page ?? 1;
           _comicPageIndex = (saved - 1).clamp(0, total - 1);
-          _comicController = PageController(initialPage: _comicPageIndex);
+          _comicDouble = doubleSpread;
+          _comicController = PageController(
+            initialPage: doubleSpread ? _comicPageIndex ~/ 2 : _comicPageIndex,
+          );
         } else if (_comicPageCount != total) {
           _comicPageCount = total;
           _comicPageIndex = _comicPageIndex.clamp(0, total - 1);
         }
-        final index = _comicPageIndex.clamp(0, total - 1);
+        if (_comicDouble != doubleSpread) {
+          _comicDouble = doubleSpread;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            final controller = _comicController;
+            if (controller == null || !controller.hasClients) return;
+            controller.jumpToPage(
+              _comicDouble ? _comicPageIndex ~/ 2 : _comicPageIndex,
+            );
+          });
+        }
+        final index = _comicDouble
+            ? spreadPageIndex(_comicPageIndex)
+            : _comicPageIndex.clamp(0, total - 1);
         final percent = (index + 1) / total;
         final bookmarks =
             ref.watch(bookmarkListProvider(widget.bookId)).value ??
@@ -1378,6 +1399,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onTogglePinned: _toggleRailPinned,
             bookmarked: pageBookmarked,
             onToggleBookmark: () => _toggleComicBookmark(index + 1),
+            onToggleSpread: _toggleSpread,
+            doubleSpread: _comicDouble,
             comicMode: true,
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
@@ -1392,9 +1415,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           body: CallbackShortcuts(
             bindings: {
               const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-                  _goToComicPage(index - 1),
+                  _shiftComicSpread(-1),
               const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-                  _goToComicPage(index + 1),
+                  _shiftComicSpread(1),
+              const SingleActivator(LogicalKeyboardKey.pageUp): () =>
+                  _shiftComicSpread(-1),
+              const SingleActivator(LogicalKeyboardKey.pageDown): () =>
+                  _shiftComicSpread(1),
             },
             child: Focus(
               autofocus: true,
@@ -1402,10 +1429,29 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 PageView.builder(
                   key: const Key('comic-page-view'),
                   controller: _comicController,
-                  itemCount: total,
+                  itemCount: _comicDouble ? spreadCount(total) : total,
                   onPageChanged: _onComicPageChanged,
-                  itemBuilder: (context, pageIndex) =>
-                      _comicPage(pages[pageIndex], pageIndex),
+                  itemBuilder: (context, itemIndex) {
+                    if (!_comicDouble) {
+                      return _comicPage(pages[itemIndex], itemIndex);
+                    }
+                    final left = itemIndex * 2;
+                    final right = left + 1;
+                    return Row(
+                      children: [
+                        Expanded(child: _comicPage(pages[left], left)),
+                        SizedBox(
+                          width: kSpreadGutterWidth,
+                          child: ColoredBox(color: _colors.$1),
+                        ),
+                        Expanded(
+                          child: right < total
+                              ? _comicPage(pages[right], right)
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 companionEnabled: false,
                 companionTooltip: '漫画暂不支持陪读',
@@ -1435,9 +1481,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
-  void _onComicPageChanged(int index) {
-    if (!mounted || index == _comicPageIndex) return;
-    setState(() => _comicPageIndex = index);
+  void _onComicPageChanged(int itemIndex) {
+    final total = _comicPageCount;
+    if (total <= 0) return;
+    final concrete = _comicDouble
+        ? (itemIndex * 2).clamp(0, total - 1)
+        : itemIndex.clamp(0, total - 1);
+    if (!mounted || concrete == _comicPageIndex) return;
+    setState(() => _comicPageIndex = concrete);
     _comicSaveTimer?.cancel();
     _comicSaveTimer = Timer(
       const Duration(milliseconds: 300),
@@ -1451,14 +1502,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final controller = _comicController;
     if (controller != null && controller.hasClients) {
       controller.animateToPage(
-        target,
+        _comicDouble ? target ~/ 2 : target,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
       return;
     }
-    if (target == _comicPageIndex) return;
-    setState(() => _comicPageIndex = target);
+    final concrete = _comicDouble ? spreadPageIndex(target) : target;
+    if (concrete == _comicPageIndex) return;
+    setState(() => _comicPageIndex = concrete);
     _comicSaveTimer?.cancel();
     _comicSaveTimer = Timer(
       const Duration(milliseconds: 300),
@@ -1466,11 +1518,36 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  void _shiftComicSpread(int delta) {
+    if (_comicPageCount <= 0) return;
+    final step = _comicDouble ? 2 : 1;
+    final target = _comicPageIndex + delta * step;
+    if (target < 0 || target >= _comicPageCount) return;
+    _goToComicPage(target);
+  }
+
+  void _toggleSpread() {
+    final next = _spread == ReaderSpread.double
+        ? ReaderSpread.single
+        : ReaderSpread.double;
+    final chapters = _cachedData?.chapters ?? const <Chapter>[];
+    final comic = _cachedData?.book?.comic ?? false;
+    final anchor = comic ? null : _currentPageStartOffset(chapters);
+    setState(() {
+      if (anchor != null) _pendingOffset = anchor;
+      _spread = next;
+    });
+    _settingsRepository?.set(_spreadKey, next.name).catchError((Object _) {});
+  }
+
   void _persistComicProgress() {
     final total = _comicPageCount;
     final repository = _progressRepository;
     if (total <= 0 || repository == null) return;
-    final page = _comicPageIndex.clamp(0, total - 1) + 1;
+    final left = _comicDouble
+        ? spreadPageIndex(_comicPageIndex)
+        : _comicPageIndex;
+    final page = left.clamp(0, total - 1) + 1;
     repository
         .save(
           ReadingProgress(
@@ -1485,6 +1562,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _comicNavigationBar(int total, int index, double percent) {
     final (background, foreground) = _colors;
+    final step = _comicDouble ? 2 : 1;
     return Container(
       color: background,
       child: SafeArea(
@@ -1503,8 +1581,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               child: Row(
                 children: [
                   TextButton.icon(
-                    onPressed:
-                        index > 0 ? () => _goToComicPage(index - 1) : null,
+                    onPressed: index - step >= 0
+                        ? () => _shiftComicSpread(-1)
+                        : null,
                     icon: const Icon(Icons.chevron_left),
                     label: const Text('上一页'),
                     style: TextButton.styleFrom(foregroundColor: foreground),
@@ -1518,8 +1597,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: index < total - 1
-                        ? () => _goToComicPage(index + 1)
+                    onPressed: index + step < total
+                        ? () => _shiftComicSpread(1)
                         : null,
                     icon: const Icon(Icons.chevron_right),
                     label: const Text('下一页'),
