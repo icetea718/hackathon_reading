@@ -561,13 +561,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
+  (int, int) _pageOffsets(Chapter chapter) {
+    final data = _cachedData;
+    final pagination = data == null ? null : _validPagination(data.chapters);
+    if (pagination == null) {
+      return (chapter.startOffset, chapter.endOffset);
+    }
+    final page = pagination.pageAt(_pageIndex);
+    final start = chapter.startOffset + page.start;
+    final end = chapter.startOffset + page.end;
+    return (start, end > start ? end : start + 1);
+  }
+
   Future<void> _toggleBookmark(Chapter chapter) async {
     final repository = ref.read(annotationRepositoryProvider);
     try {
+      final (pageStart, pageEnd) = _pageOffsets(chapter);
       final existing = (await repository.getForBook(
         widget.bookId,
         type: AnnotationType.bookmark,
-      )).where((bookmark) => bookmark.chapterId == chapter.id).toList();
+      )).where(
+        (bookmark) =>
+            bookmark.chapterId == chapter.id &&
+            bookmark.anchorStart >= pageStart &&
+            bookmark.anchorStart < pageEnd,
+      ).toList();
 
       if (existing.isNotEmpty) {
         for (final bookmark in existing) {
@@ -579,15 +597,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       }
 
       final now = DateTime.now();
-      final anchorStart =
-          _currentProgress()?.anchor.charOffset ?? chapter.startOffset;
       await repository.upsert(
         Annotation(
           id: const Uuid().v4(),
           bookId: widget.bookId,
           chapterId: chapter.id,
           type: AnnotationType.bookmark,
-          anchorStart: anchorStart,
+          anchorStart: pageStart,
           createdAt: now,
           updatedAt: now,
         ),
@@ -1340,8 +1356,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             if (mounted && _companionOpen) _ensureCompanionChapter(index);
           });
         }
-        final chapterBookmarked = bookmarks.any(
-          (bookmark) => bookmark.chapterId == currentChapter.id,
+        final (bookmarkPageStart, bookmarkPageEnd) = _pageOffsets(
+          currentChapter,
+        );
+        final pageBookmarked = bookmarks.any(
+          (bookmark) =>
+              bookmark.chapterId == currentChapter.id &&
+              bookmark.anchorStart >= bookmarkPageStart &&
+              bookmark.anchorStart < bookmarkPageEnd,
         );
         final chapterAnnotations = annotations
             .where((annotation) => annotation.chapterId == currentChapter.id)
@@ -1695,7 +1717,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             foreground: _colors.$2,
             pinned: _railPinned,
             onTogglePinned: _toggleRailPinned,
-            bookmarked: chapterBookmarked,
+            bookmarked: pageBookmarked,
             onToggleBookmark: () => _toggleBookmark(currentChapter),
             onOpenAnnotations: () => _openAnnotations(chapters),
             onTranslate: () => _toggleChapterTranslation(currentChapter),

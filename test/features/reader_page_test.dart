@@ -238,11 +238,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<List<Annotation>?> storedBookmarks(WidgetTester tester) {
+  Future<List<Annotation>?> storedBookmarks(
+    WidgetTester tester, {
+    String bookId = 'b1',
+  }) {
     return tester.runAsync(
-      () =>
-          AnnotationRepository(db)
-              .getForBook('b1', type: AnnotationType.bookmark),
+      () => AnnotationRepository(
+        db,
+      ).getForBook(bookId, type: AnnotationType.bookmark),
     );
   }
 
@@ -331,6 +334,15 @@ void main() {
             .map((span) => span.text ?? '')
             .join(),
       )
+      .join();
+
+  String firstPaneText(WidgetTester tester) => tester
+      .widgetList<SelectableText>(find.byType(SelectableText))
+      .first
+      .textSpan!
+      .children!
+      .cast<TextSpan>()
+      .map((span) => span.text ?? '')
       .join();
 
   double paneTextBottom(WidgetTester tester, SelectableText pane) {
@@ -906,7 +918,7 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('bookmark icon adds a bookmark for the current chapter', (
+  testWidgets('bookmark icon adds a bookmark for the current page', (
     tester,
   ) async {
     await pumpReader(tester, 'b1');
@@ -936,6 +948,94 @@ void main() {
     expect(find.text('已取消书签'), findsOneWidget);
     expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
     expect(await storedBookmarks(tester), isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('keeps one bookmark per page inside a chapter', (tester) async {
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long');
+
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    await tapNextZone(tester);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    var stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(2));
+    expect(stored!.map((bookmark) => bookmark.chapterId).toSet(), {'long-c0'});
+    expect(stored[0].anchorStart, lessThan(stored[1].anchorStart));
+
+    await tapNextZone(tester);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+    await tapPrevZone(tester);
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(1));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a spread bookmark targets the left page', (tester) async {
+    await seedLongBook(lines: 200);
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final leftText = firstPaneText(tester);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(1));
+    expect(stored!.single.anchorStart, text.indexOf(leftText));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a bookmark survives a font change and still lands', (
+    tester,
+  ) async {
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchorText = pageText(tester).substring(0, 10);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    final before = await storedBookmarks(tester, bookId: 'long');
+    expect(before, hasLength(1));
+
+    await tapNextZone(tester);
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(20, 80));
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), isNot(contains(anchorText)));
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.ancestor(
+        of: find.byTooltip('删除书签'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), contains(anchorText));
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    final after = await storedBookmarks(tester, bookId: 'long');
+    expect(after, hasLength(1));
+    expect(after!.single.anchorStart, before!.single.anchorStart);
     await disposeApp(tester);
   });
 
