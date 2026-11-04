@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../library/category_pane.dart';
 import '../library/library_page.dart';
+import '../memory_book/memory_books_page.dart';
 import '../settings/settings_page.dart';
 import 'home_providers.dart';
 import 'section_rail.dart';
@@ -25,6 +26,10 @@ class AppShell extends ConsumerWidget {
                 MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
               );
             },
+            onMemory: () =>
+                ref.read(selectedSectionProvider.notifier).select(
+                      AppSection.memory,
+                    ),
           ),
           Expanded(
             child: switch (section) {
@@ -35,6 +40,7 @@ class AppShell extends ConsumerWidget {
                   Expanded(child: BookshelfView()),
                 ],
               ),
+              AppSection.memory => const MemoryBooksPage(),
               AppSection.companion => const _CompanionPlaceholder(),
             },
           ),

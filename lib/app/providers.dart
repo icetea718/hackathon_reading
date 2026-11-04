@@ -6,11 +6,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../assistant/assistant_service.dart';
-import '../assistant/cached_translation_service.dart';
 import '../assistant/digest_aware_assistant_service.dart';
-import '../assistant/my_memory_translator.dart';
 import '../assistant/openai_assistant_service.dart';
-import '../assistant/translation_router.dart';
 import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
@@ -22,12 +19,12 @@ import '../data/repositories/distill_job_repository.dart';
 import '../data/repositories/distill_unit_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
-import '../data/repositories/translation_cache_repository.dart';
 import '../data/storage/book_storage.dart';
 import '../distill/distill_digest.dart';
 import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
+import '../illustration/illustration_config.dart';
 import '../domain/models/book.dart';
 import '../domain/models/category.dart';
 import '../domain/models/comic_page.dart';
@@ -85,29 +82,6 @@ final assistantServiceProvider = FutureProvider<AssistantService>((ref) async {
   );
 });
 
-/// Free, key-less translation backend used when no model is configured.
-final offlineTranslatorProvider = Provider<AssistantService>((ref) {
-  return MyMemoryTranslator();
-});
-
-/// Remembers finished translations by source text, so a passage is only sent
-/// to the model or the public API once.
-final translationCacheProvider = Provider<TranslationCacheStore>((ref) {
-  return TranslationCacheRepository(ref.watch(appDatabaseProvider));
-});
-
-/// Translation always works: the configured model when there is one, the free
-/// public API otherwise. Finished results are remembered on disk.
-final translationServiceProvider = Provider<AssistantService>((ref) {
-  return CachedTranslationService(
-    inner: TranslationRouter(
-      preferred: ref.watch(assistantServiceProvider).value,
-      fallback: ref.watch(offlineTranslatorProvider),
-    ),
-    cache: ref.watch(translationCacheProvider),
-  );
-});
-
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   return SettingsRepository(ref.watch(appDatabaseProvider));
 });
@@ -119,6 +93,16 @@ final llmConfigStoreProvider = Provider<LlmConfigStore>((ref) {
 /// The stored LLM settings; invalidated whenever the settings page saves.
 final llmConfigProvider = FutureProvider<LlmConfig>((ref) {
   return ref.watch(llmConfigStoreProvider).load();
+});
+
+/// 插画/绘图配置；与聊天配置分开存放，但默认可以复用同一把 Key。
+final illustrationConfigStoreProvider =
+    Provider<IllustrationConfigStore>((ref) {
+  return IllustrationConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+final illustrationConfigProvider = FutureProvider<IllustrationConfig>((ref) {
+  return ref.watch(illustrationConfigStoreProvider).load();
 });
 
 /// Synchronous snapshot of [llmConfigProvider] for the client's config callback.
