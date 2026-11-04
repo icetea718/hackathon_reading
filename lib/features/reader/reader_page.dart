@@ -25,6 +25,7 @@ import 'reader_position.dart';
 import 'reader_providers.dart';
 import 'reader_rail.dart';
 import 'reader_settings_sheet.dart';
+import 'reader_spread.dart';
 import 'reader_top_bar.dart';
 import 'toc_drawer.dart';
 
@@ -105,6 +106,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   static const _fontSizeKey = 'reader.fontSize';
   static const _lineHeightKey = 'reader.lineHeight';
   static const _backgroundKey = 'reader.background';
+  static const _spreadKey = 'reader.spread';
   static const _railPinnedKey = 'reader.railPinned';
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -122,6 +124,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   double _fontSize = 18;
   double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
+  ReaderSpread _spread = ReaderSpread.double;
   bool _railPinned = false;
   bool _railVisible = false;
   bool _suppressHotzone = false;
@@ -171,16 +174,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         repository.get(_lineHeightKey),
         repository.get(_backgroundKey),
         repository.get(_railPinnedKey),
+        repository.get(_spreadKey),
       ]);
       if (!mounted) return;
       final fontSize = double.tryParse(values[0] ?? '');
       final lineHeight = double.tryParse(values[1] ?? '');
       final background = _backgroundFromName(values[2]);
       final railPinned = values[3];
+      final spreadName = values[4];
       if (fontSize == null &&
           lineHeight == null &&
           background == null &&
-          railPinned == null) {
+          railPinned == null &&
+          spreadName == null) {
         return;
       }
       final chapters = _cachedData?.chapters ?? const <Chapter>[];
@@ -192,6 +198,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           _lineHeight = lineHeight.clamp(1.2, 2.0).toDouble();
         }
         if (background != null) _background = background;
+        if (spreadName != null) _spread = readerSpreadFromName(spreadName);
         if (railPinned != null) _railPinned = railPinned == 'true';
       });
     } catch (_) {
@@ -227,6 +234,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         .set(_lineHeightKey, _lineHeight.toString())
         .catchError((Object _) {});
     repository.set(_backgroundKey, _background.name).catchError((Object _) {});
+    repository.set(_spreadKey, _spread.name).catchError((Object _) {});
   }
 
   @override
@@ -845,7 +853,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               fontSize: _fontSize,
               lineHeight: _lineHeight,
               background: _background,
-              onChanged: (fontSize, lineHeight, background) {
+              spread: _spread,
+              onChanged: (fontSize, lineHeight, background, spread) {
                 final chapters = _cachedData?.chapters ?? const <Chapter>[];
                 final anchor = _currentPageStartOffset(chapters);
                 setState(() {
@@ -853,6 +862,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   _fontSize = fontSize;
                   _lineHeight = lineHeight;
                   _background = background;
+                  _spread = spread;
                 });
                 setSheet(() {});
                 _scheduleSaveReadingSettings();

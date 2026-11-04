@@ -20,6 +20,7 @@ import 'package:hackathon_reading/domain/models/reading_progress.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
+import 'package:hackathon_reading/features/reader/reader_spread.dart';
 
 void main() {
   late AppDatabase db;
@@ -567,6 +568,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(Slider).first, const Offset(150, 0));
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(find.text('深色'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('深色'));
     await tester.pump(const Duration(milliseconds: 400));
     await settleAfterIo(tester);
@@ -597,6 +600,67 @@ void main() {
 
     expect(first.style?.fontSize, 18);
     expect(first.style?.height, 2.0);
+    await disposeApp(tester);
+  });
+
+  testWidgets('defaults to double and persists a switch to single', (
+    tester,
+  ) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    final control = tester.widget<SegmentedButton<ReaderSpread>>(
+      find.byType(SegmentedButton<ReaderSpread>),
+    );
+    expect(control.selected, {ReaderSpread.double});
+
+    await tester.ensureVisible(find.text('单页'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('单页'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settleAfterIo(tester);
+
+    final stored = await tester.runAsync(
+      () => SettingsRepository(db).get('reader.spread'),
+    );
+    expect(stored, 'single');
+    await disposeApp(tester);
+  });
+
+  testWidgets('restores the persisted spread into the settings sheet', (
+    tester,
+  ) async {
+    await SettingsRepository(db).set('reader.spread', 'single');
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SegmentedButton<ReaderSpread>>(
+            find.byType(SegmentedButton<ReaderSpread>),
+          )
+          .selected,
+      {ReaderSpread.single},
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('treats an unknown spread value as double', (tester) async {
+    await SettingsRepository(db).set('reader.spread', 'triple');
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SegmentedButton<ReaderSpread>>(
+            find.byType(SegmentedButton<ReaderSpread>),
+          )
+          .selected,
+      {ReaderSpread.double},
+    );
     await disposeApp(tester);
   });
 
