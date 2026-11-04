@@ -274,6 +274,19 @@ void main() {
     expect(find.text('去设置'), findsOneWidget);
   });
 
+  testWidgets('the memory hint above the chat can be closed',
+      (tester) async {
+    await tester.pumpWidget(_host(_FakeAssistant()));
+    await _settle(tester);
+
+    expect(find.byKey(const Key('companion-memory-chip')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-memory-chip-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('companion-memory-chip')), findsNothing);
+  });
+
   testWidgets('sending a question streams the answer into the panel',
       (tester) async {
     final fake = _FakeAssistant();
