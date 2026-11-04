@@ -41,6 +41,7 @@ import '../domain/services/file_picker_service.dart';
 import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
 import '../search/book_context.dart';
+import '../search/book_memory.dart';
 import '../search/search_book.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
@@ -392,6 +393,29 @@ final bookContextBuilderProvider = Provider<BookContextBuilder>(
     digests: ref.read(distillDigestSourceProvider),
   ),
 );
+
+/// Loads the reader's own material for a book: annotations, companion threads,
+/// and the companion digest the 搜 answers can lean on.
+final bookMemoryBuilderProvider = Provider<BookMemoryBuilder>((ref) {
+  return BookMemoryBuilder(
+    loadBook: (id) => ref.read(bookRepositoryProvider).getById(id),
+    loadChapters: (id) => ref.read(chapterRepositoryProvider).getForBook(id),
+    loadAnnotations: (id) =>
+        ref.read(annotationRepositoryProvider).getForBook(id),
+    loadThreads: (id) =>
+        ref.read(companionChatRepositoryProvider).threadsForBook(id),
+    loadDigest: (id, threadIds) => ref
+        .read(companionChatRepositoryProvider)
+        .bookMemoryDigest(bookId: id, threadIds: threadIds),
+  );
+});
+
+/// The book's material with the automatic companion selection, as the panel
+/// shows it; null when the book no longer exists.
+final bookMemoryProvider =
+    FutureProvider.family<BookMemory?, String>((ref, bookId) {
+  return ref.watch(bookMemoryBuilderProvider).build(bookId);
+});
 
 /// One controller per conversation key (a thread id, or
 /// [ChatController.newThreadKey] before the first send).

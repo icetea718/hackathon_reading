@@ -189,6 +189,109 @@ void main() {
     expect(digest, isNot(contains('第一答')));
   });
 
+  test('book memory digest defaults to the newest three threads', () async {
+    final created = <CompanionThread>[];
+    for (final title in ['一', '二', '三', '四']) {
+      final thread = await repo.createThread(
+        bookId: 'b1',
+        chapterIndex: 0,
+        chapterTitle: title,
+        title: title,
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '问题$title',
+      );
+      created.add(thread);
+      clock = clock.add(const Duration(minutes: 1));
+    }
+
+    final digest = await repo.bookMemoryDigest(bookId: 'b1');
+
+    expect(digest.text.length, lessThanOrEqualTo(400));
+    expect(digest.text, isNot(contains('【一】')));
+    expect(digest.text, contains('【二】'));
+    expect(digest.text, contains('【四】'));
+    expect(
+      digest.threadIds,
+      {created[1].id, created[2].id, created[3].id},
+    );
+  });
+
+  test('an explicit selection overrides the automatic threads', () async {
+    final first = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+      title: '一',
+    );
+    final second = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 1,
+      chapterTitle: '第二章',
+      title: '二',
+    );
+    clock = clock.add(const Duration(minutes: 1));
+    final third = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 2,
+      chapterTitle: '第三章',
+      title: '三',
+    );
+    for (final thread in [first, second, third]) {
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '问题${thread.title}',
+      );
+    }
+
+    final digest = await repo.bookMemoryDigest(
+      bookId: 'b1',
+      threadIds: {first.id, third.id},
+    );
+
+    expect(digest.text, contains('问题一'));
+    expect(digest.text, contains('问题三'));
+    expect(digest.text, isNot(contains('问题二')));
+    expect(digest.threadIds, {first.id, third.id});
+  });
+
+  test('an empty selection means no companion context at all', () async {
+    final thread = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+    );
+    await repo.appendMessage(
+      threadId: thread.id,
+      role: CompanionRole.user,
+      content: '问题',
+    );
+
+    final digest = await repo.bookMemoryDigest(
+      bookId: 'b1',
+      threadIds: const {},
+    );
+
+    expect(digest.text, isEmpty);
+    expect(digest.threadIds, isEmpty);
+  });
+
+  test('a thread with no messages is not reported as included', () async {
+    final empty = await repo.createThread(
+      bookId: 'b1',
+      chapterIndex: 0,
+      chapterTitle: '空',
+    );
+
+    final digest = await repo.bookMemoryDigest(bookId: 'b1');
+
+    expect(digest.text, isEmpty);
+    expect(digest.threadIds, isNot(contains(empty.id)));
+  });
+
   test('a blank rename is ignored and a real one is trimmed', () async {
     final thread = await repo.createThread(
       bookId: 'b1',

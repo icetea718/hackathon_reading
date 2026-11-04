@@ -4,6 +4,18 @@ import 'package:uuid/uuid.dart';
 import '../../domain/models/companion_chat.dart';
 import '../db/app_database.dart';
 
+/// The companion text a prompt carries, plus the threads it actually came
+/// from so the UI can show which conversations were included.
+class CompanionDigest {
+  const CompanionDigest({required this.text, required this.threadIds});
+
+  static const CompanionDigest empty =
+      CompanionDigest(text: '', threadIds: {});
+
+  final String text;
+  final Set<String> threadIds;
+}
+
 class CompanionChatRepository {
   CompanionChatRepository(
     this._db, {
@@ -160,8 +172,41 @@ class CompanionChatRepository {
       ])
       ..limit(3);
     final threads = await threadQuery.get();
+    return (await _compose(threads, maxChars)).text;
+  }
 
+  /// The companion reminder for 搜: either the newest threads of [bookId] or
+  /// exactly [threadIds]. Null selects automatically; an empty set means the
+  /// reader chose to carry no companion context.
+  Future<CompanionDigest> bookMemoryDigest({
+    required String bookId,
+    Set<String>? threadIds,
+    int maxChars = 400,
+  }) async {
+    if (maxChars <= 0) return CompanionDigest.empty;
+    if (threadIds != null && threadIds.isEmpty) return CompanionDigest.empty;
+
+    final query = _db.select(_db.companionThreads);
+    if (threadIds == null) {
+      query.where((t) => t.bookId.equals(bookId));
+      query.limit(3);
+    } else {
+      query.where((t) => t.bookId.equals(bookId) & t.id.isIn(threadIds));
+    }
+    query.orderBy([
+      (t) => OrderingTerm.desc(t.updatedAt),
+      (t) => OrderingTerm.desc(t.createdAt),
+    ]);
+
+    return _compose(await query.get(), maxChars);
+  }
+
+  Future<CompanionDigest> _compose(
+    List<CompanionThreadRecord> threads,
+    int maxChars,
+  ) async {
     final segments = <String>[];
+    final included = <String>{};
     var used = 0;
     for (final thread in threads) {
       final messageQuery = _db.select(_db.companionMessages)
@@ -182,9 +227,13 @@ class CompanionChatRepository {
       final nextUsed = used + segment.length + (segments.isEmpty ? 0 : 1);
       if (nextUsed > maxChars) break;
       segments.add(segment);
+      included.add(thread.id);
       used = nextUsed;
     }
-    return segments.reversed.join('\n');
+    return CompanionDigest(
+      text: segments.reversed.join('\n'),
+      threadIds: included,
+    );
   }
 
   Future<void> deleteForBook(String bookId) async {
