@@ -124,7 +124,7 @@ void main() {
             TtsService(
               client: voice,
               output: _SilentAudioOutput(),
-              config: () => TtsConfig.defaults.copyWith(enabled: false),
+              config: () => TtsConfig.defaults,
               tempDirectory: () async => Directory.systemTemp,
               durationOf: (_) => Duration.zero,
             ),
@@ -214,7 +214,8 @@ void main() {
     expect(panel.chapterText.substring(start!, end!), contains('第一章的内容'));
   });
 
-  testWidgets('speaks the bubble line even with 朗读 off', (tester) async {
+  testWidgets('speaks the bubble line without the auto switch',
+      (tester) async {
     useWindow(tester, const Size(1400, 900));
     await pumpReader(tester);
 

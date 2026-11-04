@@ -27,7 +27,6 @@ const _ttsConfig = TtsConfig(
   voice: 'xll',
   speed: 1,
   volume: 1,
-  enabled: true,
   autoSpeak: false,
 );
 
@@ -148,13 +147,14 @@ Widget _host(
   int? pageEndOffset,
   String currentPageText = '',
   Stream<List<MemoryBook>>? memoryBooks,
+  TtsConfig ttsConfig = _ttsConfig,
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
   final tts = TtsService(
     client: voice,
     output: speaker,
-    config: () => _ttsConfig,
+    config: () => ttsConfig,
     tempDirectory: () async => Directory.systemTemp,
     durationOf: (_) => speechLength,
   );
@@ -174,6 +174,7 @@ Widget _host(
     pageEndOffset: pageEndOffset,
     currentPageText: currentPageText,
     memoryBooks: memoryBooks,
+    ttsConfig: ttsConfig,
   );
 }
 
@@ -193,6 +194,7 @@ Widget _wrap(
   int? pageEndOffset,
   String currentPageText = '',
   Stream<List<MemoryBook>>? memoryBooks,
+  TtsConfig ttsConfig = _ttsConfig,
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
   if (db == null) addTearDown(database.close);
@@ -202,7 +204,7 @@ Widget _wrap(
     overrides: [
       assistantServiceProvider.overrideWith((ref) async => service),
       appDatabaseProvider.overrideWithValue(database),
-      ttsConfigProvider.overrideWith((ref) async => _ttsConfig),
+      ttsConfigProvider.overrideWith((ref) async => ttsConfig),
       ttsServiceProvider.overrideWithValue(tts),
       if (memoryBooks != null)
         memoryBookListProvider.overrideWith((ref) => memoryBooks),
@@ -453,7 +455,7 @@ void main() {
     final tts = TtsService(
       client: voice,
       output: speaker,
-      config: () => _ttsConfig.copyWith(enabled: false),
+      config: () => _ttsConfig.copyWith(autoSpeak: false),
       tempDirectory: () async => Directory.systemTemp,
       durationOf: (_) => const Duration(milliseconds: 20),
     );
@@ -503,6 +505,34 @@ void main() {
     await _ask(tester);
 
     expect(voice.texts, isEmpty);
+  });
+
+  testWidgets('auto speak reads a new reply once the setting is on',
+      (tester) async {
+    final voice = FakeTtsClient();
+    final speaker = FakeAudioOutput();
+    await tester.pumpWidget(
+      _host(
+        _FakeAssistant(),
+        client: voice,
+        output: speaker,
+        ttsConfig: _ttsConfig.copyWith(autoSpeak: true),
+      ),
+    );
+    await _settle(tester);
+
+    await _ask(tester);
+    await tester.runAsync(() async {
+      for (var i = 0; i < 80 && speaker.played.isEmpty; i++) {
+        await tester.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(voice.texts, isNotEmpty);
+    expect(voice.texts.first, contains('赌博'));
+    expect(speaker.played, isNotEmpty);
   });
 
   testWidgets('a saved conversation reopens with the panel', (tester) async {

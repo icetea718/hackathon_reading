@@ -386,9 +386,9 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     }
   }
 
-  Future<void> _speak(String text, int? index, {bool force = false}) async {
+  Future<void> _speak(String text, int? index) async {
     setState(() => _speakingIndex = index);
-    await _tts.speak(text, force: force);
+    await _tts.speak(text);
     if (mounted) setState(() => _speakingIndex = null);
   }
 
@@ -455,8 +455,8 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         }
         _streaming = '';
       });
-      if (reply.isNotEmpty && _autoSpeak) {
-        unawaited(_speak(reply, _history.length - 1));
+      if (reply.isNotEmpty) {
+        unawaited(_speakIfAutoEnabled(reply, _history.length - 1));
       }
     } catch (error) {
       if (!mounted || token != _requestToken) return;
@@ -566,9 +566,15 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     return KeyEventResult.handled;
   }
 
-  bool get _autoSpeak {
-    final config = ref.read(ttsConfigProvider);
-    return config is AsyncData<TtsConfig> && config.value.autoSpeak;
+  Future<void> _speakIfAutoEnabled(String text, int index) async {
+    TtsConfig config;
+    try {
+      config = await ref.read(ttsConfigProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || !config.autoSpeak) return;
+    await _speak(text, index);
   }
 
   bool get _voiceOn => _ttsStatus.phase != TtsPhase.idle;
@@ -869,7 +875,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
             onSpeak: _history[index].role == ChatRole.user
                 ? null
                 : () => unawaited(
-                      _speak(_history[index].content, index, force: true),
+                      _speak(_history[index].content, index),
                     ),
           ),
         if (_streaming.isNotEmpty) _Bubble(text: _streaming, isUser: false),

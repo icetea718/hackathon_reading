@@ -83,13 +83,14 @@ class TtsService {
 
   /// Speaks [reply], replacing any line already playing or being synthesized.
   ///
-  /// [force] ignores the "朗读" switch: the switch decides whether replies are
-  /// read out on their own, not whether the user may tap a speaker icon.
-  Future<void> speak(String reply, {bool force = false}) async {
+  /// Every call speaks: whether a finished reply is read out on its own is the
+  /// caller's decision ([TtsConfig.autoSpeak]), so a tap on a speaker icon and
+  /// the companion's own lines are never silenced by a switch.
+  Future<void> speak(String reply) async {
     final settings = config();
     final chunks = _chunksFor(reply);
     await _halt();
-    if (chunks.isEmpty || (!force && !settings.enabled)) return;
+    if (chunks.isEmpty) return;
 
     final generation = _generation;
     final pending = <Future<Uint8List?>>[];

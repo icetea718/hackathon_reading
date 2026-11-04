@@ -39,7 +39,6 @@ TtsConfig _configFor(String baseUrl) => TtsConfig(
       voice: 'xll',
       speed: 1,
       volume: 1,
-      enabled: true,
       autoSpeak: false,
     );
 
@@ -237,7 +236,6 @@ void main() {
         voice: 'xll',
         speed: 1,
         volume: 1,
-        enabled: true,
         autoSpeak: false,
       ),
     );

@@ -2217,14 +2217,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   /// Reads a bubble line out loud in the configured voice.
   ///
-  /// The pet talks, so the line is spoken even when 朗读 is off: that switch
-  /// decides whether long chat replies are read on their own, not whether the
-  /// pet may say what it is showing. Voice, speed and volume still come from
-  /// [TtsConfig].
+  /// The pet talks, so the line is always spoken: 自动朗读回复 decides whether
+  /// long chat replies are read on their own, not whether the pet may say what
+  /// it is showing. Voice, speed and volume still come from [TtsConfig].
   void _readBubbleAloud(String line) {
     final trimmed = line.trim();
     if (trimmed.isEmpty) return;
-    unawaited(ref.read(ttsServiceProvider).speak(trimmed, force: true));
+    unawaited(ref.read(ttsServiceProvider).speak(trimmed));
   }
 
   /// A fresh line for every click; unlike the greeting it is never cached.

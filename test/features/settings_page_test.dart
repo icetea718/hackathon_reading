@@ -197,12 +197,13 @@ void main() {
     await pumpPage(tester, _FakeClient());
 
     await fillTts(tester, voice: 'dfy');
+    await tapAt(tester, find.byKey(const Key('tts-auto-speak')));
     await tapAt(tester, find.text('保存'));
 
     final saved = await TtsConfigStore(SettingsRepository(db)).load();
     expect(saved.baseUrl, 'http://127.0.0.1:9880');
     expect(saved.voice, 'dfy');
-    expect(saved.enabled, isTrue);
+    expect(saved.autoSpeak, isTrue);
   });
 
   testWidgets('loads stored voice settings into the form', (tester) async {
@@ -212,7 +213,6 @@ void main() {
         voice: 'female',
         speed: 1.25,
         volume: 0.8,
-        enabled: false,
         autoSpeak: true,
       ),
     );
