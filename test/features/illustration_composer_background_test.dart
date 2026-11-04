@@ -4,13 +4,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/distill/llm/llm_config.dart';
-import 'package:hackathon_reading/features/illustration/illustration_composer_page.dart';
-import 'package:hackathon_reading/features/illustration/illustration_jobs.dart';
-import 'package:hackathon_reading/illustration/illustration_config.dart';
-import 'package:hackathon_reading/illustration/illustration_models.dart';
-import 'package:hackathon_reading/illustration/illustration_service.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/distill/llm/llm_config.dart';
+import 'package:coread/features/illustration/illustration_composer_page.dart';
+import 'package:coread/features/illustration/illustration_jobs.dart';
+import 'package:coread/illustration/illustration_config.dart';
+import 'package:coread/illustration/illustration_models.dart';
+import 'package:coread/illustration/illustration_service.dart';
 
 const _effective = IllustrationEffective(
   baseUrl: 'https://api.example.com/v1',

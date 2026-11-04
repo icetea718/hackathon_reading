@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
-import 'package:hackathon_reading/search/agent_service.dart';
-import 'package:hackathon_reading/search/book_context.dart';
-import 'package:hackathon_reading/search/book_memory.dart';
-import 'package:hackathon_reading/search/search_hit.dart';
+import 'package:coread/data/repositories/companion_chat_repository.dart';
+import 'package:coread/distill/llm/llm_client.dart';
+import 'package:coread/search/agent_service.dart';
+import 'package:coread/search/book_context.dart';
+import 'package:coread/search/book_memory.dart';
+import 'package:coread/search/search_hit.dart';
 
 import '../support/fake_llm_client.dart';
 

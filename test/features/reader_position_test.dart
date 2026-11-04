@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/chapter.dart';
-import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
-import 'package:hackathon_reading/features/reader/reader_position.dart';
+import 'package:coread/domain/models/chapter.dart';
+import 'package:coread/features/reader/chapter_paginator.dart';
+import 'package:coread/features/reader/reader_position.dart';
 
 Chapter _chapter(int index, int start, String text) {
   return Chapter(

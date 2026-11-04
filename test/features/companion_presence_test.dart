@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/companion/companion_clip.dart';
-import 'package:hackathon_reading/features/companion/companion_presence.dart';
+import 'package:coread/features/companion/companion_clip.dart';
+import 'package:coread/features/companion/companion_presence.dart';
 
 Widget _host(Widget child) =>
     MaterialApp(home: Scaffold(body: Center(child: child)));

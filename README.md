@@ -1,6 +1,6 @@
-# hackathon_reading
+# coread
 
-一个面向 Windows 和 Android 的本地阅读器（Flutter），为后续的 AI 陪读、AI 翻译、划重点解读预留接口。当前为 **Phase 1：TXT / EPUB / PDF / 漫画 EPUB 阅读与书签**。
+coread 是一个面向 Windows 和 Android 的本地阅读器（Flutter），为后续的 AI 陪读、AI 翻译、划重点解读预留接口。当前为 **Phase 1：TXT / EPUB / PDF / 漫画 EPUB 阅读与书签**。
 
 想一起开发？环境搭建、开发流程、代码约定和扩展指引见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

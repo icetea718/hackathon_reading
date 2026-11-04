@@ -4,15 +4,15 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
-import 'package:hackathon_reading/data/repositories/book_repository.dart';
-import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
-import 'package:hackathon_reading/data/repositories/progress_repository.dart';
-import 'package:hackathon_reading/data/storage/book_storage.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/services/book_service.dart';
-import 'package:hackathon_reading/domain/services/epub_book_parser.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/annotation_repository.dart';
+import 'package:coread/data/repositories/book_repository.dart';
+import 'package:coread/data/repositories/chapter_repository.dart';
+import 'package:coread/data/repositories/progress_repository.dart';
+import 'package:coread/data/storage/book_storage.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/services/book_service.dart';
+import 'package:coread/domain/services/epub_book_parser.dart';
 
 import '../support/epub_fixture.dart';
 

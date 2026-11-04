@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/distill_digest.dart';
-import 'package:hackathon_reading/distill/distilled_context_assembler.dart';
+import 'package:coread/distill/distill_digest.dart';
+import 'package:coread/distill/distilled_context_assembler.dart';
 
 void main() {
   final chapterText = List.generate(400, (i) => '第$i段落：福贵在田里干活。').join('\n');

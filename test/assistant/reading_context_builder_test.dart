@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/reading_context_builder.dart';
+import 'package:coread/assistant/reading_context_builder.dart';
 
 void main() {
   test('assembles book, chapter and selection fields', () {

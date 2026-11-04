@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/persona.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/features/companion/companion_chat_controller.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/persona.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/features/companion/companion_chat_controller.dart';
 
 const _context = ReadingContext(bookTitle: '你当像鸟飞往你的山', chapterTitle: '第一部分');
 

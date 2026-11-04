@@ -2,11 +2,11 @@ import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/settings_repository.dart';
-import 'package:hackathon_reading/search/search_config.dart';
-import 'package:hackathon_reading/search/search_provider.dart';
-import 'package:hackathon_reading/search/tavily_search_provider.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/settings_repository.dart';
+import 'package:coread/search/search_config.dart';
+import 'package:coread/search/search_provider.dart';
+import 'package:coread/search/tavily_search_provider.dart';
 
 void main() {
   final requests = <TavilyRequest>[];

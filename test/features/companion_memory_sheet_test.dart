@@ -5,14 +5,14 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/features/companion/companion_memory_sheet.dart';
-import 'package:hackathon_reading/features/illustration/illustration_composer_page.dart';
-import 'package:hackathon_reading/features/memory_book/memory_book_page.dart';
-import 'package:hackathon_reading/features/memory_book/memory_book_providers.dart';
-import 'package:hackathon_reading/memory_book/memory_book_models.dart';
-import 'package:hackathon_reading/memory_book/memory_book_store.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/features/companion/companion_memory_sheet.dart';
+import 'package:coread/features/illustration/illustration_composer_page.dart';
+import 'package:coread/features/memory_book/memory_book_page.dart';
+import 'package:coread/features/memory_book/memory_book_providers.dart';
+import 'package:coread/memory_book/memory_book_models.dart';
+import 'package:coread/memory_book/memory_book_store.dart';
 
 class _FakeStore extends MemoryBookStore {
   _FakeStore() : super(Directory.systemTemp);

@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/persona.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/features/companion/companion_greeting.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/persona.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/features/companion/companion_greeting.dart';
 
 class _FakeAssistant implements AssistantService {
   _FakeAssistant(this.chunks, {this.configured = true});

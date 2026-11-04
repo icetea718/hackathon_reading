@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/services/txt_chapter_detector.dart';
+import 'package:coread/domain/services/txt_chapter_detector.dart';
 
 void main() {
   test('detects Chinese and English headings with exact offsets', () {

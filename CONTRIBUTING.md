@@ -1,6 +1,6 @@
 # 参与贡献
 
-这是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT / EPUB / PDF 阅读与书签**。
+coread 是一个**本地优先**的阅读器，目标平台是 Windows 和 Android。它首先要把阅读体验做扎实，其次作为后续 **AI 陪读 / agent** 能力的载体。当前完成的是 **Phase 1：TXT / EPUB / PDF 阅读与书签**。
 
 - 仓库：<https://github.com/icetea718/hackathon_reading>
 - 设计文档：[docs/superpowers/specs/2026-11-03-reader-app-design.md](docs/superpowers/specs/2026-11-03-reader-app-design.md)

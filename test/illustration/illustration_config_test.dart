@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/llm/llm_config.dart';
-import 'package:hackathon_reading/illustration/illustration_config.dart';
+import 'package:coread/distill/llm/llm_config.dart';
+import 'package:coread/illustration/illustration_config.dart';
 
 void main() {
   const llm = LlmConfig(

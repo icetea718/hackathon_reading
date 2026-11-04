@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/memory_book/memory_book_store.dart';
+import 'package:coread/memory_book/memory_book_store.dart';
 import 'package:path/path.dart' as p;
 
 void main() {

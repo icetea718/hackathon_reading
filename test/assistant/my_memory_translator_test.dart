@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/my_memory_translator.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/assistant/translation_exception.dart';
-import 'package:hackathon_reading/assistant/translation_segmenter.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/my_memory_translator.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/assistant/translation_exception.dart';
+import 'package:coread/assistant/translation_segmenter.dart';
 
 class _RecordingBackend implements TranslationBackend {
   _RecordingBackend({this.failOn});

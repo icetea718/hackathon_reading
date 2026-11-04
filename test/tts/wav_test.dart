@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/wav.dart';
+import 'package:coread/tts/wav.dart';
 
 import '../support/wav_fixture.dart';
 

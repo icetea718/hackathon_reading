@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:coread/data/db/app_database.dart';
 
 void main() {
   test('upgrades a v5 database through v11', () async {

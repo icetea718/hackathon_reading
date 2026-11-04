@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/book_repository.dart';
-import 'package:hackathon_reading/data/repositories/distill_artifact_repository.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/distill.dart';
-import 'package:hackathon_reading/distill/stale_guard.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/book_repository.dart';
+import 'package:coread/data/repositories/distill_artifact_repository.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/distill.dart';
+import 'package:coread/distill/stale_guard.dart';
 
 String _hashOf(String text) => sha256.convert(utf8.encode(text)).toString();
 

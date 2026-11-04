@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/translation_exception.dart';
-import 'package:hackathon_reading/features/reader/translation_dialog.dart';
+import 'package:coread/assistant/translation_exception.dart';
+import 'package:coread/features/reader/translation_dialog.dart';
 
 import '../support/fake_assistant_service.dart';
 import '../support/fake_translation_cache.dart';

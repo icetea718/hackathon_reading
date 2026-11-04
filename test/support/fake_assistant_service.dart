@@ -1,6 +1,6 @@
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/persona.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/persona.dart';
+import 'package:coread/assistant/reading_context.dart';
 
 /// Test double that replays [chunks] for every translation request.
 class FakeAssistantService implements AssistantService {

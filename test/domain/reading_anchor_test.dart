@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:coread/domain/models/reading_progress.dart';
 
 void main() {
   test('reads legacy charOffset-only JSON', () {

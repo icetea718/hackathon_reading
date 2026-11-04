@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:hackathon_reading/tts/audio_output.dart';
-import 'package:hackathon_reading/tts/tts_client.dart';
+import 'package:coread/tts/audio_output.dart';
+import 'package:coread/tts/tts_client.dart';
 
 import 'wav_fixture.dart';
 

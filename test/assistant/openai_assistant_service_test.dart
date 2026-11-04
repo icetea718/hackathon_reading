@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/openai_assistant_service.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
-import 'package:hackathon_reading/distill/llm/llm_config.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/openai_assistant_service.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/distill/llm/llm_client.dart';
+import 'package:coread/distill/llm/llm_config.dart';
 
 import '../support/fake_llm_client.dart';
 

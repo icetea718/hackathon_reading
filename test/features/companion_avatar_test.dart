@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/companion/companion_avatar.dart';
-import 'package:hackathon_reading/features/companion/companion_clip.dart';
+import 'package:coread/features/companion/companion_avatar.dart';
+import 'package:coread/features/companion/companion_clip.dart';
 
 void main() {
   testWidgets('draws a 3:4 placeholder when no asset is given', (tester) async {

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/llm/sse.dart';
+import 'package:coread/distill/llm/sse.dart';
 
 void main() {
   test('ssePayload reads data lines only', () {

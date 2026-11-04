@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/search/free_web_search_provider.dart';
-import 'package:hackathon_reading/search/search_provider.dart';
+import 'package:coread/search/free_web_search_provider.dart';
+import 'package:coread/search/search_provider.dart';
 
 const _rss = '''<?xml version="1.0" encoding="utf-8" ?>
 <rss version="2.0"><channel><title>必应：AI news</title>

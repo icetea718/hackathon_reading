@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/routing_tts_client.dart';
-import 'package:hackathon_reading/tts/tts_client.dart';
-import 'package:hackathon_reading/tts/tts_config.dart';
-import 'package:hackathon_reading/tts/tts_voices.dart';
+import 'package:coread/tts/routing_tts_client.dart';
+import 'package:coread/tts/tts_client.dart';
+import 'package:coread/tts/tts_config.dart';
+import 'package:coread/tts/tts_voices.dart';
 
 TtsConfig _configWith(String voice) => TtsConfig(
       baseUrl: 'http://127.0.0.1:1',

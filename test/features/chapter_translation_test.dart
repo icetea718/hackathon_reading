@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/reader/chapter_translation.dart';
+import 'package:coread/features/reader/chapter_translation.dart';
 
 void main() {
   group('splitTranslationBlocks', () {

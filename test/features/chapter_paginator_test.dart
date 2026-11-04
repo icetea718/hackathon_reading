@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/book_illustration.dart';
-import 'package:hackathon_reading/domain/models/chapter.dart';
-import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
+import 'package:coread/domain/models/book_illustration.dart';
+import 'package:coread/domain/models/chapter.dart';
+import 'package:coread/features/reader/chapter_paginator.dart';
 
 const _style = TextStyle(fontSize: 16, height: 1.8);
 

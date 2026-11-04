@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/storage/book_storage.dart';
+import 'package:coread/data/storage/book_storage.dart';
 import 'package:path/path.dart' as p;
 
 void main() {

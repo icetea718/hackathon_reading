@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/illustration/illustration_models.dart';
-import 'package:hackathon_reading/illustration/illustration_prompt.dart';
+import 'package:coread/illustration/illustration_models.dart';
+import 'package:coread/illustration/illustration_prompt.dart';
 
 void main() {
   test('parses the standard three-line output', () {

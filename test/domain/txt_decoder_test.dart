@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:chinese_codec/chinese_codec.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/services/txt_decoder.dart';
+import 'package:coread/domain/services/txt_decoder.dart';
 
 void main() {
   test('decodes UTF-8 Chinese', () {

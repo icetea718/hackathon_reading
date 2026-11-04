@@ -1,4 +1,4 @@
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
+import 'package:coread/distill/llm/llm_client.dart';
 
 /// Records every request and replays a canned answer.
 class FakeLlmClient implements LlmClient {

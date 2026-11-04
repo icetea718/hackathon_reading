@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/pdf_outline.dart';
+import 'package:coread/domain/models/pdf_outline.dart';
 
 void main() {
   test('flattens nested outline depth-first with page numbers', () {

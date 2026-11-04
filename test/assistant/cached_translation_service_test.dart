@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/cached_translation_service.dart';
-import 'package:hackathon_reading/assistant/translation_exception.dart';
+import 'package:coread/assistant/cached_translation_service.dart';
+import 'package:coread/assistant/translation_exception.dart';
 
 import '../support/fake_assistant_service.dart';
 import '../support/fake_translation_cache.dart';

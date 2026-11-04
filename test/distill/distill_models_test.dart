@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/distill_models.dart';
-import 'package:hackathon_reading/distill/distill_prompts.dart';
+import 'package:coread/distill/distill_models.dart';
+import 'package:coread/distill/distill_prompts.dart';
 
 void main() {
   test('parses fenced json into a map result', () {

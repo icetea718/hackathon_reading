@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/speech_text.dart';
+import 'package:coread/tts/speech_text.dart';
 
 void main() {
   group('speechText', () {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/distill.dart';
-import 'package:hackathon_reading/features/distill/distill_controller.dart';
-import 'package:hackathon_reading/features/distill/distill_page.dart';
+import 'package:coread/domain/models/distill.dart';
+import 'package:coread/features/distill/distill_controller.dart';
+import 'package:coread/features/distill/distill_page.dart';
 
 DistillJob _job({
   DistillStatus status = DistillStatus.running,

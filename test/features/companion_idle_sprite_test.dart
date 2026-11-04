@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/companion/companion_avatar.dart';
-import 'package:hackathon_reading/features/companion/companion_idle_sprite.dart';
+import 'package:coread/features/companion/companion_avatar.dart';
+import 'package:coread/features/companion/companion_idle_sprite.dart';
 
 void main() {
   testWidgets('advances through the baked idle frames', (tester) async {

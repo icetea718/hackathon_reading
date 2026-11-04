@@ -34,7 +34,7 @@ class MyMemoryBackend implements TranslationBackend {
         {'q': text, 'langpair': langPair},
       );
       final request = await client.getUrl(uri).timeout(timeout);
-      request.headers.set(HttpHeaders.userAgentHeader, 'hackathon_reading');
+      request.headers.set(HttpHeaders.userAgentHeader, 'coread');
       final response = await request.close().timeout(timeout);
       final body = await response.transform(utf8.decoder).join().timeout(
             timeout,

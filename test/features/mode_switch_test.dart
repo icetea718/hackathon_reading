@@ -4,12 +4,12 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/app.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/storage/book_storage.dart';
-import 'package:hackathon_reading/features/home/home_providers.dart';
-import 'package:hackathon_reading/features/home/section_rail.dart';
+import 'package:coread/app/app.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/storage/book_storage.dart';
+import 'package:coread/features/home/home_providers.dart';
+import 'package:coread/features/home/section_rail.dart';
 
 void main() {
   late Directory temp;

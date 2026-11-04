@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/quote_verifier.dart';
+import 'package:coread/distill/quote_verifier.dart';
 
 void main() {
   test('matches a quote that spans a line break in the source', () {

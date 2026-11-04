@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
-import 'package:hackathon_reading/features/reader/illustration_source.dart';
+import 'package:coread/features/reader/chapter_paginator.dart';
+import 'package:coread/features/reader/illustration_source.dart';
 
 void main() {
   const text = '第一页内容第二页内容第三页内容';

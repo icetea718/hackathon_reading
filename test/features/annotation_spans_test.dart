@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/annotation.dart';
-import 'package:hackathon_reading/features/reader/annotation_spans.dart';
+import 'package:coread/domain/models/annotation.dart';
+import 'package:coread/features/reader/annotation_spans.dart';
 
 Annotation _annotation({
   required int start,

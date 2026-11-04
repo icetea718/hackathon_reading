@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/reader/reader_spread.dart';
+import 'package:coread/features/reader/reader_spread.dart';
 
 void main() {
   test('defaults to double and rejects unknown values', () {

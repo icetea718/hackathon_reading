@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/persona.dart';
-import 'package:hackathon_reading/assistant/digest_aware_assistant_service.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/distill/distill_digest.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/persona.dart';
+import 'package:coread/assistant/digest_aware_assistant_service.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/distill/distill_digest.dart';
 
 class _RecordingService implements AssistantService {
   final List<ReadingContext> chats = [];

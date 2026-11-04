@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/theme/app_theme.dart';
-import 'package:hackathon_reading/features/reader/reader_top_bar.dart';
+import 'package:coread/app/theme/app_theme.dart';
+import 'package:coread/features/reader/reader_top_bar.dart';
 
 void main() {
   testWidgets('the reader title uses the shared title role', (tester) async {

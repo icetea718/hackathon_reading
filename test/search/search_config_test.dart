@@ -1,8 +1,8 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/settings_repository.dart';
-import 'package:hackathon_reading/search/search_config.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/settings_repository.dart';
+import 'package:coread/search/search_config.dart';
 
 void main() {
   test('免费源不需要 Key，Tavily 需要', () {

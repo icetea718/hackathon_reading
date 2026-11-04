@@ -2,15 +2,15 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/book_repository.dart';
-import 'package:hackathon_reading/data/repositories/progress_repository.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/pdf_outline.dart';
-import 'package:hackathon_reading/domain/models/reading_progress.dart';
-import 'package:hackathon_reading/features/reader/pdf_reader_page.dart';
-import 'package:hackathon_reading/features/reader/pdf_reader_providers.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/book_repository.dart';
+import 'package:coread/data/repositories/progress_repository.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/pdf_outline.dart';
+import 'package:coread/domain/models/reading_progress.dart';
+import 'package:coread/features/reader/pdf_reader_page.dart';
+import 'package:coread/features/reader/pdf_reader_providers.dart';
 import 'package:pdfrx/pdfrx.dart';
 
 const _info = PdfBookInfo(

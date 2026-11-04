@@ -1,10 +1,10 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/distill_artifact_repository.dart';
-import 'package:hackathon_reading/data/repositories/distill_job_repository.dart';
-import 'package:hackathon_reading/data/repositories/distill_unit_repository.dart';
-import 'package:hackathon_reading/domain/models/distill.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/distill_artifact_repository.dart';
+import 'package:coread/data/repositories/distill_job_repository.dart';
+import 'package:coread/data/repositories/distill_unit_repository.dart';
+import 'package:coread/domain/models/distill.dart';
 
 void main() {
   late AppDatabase db;

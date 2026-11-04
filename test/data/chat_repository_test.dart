@@ -1,7 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/chat_repository.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/chat_repository.dart';
 
 void main() {
   late AppDatabase db;

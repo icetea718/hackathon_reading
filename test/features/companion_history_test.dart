@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/companion_chat.dart';
-import 'package:hackathon_reading/features/companion/companion_history.dart';
+import 'package:coread/domain/models/companion_chat.dart';
+import 'package:coread/features/companion/companion_history.dart';
 
 CompanionThread _thread({
   required String id,

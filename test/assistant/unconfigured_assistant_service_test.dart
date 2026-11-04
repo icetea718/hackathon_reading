@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/assistant_service.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/assistant/unconfigured_assistant_service.dart';
+import 'package:coread/assistant/assistant_service.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/assistant/unconfigured_assistant_service.dart';
 
 void main() {
   const service = UnconfiguredAssistantService();

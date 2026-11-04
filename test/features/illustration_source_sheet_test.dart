@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/reader/illustration_source.dart';
-import 'package:hackathon_reading/features/reader/illustration_source_sheet.dart';
+import 'package:coread/features/reader/illustration_source.dart';
+import 'package:coread/features/reader/illustration_source_sheet.dart';
 
 void main() {
   testWidgets('the sheet offers the page, nearby pages and the chapter',

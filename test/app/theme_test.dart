@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/theme/app_theme.dart';
+import 'package:coread/app/theme/app_theme.dart';
 
 void main() {
   test('light theme uses the approved palette', () {

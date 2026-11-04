@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/reader/illustration_viewer.dart';
+import 'package:coread/features/reader/illustration_viewer.dart';
 
 void main() {
   Future<void> open(WidgetTester tester, String path) async {

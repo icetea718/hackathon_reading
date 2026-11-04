@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/category.dart';
-import 'package:hackathon_reading/features/library/library_view.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/category.dart';
+import 'package:coread/features/library/library_view.dart';
 
 Book book(
   String id, {

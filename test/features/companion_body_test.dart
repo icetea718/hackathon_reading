@@ -2,7 +2,7 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/companion/companion_body.dart';
+import 'package:coread/features/companion/companion_body.dart';
 
 Widget _host(Widget child) => MaterialApp(
   home: Scaffold(body: Center(child: SizedBox(width: 120, height: 160, child: child))),

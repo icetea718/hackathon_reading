@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/search/search_source_sheet.dart';
-import 'package:hackathon_reading/search/search_config.dart';
+import 'package:coread/features/search/search_source_sheet.dart';
+import 'package:coread/search/search_config.dart';
 
 void main() {
   Future<SearchSource?> openSheet(WidgetTester tester, SearchConfig config) async {

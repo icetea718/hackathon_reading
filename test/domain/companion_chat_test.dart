@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/models/companion_chat.dart';
+import 'package:coread/domain/models/companion_chat.dart';
 
 void main() {
   test('a short first message becomes the thread title unchanged', () {

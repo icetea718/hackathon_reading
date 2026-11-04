@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hackathon_reading/features/search/markdown_message.dart';
+import 'package:coread/features/search/markdown_message.dart';
 
 Future<void> pumpMessage(WidgetTester tester, String data) async {
   await tester.pumpWidget(

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/translation_segmenter.dart';
+import 'package:coread/assistant/translation_segmenter.dart';
 
 void main() {
   group('TranslationSegmenter', () {

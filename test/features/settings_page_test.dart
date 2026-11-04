@@ -2,17 +2,17 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/settings_repository.dart';
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
-import 'package:hackathon_reading/distill/llm/llm_config.dart';
-import 'package:hackathon_reading/features/settings/settings_page.dart';
-import 'package:hackathon_reading/search/search_config.dart';
-import 'package:hackathon_reading/search/search_hit.dart';
-import 'package:hackathon_reading/search/search_provider.dart';
-import 'package:hackathon_reading/tts/tts_client.dart';
-import 'package:hackathon_reading/tts/tts_config.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/settings_repository.dart';
+import 'package:coread/distill/llm/llm_client.dart';
+import 'package:coread/distill/llm/llm_config.dart';
+import 'package:coread/features/settings/settings_page.dart';
+import 'package:coread/search/search_config.dart';
+import 'package:coread/search/search_hit.dart';
+import 'package:coread/search/search_provider.dart';
+import 'package:coread/tts/tts_client.dart';
+import 'package:coread/tts/tts_config.dart';
 
 import '../support/fake_tts.dart';
 

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/domain/services/epub_book_parser.dart';
+import 'package:coread/domain/services/epub_book_parser.dart';
 
 import '../support/epub_fixture.dart';
 

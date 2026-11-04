@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/search/companion_selection.dart';
+import 'package:coread/search/companion_selection.dart';
 
 void main() {
   test('a book starts in automatic mode', () {

@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/book_repository.dart';
-import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
-import 'package:hackathon_reading/data/repositories/settings_repository.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/chapter.dart';
-import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/book_repository.dart';
+import 'package:coread/data/repositories/chapter_repository.dart';
+import 'package:coread/data/repositories/settings_repository.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/chapter.dart';
+import 'package:coread/features/reader/reader_page.dart';
 
 void main() {
   late AppDatabase db;

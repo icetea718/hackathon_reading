@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
-import 'package:hackathon_reading/search/routing_search_provider.dart';
-import 'package:hackathon_reading/search/search_config.dart';
-import 'package:hackathon_reading/search/search_hit.dart';
-import 'package:hackathon_reading/search/search_provider.dart';
+import 'package:coread/distill/llm/llm_client.dart';
+import 'package:coread/search/routing_search_provider.dart';
+import 'package:coread/search/search_config.dart';
+import 'package:coread/search/search_hit.dart';
+import 'package:coread/search/search_provider.dart';
 
 class _Recorder implements SearchProvider {
   _Recorder(this.id);

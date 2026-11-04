@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/app.dart';
+import 'package:coread/app/app.dart';
 
 void main() {
   testWidgets('the built-in text menus speak Chinese', (tester) async {

@@ -1,4 +1,4 @@
-import 'package:hackathon_reading/data/repositories/translation_cache_repository.dart';
+import 'package:coread/data/repositories/translation_cache_repository.dart';
 
 /// In-memory [TranslationCacheStore] for widget tests.
 class FakeTranslationCache implements TranslationCacheStore {

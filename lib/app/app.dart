@@ -43,7 +43,7 @@ class BookApp extends ConsumerWidget {
     });
 
     return MaterialApp(
-      title: 'AI 阅读器',
+      title: 'coread',
       navigatorKey: appNavigatorKey,
       scaffoldMessengerKey: appScaffoldMessengerKey,
       theme: AppTheme.light,

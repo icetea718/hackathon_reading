@@ -1,4 +1,4 @@
-package com.icetea.hackathon_reading
+package com.icetea.coread
 
 import io.flutter.embedding.android.FlutterActivity
 

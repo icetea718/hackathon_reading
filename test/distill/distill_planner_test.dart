@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/distill_planner.dart';
-import 'package:hackathon_reading/domain/models/chapter.dart';
+import 'package:coread/distill/distill_planner.dart';
+import 'package:coread/domain/models/chapter.dart';
 
 void main() {
   Chapter chapter(int index, String text, {String? title}) {

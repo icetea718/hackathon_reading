@@ -3,8 +3,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/tts_client.dart';
-import 'package:hackathon_reading/tts/tts_config.dart';
+import 'package:coread/tts/tts_client.dart';
+import 'package:coread/tts/tts_config.dart';
 
 import '../support/wav_fixture.dart';
 

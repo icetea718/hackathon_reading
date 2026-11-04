@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/audio_output.dart';
-import 'package:hackathon_reading/tts/tts_config.dart';
-import 'package:hackathon_reading/tts/tts_service.dart';
-import 'package:hackathon_reading/tts/wav.dart';
+import 'package:coread/tts/audio_output.dart';
+import 'package:coread/tts/tts_config.dart';
+import 'package:coread/tts/tts_service.dart';
+import 'package:coread/tts/wav.dart';
 
 import '../support/fake_tts.dart';
 import '../support/wav_fixture.dart';

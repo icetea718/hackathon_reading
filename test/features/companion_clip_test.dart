@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/features/companion/companion_clip.dart';
+import 'package:coread/features/companion/companion_clip.dart';
 
 Widget _host(Widget child) => MaterialApp(
   home: Center(child: SizedBox(width: 150, height: 200, child: child)),

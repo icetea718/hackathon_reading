@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:hackathon_reading/distill/distill_digest.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/chapter.dart';
-import 'package:hackathon_reading/search/book_context.dart';
+import 'package:coread/distill/distill_digest.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/chapter.dart';
+import 'package:coread/search/book_context.dart';
 
 final book = Book(
   id: 'b1',

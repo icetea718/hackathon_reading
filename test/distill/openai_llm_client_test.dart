@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/distill/llm/llm_client.dart';
-import 'package:hackathon_reading/distill/llm/llm_config.dart';
-import 'package:hackathon_reading/distill/llm/openai_llm_client.dart';
+import 'package:coread/distill/llm/llm_client.dart';
+import 'package:coread/distill/llm/llm_config.dart';
+import 'package:coread/distill/llm/openai_llm_client.dart';
 
 /// A throwaway HTTP server that answers exactly one request per [handler].
 class _FakeLlmServer {

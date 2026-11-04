@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/app/providers.dart';
-import 'package:hackathon_reading/data/db/app_database.dart';
-import 'package:hackathon_reading/data/repositories/book_repository.dart';
-import 'package:hackathon_reading/data/repositories/category_repository.dart';
-import 'package:hackathon_reading/domain/models/book.dart';
-import 'package:hackathon_reading/domain/models/category.dart';
-import 'package:hackathon_reading/features/library/category_pane.dart';
+import 'package:coread/app/providers.dart';
+import 'package:coread/data/db/app_database.dart';
+import 'package:coread/data/repositories/book_repository.dart';
+import 'package:coread/data/repositories/category_repository.dart';
+import 'package:coread/domain/models/book.dart';
+import 'package:coread/domain/models/category.dart';
+import 'package:coread/features/library/category_pane.dart';
 
 Book book(String id) => Book(
   id: id,

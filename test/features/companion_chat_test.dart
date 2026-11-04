@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/assistant/reading_context.dart';
-import 'package:hackathon_reading/features/companion/companion_chat.dart';
+import 'package:coread/assistant/reading_context.dart';
+import 'package:coread/features/companion/companion_chat.dart';
 
 Widget _host(Widget child) => MaterialApp(
   home: Scaffold(

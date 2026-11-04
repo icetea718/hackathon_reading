@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hackathon_reading/tts/edge/edge_token.dart';
+import 'package:coread/tts/edge/edge_token.dart';
 
 /// The three vectors below were produced by the vendored reference
 /// implementation (`MsEdgeTTS.generateSecMsGec` in chino-tts'
