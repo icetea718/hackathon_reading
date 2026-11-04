@@ -111,11 +111,15 @@ void main() {
 
   /// The form is taller than the viewport, so reach for widgets by scrolling.
   Future<void> reveal(WidgetTester tester, Finder finder) async {
-    await tester.scrollUntilVisible(
-      finder,
-      120,
-      scrollable: find.byType(Scrollable).first,
-    );
+    final scrollable = find.byType(Scrollable).first;
+    // The helper is reused for targets above the last one, so rewind first:
+    // ListView disposes children scrolled out of its cache extent.
+    final position = tester.state<ScrollableState>(scrollable).position;
+    if (position.pixels > 0) {
+      position.jumpTo(0);
+      await tester.pumpAndSettle();
+    }
+    await tester.scrollUntilVisible(finder, 120, scrollable: scrollable);
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
   }
@@ -197,12 +201,13 @@ void main() {
     await pumpPage(tester, _FakeClient());
 
     await fillTts(tester, voice: 'dfy');
+    await tapAt(tester, find.byKey(const Key('tts-auto-speak')));
     await tapAt(tester, find.text('保存'));
 
     final saved = await TtsConfigStore(SettingsRepository(db)).load();
     expect(saved.baseUrl, 'http://127.0.0.1:9880');
     expect(saved.voice, 'dfy');
-    expect(saved.enabled, isTrue);
+    expect(saved.autoSpeak, isTrue);
   });
 
   testWidgets('loads stored voice settings into the form', (tester) async {
@@ -212,7 +217,6 @@ void main() {
         voice: 'female',
         speed: 1.25,
         volume: 0.8,
-        enabled: false,
         autoSpeak: true,
       ),
     );
@@ -284,7 +288,7 @@ void main() {
 
     await tapAt(tester, find.byKey(const Key('tts-test')));
 
-    expect(find.textContaining('语音服务不可用'), findsOneWidget);
+    expect(find.textContaining('连不上'), findsOneWidget);
     expect(find.textContaining('先启动 chino-tts'), findsOneWidget);
   });
 

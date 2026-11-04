@@ -2,16 +2,18 @@ import '../data/repositories/settings_repository.dart';
 
 /// Where the companion voice comes from and how it should sound.
 ///
-/// The endpoint speaks the OpenAI `/audio/speech` shape, which both
-/// `chino-tts` (127.0.0.1:8766 by default) and GPT-SoVITS `api_v2` implement —
-/// the same shape the reference Coopanion plugin exposes.
+/// Two engines answer to these settings. Built-in voices (see `TtsVoices`) are
+/// synthesized by the app itself against the Edge read-aloud endpoint, so they
+/// work with nothing installed. Clone voices go to a local speech service that
+/// speaks the OpenAI `/audio/speech` shape — `chino-tts` at 127.0.0.1:8766 by
+/// default, or GPT-SoVITS `api_v2` — the same shape the reference Coopanion
+/// plugin exposes.
 class TtsConfig {
   const TtsConfig({
     required this.baseUrl,
     required this.voice,
     required this.speed,
     required this.volume,
-    required this.enabled,
     required this.autoSpeak,
   });
 
@@ -19,26 +21,20 @@ class TtsConfig {
   static const String voiceKey = 'tts.voice';
   static const String speedKey = 'tts.speed';
   static const String volumeKey = 'tts.volume';
-  static const String enabledKey = 'tts.enabled';
   static const String autoSpeakKey = 'tts.autoSpeak';
 
-  /// Voices offered as one-tap presets, chino-tts first (its own defaults) and
-  /// the GPT-SoVITS names the reference plugin ships.
-  static const List<String> voicePresets = [
-    'zhino',
-    'zhino-clone',
-    'xiaoyi',
-    'xiaoxiao',
-    'xll',
-    'dfy',
-  ];
+  /// Voice used until the user picks another one.
+  ///
+  /// It is a built-in online voice, so a fresh install speaks without any local
+  /// service; the picker's list lives in `TtsVoices`, which merges this app's
+  /// own voices with whatever `chino-tts` reports.
+  static const String defaultVoice = 'zhino';
 
   static const TtsConfig defaults = TtsConfig(
     baseUrl: 'http://127.0.0.1:8766',
-    voice: 'zhino',
+    voice: defaultVoice,
     speed: 1,
     volume: 1,
-    enabled: true,
     autoSpeak: false,
   );
 
@@ -51,20 +47,17 @@ class TtsConfig {
   /// Playback gain, 0–1.
   final double volume;
 
-  /// When false the companion stays silent even if the service is reachable.
-  final bool enabled;
-
   /// Whether every finished reply is spoken without being asked.
+  ///
+  /// The speaker button on a bubble and the companion's own lines always read,
+  /// whatever this switch says.
   final bool autoSpeak;
-
-  bool get isConfigured => enabled && baseUrl.trim().isNotEmpty;
 
   TtsConfig copyWith({
     String? baseUrl,
     String? voice,
     double? speed,
     double? volume,
-    bool? enabled,
     bool? autoSpeak,
   }) {
     return TtsConfig(
@@ -72,7 +65,6 @@ class TtsConfig {
       voice: voice ?? this.voice,
       speed: speed ?? this.speed,
       volume: volume ?? this.volume,
-      enabled: enabled ?? this.enabled,
       autoSpeak: autoSpeak ?? this.autoSpeak,
     );
   }
@@ -80,7 +72,7 @@ class TtsConfig {
   @override
   String toString() =>
       'TtsConfig(baseUrl: $baseUrl, voice: $voice, speed: $speed, '
-      'volume: $volume, enabled: $enabled, autoSpeak: $autoSpeak)';
+      'volume: $volume, autoSpeak: $autoSpeak)';
 }
 
 /// Reads and writes [TtsConfig] through the settings table.
@@ -108,8 +100,6 @@ class TtsConfigStore {
             max: 1,
           ) ??
           fallback.volume,
-      enabled: _parseBool(await _settings.get(TtsConfig.enabledKey)) ??
-          fallback.enabled,
       autoSpeak: _parseBool(await _settings.get(TtsConfig.autoSpeakKey)) ??
           fallback.autoSpeak,
     );
@@ -120,7 +110,6 @@ class TtsConfigStore {
     await _settings.set(TtsConfig.voiceKey, config.voice);
     await _settings.set(TtsConfig.speedKey, '${config.speed}');
     await _settings.set(TtsConfig.volumeKey, '${config.volume}');
-    await _settings.set(TtsConfig.enabledKey, '${config.enabled}');
     await _settings.set(TtsConfig.autoSpeakKey, '${config.autoSpeak}');
   }
 

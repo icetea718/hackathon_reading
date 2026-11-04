@@ -28,12 +28,12 @@ const _ttsConfig = TtsConfig(
   voice: 'xll',
   speed: 1,
   volume: 1,
-  enabled: true,
   autoSpeak: false,
 );
 
 class _FakeAssistant implements AssistantService {
   final List<String> prompts = [];
+  final List<PersonaMode> personas = [];
   List<ChatMessage>? lastHistory;
   ReadingContext? lastContext;
 
@@ -48,6 +48,7 @@ class _FakeAssistant implements AssistantService {
     PersonaMode persona = PersonaMode.fallback,
   }) async* {
     prompts.add('chat:$userMessage');
+    personas.add(persona);
     lastHistory = List.of(history);
     lastContext = context;
     yield '福贵';
@@ -147,13 +148,14 @@ Widget _host(
   int? pageEndOffset,
   String currentPageText = '',
   Stream<List<MemoryBook>>? memoryBooks,
+  TtsConfig ttsConfig = _ttsConfig,
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
   final tts = TtsService(
     client: voice,
     output: speaker,
-    config: () => _ttsConfig,
+    config: () => ttsConfig,
     tempDirectory: () async => Directory.systemTemp,
     durationOf: (_) => speechLength,
   );
@@ -173,6 +175,7 @@ Widget _host(
     pageEndOffset: pageEndOffset,
     currentPageText: currentPageText,
     memoryBooks: memoryBooks,
+    ttsConfig: ttsConfig,
   );
 }
 
@@ -192,6 +195,7 @@ Widget _wrap(
   int? pageEndOffset,
   String currentPageText = '',
   Stream<List<MemoryBook>>? memoryBooks,
+  TtsConfig ttsConfig = _ttsConfig,
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
   if (db == null) addTearDown(database.close);
@@ -201,7 +205,7 @@ Widget _wrap(
     overrides: [
       assistantServiceProvider.overrideWith((ref) async => service),
       appDatabaseProvider.overrideWithValue(database),
-      ttsConfigProvider.overrideWith((ref) async => _ttsConfig),
+      ttsConfigProvider.overrideWith((ref) async => ttsConfig),
       ttsServiceProvider.overrideWithValue(tts),
       if (memoryBooks != null)
         memoryBookListProvider.overrideWith((ref) => memoryBooks),
@@ -518,7 +522,7 @@ void main() {
     final tts = TtsService(
       client: voice,
       output: speaker,
-      config: () => _ttsConfig.copyWith(enabled: false),
+      config: () => _ttsConfig.copyWith(autoSpeak: false),
       tempDirectory: () async => Directory.systemTemp,
       durationOf: (_) => const Duration(milliseconds: 20),
     );
@@ -568,6 +572,34 @@ void main() {
     await _ask(tester);
 
     expect(voice.texts, isEmpty);
+  });
+
+  testWidgets('auto speak reads a new reply once the setting is on',
+      (tester) async {
+    final voice = FakeTtsClient();
+    final speaker = FakeAudioOutput();
+    await tester.pumpWidget(
+      _host(
+        _FakeAssistant(),
+        client: voice,
+        output: speaker,
+        ttsConfig: _ttsConfig.copyWith(autoSpeak: true),
+      ),
+    );
+    await _settle(tester);
+
+    await _ask(tester);
+    await tester.runAsync(() async {
+      for (var i = 0; i < 80 && speaker.played.isEmpty; i++) {
+        await tester.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(voice.texts, isNotEmpty);
+    expect(voice.texts.first, contains('赌博'));
+    expect(speaker.played, isNotEmpty);
   });
 
   testWidgets('a saved conversation reopens with the panel', (tester) async {
@@ -1027,5 +1059,76 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('这一页的正文。'), findsOneWidget);
+  });
+
+  group('persona', () {
+    testWidgets('the chip names the voice the reader is in', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      expect(find.byKey(const Key('companion-mode-pill')), findsOneWidget);
+      expect(find.text(PersonaMode.gentle.shortLabel), findsOneWidget);
+    });
+
+    testWidgets('the chip opens the chooser with both voices', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('陪读模式'), findsOneWidget);
+      for (final mode in PersonaMode.values) {
+        expect(find.byKey(Key('persona-option-${mode.id}')), findsOneWidget);
+        expect(find.text('“${mode.sample}”'), findsOneWidget);
+      }
+    });
+
+    testWidgets('picking a voice closes the chooser and says so',
+        (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-debate')));
+      await _settle(tester);
+
+      expect(find.text('陪读模式'), findsNothing);
+      expect(find.text('已切到${PersonaMode.debate.label}'), findsOneWidget);
+      expect(find.text(PersonaMode.debate.shortLabel), findsOneWidget);
+    });
+
+    testWidgets('the next question goes out in the chosen voice',
+        (tester) async {
+      final assistant = _FakeAssistant();
+      await tester.pumpWidget(_host(assistant));
+      await _settle(tester);
+      await _ask(tester);
+      expect(assistant.personas.last, PersonaMode.gentle);
+      expect(find.text('福贵是因为赌博。'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-debate')));
+      await _settle(tester);
+      expect(find.text('福贵是因为赌博。'), findsOneWidget);
+
+      await _ask(tester);
+      expect(assistant.personas.last, PersonaMode.debate);
+      expect(find.text('已切到${PersonaMode.debate.label}'), findsNothing);
+    });
+
+    testWidgets('picking the voice already in use stays quiet', (tester) async {
+      await tester.pumpWidget(_host(_FakeAssistant()));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const Key('companion-mode-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('persona-option-gentle')));
+      await _settle(tester);
+
+      expect(find.text('已切到${PersonaMode.gentle.label}'), findsNothing);
+    });
   });
 }

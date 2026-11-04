@@ -8,6 +8,7 @@ import '../../illustration/illustration_config.dart';
 import '../../search/search_config.dart';
 import '../../tts/tts_client.dart';
 import '../../tts/tts_config.dart';
+import '../../tts/tts_voices.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -32,8 +33,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _ttsVoice = TextEditingController();
   final _ttsSpeed = TextEditingController();
   final _ttsVolume = TextEditingController();
-  bool _ttsEnabled = TtsConfig.defaults.enabled;
   bool _ttsAutoSpeak = TtsConfig.defaults.autoSpeak;
+
+  /// Picker contents: the app's built-in voices plus whatever the local
+  /// service reports. Starts as the static list so the field is never empty.
+  List<TtsVoice> _ttsVoices = TtsVoices.fallback;
+  bool _loadingVoices = false;
 
   final _searchKey = TextEditingController();
   String _searchProvider = SearchConfig.off;
@@ -90,11 +95,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _ttsVoice.text = voice.voice;
       _ttsSpeed.text = '${voice.speed}';
       _ttsVolume.text = '${voice.volume}';
-      _ttsEnabled = voice.enabled;
       _ttsAutoSpeak = voice.autoSpeak;
       _searchProvider = search.provider;
       _searchKey.text = search.apiKey;
       _loaded = true;
+    });
+    await _refreshVoices(voice.baseUrl);
+  }
+
+  /// Asks the local service which voices it has.
+  ///
+  /// The app's own voices are always listed, so a missing service only removes
+  /// the clone entries instead of emptying the picker.
+  Future<void> _refreshVoices([String? baseUrl]) async {
+    final target = baseUrl ?? _ttsBaseUrl.text.trim();
+    if (mounted) setState(() => _loadingVoices = true);
+    final voices = await TtsVoices.load(target);
+    if (!mounted) return;
+    setState(() {
+      _ttsVoices = voices;
+      _loadingVoices = false;
     });
   }
 
@@ -155,7 +175,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       voice: voice.isEmpty ? TtsConfig.defaults.voice : voice,
       speed: (speed ?? TtsConfig.defaults.speed).clamp(0.6, 1.6).toDouble(),
       volume: (volume ?? TtsConfig.defaults.volume).clamp(0, 1).toDouble(),
-      enabled: _ttsEnabled,
       autoSpeak: _ttsAutoSpeak,
     );
   }
@@ -176,12 +195,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
     if (!mounted) return;
     setState(() => _testingVoice = false);
+    // The probe already says which engine answered and what went wrong, so it
+    // is shown as-is: no blanket "语音服务不可用" when the online engine spoke
+    // fine without any local service.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(probe.ok ? probe.message : '语音服务不可用：${probe.message}'),
+        content: Text(probe.message),
         duration: const Duration(seconds: 6),
       ),
     );
+    if (probe.ok) await _refreshVoices(config.baseUrl);
   }
 
   Future<void> _testConnection() async {
@@ -443,24 +466,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(),
                 const SizedBox(height: 8),
                 Text(
-                  '朗读（GPT-SoVITS / chino-tts）',
+                  '朗读（内置在线音色 / chino-tts）',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  '带云朵的音色由 app 自己联网合成，装好就能念；'
+                  '带电脑图标的克隆音色要在这台机器上跑 chino-tts。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
                 SwitchListTile(
-                  key: const Key('tts-enabled'),
+                  key: const Key('tts-auto-speak'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('启用朗读'),
-                  subtitle: const Text('关掉只停用「自动朗读回复」；手动点喇叭照样会读'),
-                  value: _ttsEnabled,
-                  onChanged: (value) => setState(() => _ttsEnabled = value),
+                  title: const Text('自动朗读回复'),
+                  subtitle: const Text('回复生成完就念，不用点喇叭；'
+                      '关掉后喇叭按钮和宠物台词照样会读'),
+                  value: _ttsAutoSpeak,
+                  onChanged: (value) => setState(() => _ttsAutoSpeak = value),
                 ),
                 TextField(
                   key: const Key('tts-base-url'),
                   controller: _ttsBaseUrl,
                   decoration: const InputDecoration(
-                    labelText: '语音服务地址',
+                    labelText: '语音服务地址（克隆音色用）',
                     hintText: 'http://127.0.0.1:8766',
-                    helperText: 'chino-tts 或 GPT-SoVITS api_v2；根路径 404 是正常的',
+                    helperText: '内置在线音色不经过这里；'
+                        'chino-tts 或 GPT-SoVITS api_v2，根路径 404 是正常的',
                   ),
                   keyboardType: TextInputType.url,
                 ),
@@ -470,22 +503,42 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   controller: _ttsVoice,
                   decoration: const InputDecoration(
                     labelText: '音色',
-                    helperText: '点下面的预设，或自己填服务里的音色名；'
-                        'zhino / xiaoyi 走在线合成，几乎实时，'
-                        'zhino-clone 是本机克隆，比实时慢很多',
+                    helperText: '点下面的音色即可，也可以直接填名字；'
+                        '云朵＝在线合成，几乎实时；'
+                        '电脑＝本机克隆，比实时慢很多',
                   ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    for (final preset in TtsConfig.voicePresets)
+                    for (final voice in _ttsVoices)
                       ActionChip(
-                        key: Key('tts-voice-$preset'),
-                        label: Text(preset),
+                        key: Key('tts-voice-${voice.id}'),
+                        avatar: voice.builtIn
+                            ? const Icon(Icons.cloud_outlined, size: 16)
+                            : const Icon(Icons.computer_outlined, size: 16),
+                        label: Text('${voice.id} · ${voice.label}'),
+                        tooltip: voice.builtIn
+                            ? '内置在线音色：不用装任何东西'
+                            : '需要本机 chino-tts 和它的克隆模型',
                         onPressed: () =>
-                            setState(() => _ttsVoice.text = preset),
+                            setState(() => _ttsVoice.text = voice.id),
+                      ),
+                    if (_loadingVoices)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      TextButton.icon(
+                        key: const Key('tts-voice-refresh'),
+                        onPressed: () => _refreshVoices(),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('刷新音色'),
                       ),
                   ],
                 ),
@@ -511,6 +564,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         controller: _ttsVolume,
                         decoration: const InputDecoration(
                           labelText: '音量（0–1）',
+                          helperText: '内置音色写进 SSML，克隆音色改 WAV 采样',
                         ),
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
@@ -518,14 +572,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                     ),
                   ],
-                ),
-                SwitchListTile(
-                  key: const Key('tts-auto-speak'),
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('自动朗读回复'),
-                  subtitle: const Text('回复生成完就念，不用点喇叭'),
-                  value: _ttsAutoSpeak,
-                  onChanged: (value) => setState(() => _ttsAutoSpeak = value),
                 ),
                 const SizedBox(height: 24),
                 Wrap(

@@ -17,6 +17,7 @@ import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:hackathon_reading/tts/audio_output.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
 import 'package:hackathon_reading/tts/tts_service.dart';
 
@@ -55,10 +56,25 @@ class _EchoAssistant implements AssistantService {
   }
 }
 
+/// Plays nothing and schedules nothing: the reader tests only care that the
+/// line reached the voice service, and a real playback timer would outlive them.
+class _SilentAudioOutput implements AudioOutput {
+  @override
+  Future<void> playFile(String path, {Duration? duration}) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  void dispose() {}
+}
+
 void main() {
   late AppDatabase db;
+  late FakeTtsClient voice;
 
   setUp(() async {
+    voice = FakeTtsClient();
     db = AppDatabase(NativeDatabase.memory());
     await BookRepository(db).upsert(Book(
       id: 'b1',
@@ -103,14 +119,14 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           // The companion reads its bubble line out loud; keep the audio
-          // engine fake and the speaker off so nothing waits on playback.
+          // engine fake and the clips instant so nothing waits on playback.
           ttsServiceProvider.overrideWithValue(
             TtsService(
-              client: FakeTtsClient(),
-              output: FakeAudioOutput(),
-              config: () => TtsConfig.defaults.copyWith(enabled: false),
+              client: voice,
+              output: _SilentAudioOutput(),
+              config: () => TtsConfig.defaults,
               tempDirectory: () async => Directory.systemTemp,
-              durationOf: (_) => const Duration(milliseconds: 20),
+              durationOf: (_) => Duration.zero,
             ),
           ),
           if (configured)
@@ -198,6 +214,25 @@ void main() {
     expect(panel.chapterText.substring(start!, end!), contains('第一章的内容'));
   });
 
+  testWidgets('speaks the bubble line without the auto switch',
+      (tester) async {
+    useWindow(tester, const Size(1400, 900));
+    await pumpReader(tester);
+
+    // The greeting pops 600 ms after the page opens, then asks the voice.
+    await tester.pump(const Duration(milliseconds: 700));
+    await flush(tester);
+
+    expect(find.text('读到哪儿了？'), findsOneWidget);
+    expect(voice.texts, contains('读到哪儿了？'));
+    expect(voice.voices, everyElement('zhino'));
+
+    // Let the bubble linger and retract so no timer outlives the test.
+    await tester.pump(const Duration(seconds: 7));
+    await flush(tester);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('closing the side panel leaves the reader in place',
       (tester) async {
     useWindow(tester, const Size(1400, 900));
@@ -243,6 +278,10 @@ void main() {
     expect(find.text('旧回答'), findsOneWidget);
     expect(find.text('保存在第 2 章，当前为只读'), findsNothing);
     expect(find.byType(TextField), findsOneWidget);
+
+    // The pet speaks as the thread opens; let the line and its gap drain.
+    await tester.pump(const Duration(milliseconds: 60));
+    await flush(tester);
   });
 
   testWidgets('a narrow window closes the sheet and lands on the chapter',

@@ -2240,7 +2240,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
 
-  /// Reads a bubble line out loud; the voice service honours 朗读 on its own.
+  /// Reads a bubble line out loud in the configured voice.
+  ///
+  /// The pet talks, so the line is always spoken: 自动朗读回复 decides whether
+  /// long chat replies are read on their own, not whether the pet may say what
+  /// it is showing. Voice, speed and volume still come from [TtsConfig].
   void _readBubbleAloud(String line) {
     final trimmed = line.trim();
     if (trimmed.isEmpty) return;

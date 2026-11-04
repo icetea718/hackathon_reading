@@ -49,6 +49,7 @@ import '../search/search_book.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
 import '../tts/audio_output.dart';
+import '../tts/routing_tts_client.dart';
 import '../tts/tts_client.dart';
 import '../tts/tts_config.dart';
 import '../tts/tts_service.dart';
@@ -325,7 +326,7 @@ final ttsConfigSourceProvider = Provider<TtsConfigSource>((ref) {
 
 final ttsClientProvider = Provider<TtsClient>((ref) {
   final source = ref.watch(ttsConfigSourceProvider);
-  final client = OpenAiTtsClient(config: () => source.value);
+  final client = RoutingTtsClient(config: () => source.value);
   ref.onDispose(client.dispose);
   return client;
 });
@@ -337,7 +338,7 @@ final ttsClientProvider = Provider<TtsClient>((ref) {
 typedef TtsClientFactory = TtsClient Function(TtsConfig config);
 
 final ttsClientFactoryProvider = Provider<TtsClientFactory>((ref) {
-  return (config) => OpenAiTtsClient(config: () => config);
+  return (config) => RoutingTtsClient(config: () => config);
 });
 
 final audioOutputProvider = Provider<AudioOutput>((ref) {

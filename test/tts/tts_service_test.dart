@@ -15,7 +15,6 @@ const _config = TtsConfig(
   voice: 'xll',
   speed: 1,
   volume: 1,
-  enabled: true,
   autoSpeak: false,
 );
 
@@ -126,30 +125,16 @@ void main() {
     expect(service.status.phase, TtsPhase.idle);
   });
 
-  test('stays silent when disabled', () async {
+  test('speaks whenever asked, even with auto read on', () async {
     final client = FakeTtsClient();
     final service = build(
       client,
       FakeAudioOutput(),
-      config: () => _config.copyWith(enabled: false),
+      config: () => _config.copyWith(autoSpeak: true),
     );
     addTearDown(service.dispose);
 
     await service.speak('福贵输了钱。');
-
-    expect(client.texts, isEmpty);
-  });
-
-  test('reads on request even when the switch is off', () async {
-    final client = FakeTtsClient();
-    final service = build(
-      client,
-      FakeAudioOutput(),
-      config: () => _config.copyWith(enabled: false),
-    );
-    addTearDown(service.dispose);
-
-    await service.speak('福贵输了钱。', force: true);
 
     expect(client.texts, ['福贵输了钱。']);
   });
