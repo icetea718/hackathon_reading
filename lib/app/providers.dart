@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,6 +150,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     categories: ref.watch(categoryRepositoryProvider),
   );
   await service.backfillContentHashes();
+  unawaited(service.backfillCovers());
   return service;
 });
 

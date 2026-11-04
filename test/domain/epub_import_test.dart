@@ -148,6 +148,95 @@ void main() {
     });
   });
 
+  group('EPUB cover extraction', () {
+    const coverBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 7, 8, 9];
+
+    List<int> epubWithCover(EpubFixtureCover cover) => buildEpubBytes(
+          docs: const [
+            EpubFixtureDoc(
+              href: 'text/chapter1.xhtml',
+              body: '<p>正文</p>',
+            ),
+          ],
+          toc: const {'text/chapter1.xhtml': '第一章'},
+          cover: cover,
+        );
+
+    test('reads an EPUB3 cover-image item', () {
+      final document = parseEpubDocument(epubWithCover(
+        const EpubFixtureCover(
+          href: 'images/cover.jpg',
+          bytes: coverBytes,
+        ),
+      ));
+
+      expect(document.cover, isNotNull);
+      expect(document.cover!.bytes, coverBytes);
+      expect(document.cover!.extension, 'jpg');
+    });
+
+    test('reads an EPUB2 meta cover', () {
+      final document = parseEpubDocument(epubWithCover(
+        const EpubFixtureCover(
+          href: 'images/front.png',
+          bytes: coverBytes,
+          mediaType: 'image/png',
+          id: 'front',
+          useMeta: true,
+        ),
+      ));
+
+      expect(document.cover?.bytes, coverBytes);
+      expect(document.cover?.extension, 'png');
+    });
+
+    test('falls back to an image whose name contains cover', () {
+      final document = parseEpubDocument(epubWithCover(
+        const EpubFixtureCover(
+          href: 'images/my-cover.webp',
+          bytes: coverBytes,
+          mediaType: 'image/webp',
+          id: 'img1',
+          declared: false,
+        ),
+      ));
+
+      expect(document.cover?.extension, 'webp');
+    });
+
+    test('ignores SVG covers', () {
+      final document = parseEpubDocument(epubWithCover(
+        const EpubFixtureCover(
+          href: 'images/cover.svg',
+          bytes: coverBytes,
+          mediaType: 'image/svg+xml',
+        ),
+      ));
+
+      expect(document.cover, isNull);
+    });
+
+    test('has no cover when none is declared', () {
+      final bytes = buildEpubBytes(docs: const [
+        EpubFixtureDoc(href: 'text/a.xhtml', body: '<p>正文</p>'),
+      ]);
+
+      expect(parseEpubDocument(bytes).cover, isNull);
+      expect(parseEpubCover(bytes), isNull);
+    });
+
+    test('parseEpubCover extracts the cover without reading the spine', () {
+      final cover = parseEpubCover(epubWithCover(
+        const EpubFixtureCover(
+          href: 'images/cover.jpg',
+          bytes: coverBytes,
+        ),
+      ));
+
+      expect(cover?.bytes, coverBytes);
+    });
+  });
+
   group('BookService EPUB import', () {
     late Directory temp;
     late AppDatabase db;
@@ -216,6 +305,91 @@ void main() {
           chapter.endOffset - chapter.startOffset,
         );
       }
+    });
+
+    test('import saves an EPUB cover and stores its path', () async {
+      const coverBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<p>你好</p>',
+          ),
+        ],
+        toc: const {'text/chapter1.xhtml': '第一章'},
+        cover: const EpubFixtureCover(
+          href: 'images/cover.jpg',
+          bytes: coverBytes,
+        ),
+      );
+      final source = File('${temp.path}/带封面.epub')
+        ..writeAsBytesSync(bytes);
+
+      final book = await service.importFile(source.path);
+
+      expect(book.coverPath, isNotNull);
+      expect(book.coverPath, contains('covers'));
+      expect(File(book.coverPath!).existsSync(), isTrue);
+      expect(File(book.coverPath!).readAsBytesSync(), coverBytes);
+      expect((await books.getAll()).single.coverPath, book.coverPath);
+    });
+
+    test('backfill extracts covers for books imported before cover support',
+        () async {
+      const coverBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 4, 5, 6];
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<p>旧书正文</p>',
+          ),
+        ],
+        toc: const {'text/chapter1.xhtml': '第一章'},
+        cover: const EpubFixtureCover(
+          href: 'images/cover.jpg',
+          bytes: coverBytes,
+        ),
+      );
+      final source = File('${temp.path}/旧书.epub')
+        ..writeAsBytesSync(bytes);
+      await books.upsert(Book(
+        id: 'old',
+        title: '旧书',
+        author: '',
+        format: BookFormat.epub,
+        sourcePath: source.path,
+        addedAt: DateTime(2026, 1, 1),
+      ));
+
+      await service.backfillCovers();
+
+      final updated = (await books.getAll()).single;
+      expect(updated.coverPath, isNotNull);
+      expect(File(updated.coverPath!).readAsBytesSync(), coverBytes);
+    });
+
+    test('deleting a book removes its cover file', () async {
+      const coverBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 2, 4, 6];
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/chapter1.xhtml',
+            body: '<p>正文</p>',
+          ),
+        ],
+        toc: const {'text/chapter1.xhtml': '第一章'},
+        cover: const EpubFixtureCover(
+          href: 'images/cover.jpg',
+          bytes: coverBytes,
+        ),
+      );
+      final source = File('${temp.path}/待删.epub')..writeAsBytesSync(bytes);
+      final book = await service.importFile(source.path);
+      final coverPath = book.coverPath!;
+
+      await service.deleteBook(book);
+
+      expect(File(coverPath).existsSync(), isFalse);
     });
 
     test('malformed EPUB leaves no book row or copied file', () async {

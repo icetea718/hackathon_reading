@@ -56,14 +56,35 @@ class BookCover extends StatelessWidget {
           colors: colors,
         ),
       ),
-      alignment: Alignment.center,
-      child: Text(
-        initialLetter(book.title),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 34,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: Text(
+              initialLetter(book.title),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 10,
+            child: Text(
+              book.format.label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.6,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

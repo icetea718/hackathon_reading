@@ -5,6 +5,12 @@ enum BookFormat {
 
   String get extension => name;
 
+  String get label => switch (this) {
+        BookFormat.epub => 'EPUB',
+        BookFormat.txt => 'TXT',
+        BookFormat.pdf => 'PDF',
+      };
+
   static BookFormat? fromExtension(String pathOrName) {
     final dot = pathOrName.lastIndexOf('.');
     if (dot == -1 || dot == pathOrName.length - 1) return null;

@@ -24,6 +24,31 @@ class EpubFixtureDoc {
   final bool inSpine;
 }
 
+/// An image item to declare as the EPUB cover.
+class EpubFixtureCover {
+  const EpubFixtureCover({
+    required this.href,
+    required this.bytes,
+    this.mediaType = 'image/jpeg',
+    this.id = 'cover-image',
+    this.useMeta = false,
+    this.declared = true,
+  });
+
+  /// Path relative to the OPF file.
+  final String href;
+  final List<int> bytes;
+  final String mediaType;
+  final String id;
+
+  /// Declares the cover with the EPUB2 `<meta name="cover">` tag.
+  final bool useMeta;
+
+  /// Emits `properties="cover-image"` (EPUB3). When false the image is a
+  /// plain manifest item, exercising the filename fallback.
+  final bool declared;
+}
+
 String _escapeXml(String value) => value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -49,6 +74,7 @@ List<int> buildEpubBytes({
   Map<String, String> toc = const {},
   bool useNcx = false,
   bool includeNavInSpine = false,
+  EpubFixtureCover? cover,
   String mimetype = 'application/epub+zip',
 }) {
   final opfDir = p.url.dirname(opfPath);
@@ -79,6 +105,20 @@ List<int> buildEpubBytes({
     archive.add(ArchiveFile.bytes(
       fullPath,
       utf8.encode(_xhtml(doc.title, doc.body)),
+    ));
+  }
+
+  if (cover != null) {
+    final property = cover.declared && !cover.useMeta
+        ? ' properties="cover-image"'
+        : '';
+    manifest.writeln(
+      '<item id="${cover.id}" href="${_escapeXml(cover.href)}" '
+      'media-type="${cover.mediaType}"$property/>',
+    );
+    archive.add(ArchiveFile.bytes(
+      p.url.normalize(p.url.join(opfDir, cover.href)),
+      cover.bytes,
     ));
   }
 
@@ -148,6 +188,7 @@ List<int> buildEpubBytes({
       '<dc:title>Fixture Book</dc:title>\n'
       '<dc:creator>Fixture Author</dc:creator>\n'
       '<dc:language>zh</dc:language>\n'
+      '${cover != null && cover.useMeta ? '<meta name="cover" content="${cover.id}"/>' : ''}'
       '</metadata>\n'
       '<manifest>\n$manifest</manifest>\n'
       '<spine${useNcx ? ' toc="$navId"' : ''}>\n$itemRefs</spine>\n'

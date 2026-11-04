@@ -88,7 +88,7 @@ class BookService {
 
     final id = _newId();
     final copiedPath = await storage.copyIn(sourcePath, id, format);
-    final book = Book(
+    var book = Book(
       id: id,
       title: p.basenameWithoutExtension(sourcePath),
       author: '',
@@ -97,6 +97,7 @@ class BookService {
       contentHash: contentHash,
       addedAt: DateTime.now(),
     );
+    String? coverPath;
 
     try {
       await books.upsert(book);
@@ -108,14 +109,67 @@ class BookService {
         final bytes = await File(copiedPath).readAsBytes();
         final document = parseEpubDocument(bytes);
         await chapters.replaceForBook(id, _toEpubChapters(book, document));
+        final cover = document.cover;
+        if (cover != null) {
+          try {
+            coverPath = await storage.saveCover(
+              cover.bytes,
+              id,
+              cover.extension,
+            );
+            book = _withCover(book, coverPath);
+            await books.upsert(book);
+          } catch (_) {
+            // A cover is decorative; keep the book when it cannot be saved.
+            coverPath = null;
+          }
+        }
       }
     } catch (_) {
       await chapters.replaceForBook(id, const []);
       await books.delete(id);
       await storage.deleteFile(copiedPath);
+      if (coverPath != null) await storage.deleteFile(coverPath);
       rethrow;
     }
     return book;
+  }
+
+  final Set<String> _coverChecked = {};
+
+  Future<void> backfillCovers() async {
+    for (final book in await books.getAll()) {
+      if (book.format != BookFormat.epub || book.coverPath != null) continue;
+      if (!_coverChecked.add(book.id)) continue;
+      try {
+        final file = File(book.sourcePath);
+        if (!await file.exists()) continue;
+        final cover = parseEpubCover(await file.readAsBytes());
+        if (cover == null) continue;
+        final coverPath = await storage.saveCover(
+          cover.bytes,
+          book.id,
+          cover.extension,
+        );
+        await books.upsert(_withCover(book, coverPath));
+      } catch (_) {
+        // Unreadable or coverless EPUBs keep the default cover.
+      }
+    }
+  }
+
+  Book _withCover(Book book, String coverPath) {
+    return Book(
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      format: book.format,
+      sourcePath: book.sourcePath,
+      coverPath: coverPath,
+      contentHash: book.contentHash,
+      addedAt: book.addedAt,
+      lastOpenedAt: book.lastOpenedAt,
+    );
   }
 
   Future<void> backfillContentHashes() async {
@@ -152,6 +206,7 @@ class BookService {
     await categories?.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteFile(book.sourcePath);
+    if (book.coverPath != null) await storage.deleteFile(book.coverPath!);
   }
 
   List<Chapter> _toEpubChapters(Book book, EpubDocument document) {

@@ -20,6 +20,18 @@ class BookStorage {
     return copied.path;
   }
 
+  Future<String> saveCover(
+    List<int> bytes,
+    String id,
+    String extension,
+  ) async {
+    final covers = Directory(p.join(booksRoot.path, 'covers'));
+    await covers.create(recursive: true);
+    final target = File(p.join(covers.path, '$id.$extension'));
+    await target.writeAsBytes(bytes, flush: true);
+    return target.path;
+  }
+
   Future<void> deleteFile(String path) async {
     final file = File(path);
     if (await file.exists()) {

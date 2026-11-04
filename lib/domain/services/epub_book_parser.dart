@@ -29,10 +29,20 @@ class EpubBookChapter {
   final String contentText;
 }
 
+class EpubCover {
+  const EpubCover({required this.bytes, required this.extension});
+
+  final List<int> bytes;
+
+  /// Lowercase file extension such as `jpg` or `png`.
+  final String extension;
+}
+
 class EpubDocument {
-  const EpubDocument({required this.chapters});
+  const EpubDocument({required this.chapters, this.cover});
 
   final List<EpubBookChapter> chapters;
+  final EpubCover? cover;
 }
 
 /// Parses an EPUB into plain-text chapters in spine order.
@@ -50,6 +60,16 @@ EpubDocument parseEpubDocument(List<int> bytes) {
     rethrow;
   } catch (error) {
     throw EpubParseException('无法解析 EPUB：$error');
+  }
+}
+
+/// Reads only the embedded cover image, without extracting body text.
+EpubCover? parseEpubCover(List<int> bytes) {
+  if (bytes.isEmpty) return null;
+  try {
+    return _EpubParser(bytes).parseCover();
+  } catch (_) {
+    return null;
   }
 }
 
@@ -74,49 +94,9 @@ class _EpubParser {
   late final Map<String, ArchiveFile> _files;
 
   EpubDocument parse() {
-    final Archive archive;
-    try {
-      archive = ZipDecoder().decodeBytes(bytes);
-    } catch (_) {
-      throw EpubParseException('不是有效的 EPUB 压缩包');
-    }
-
-    _files = {};
-    for (final file in archive.files) {
-      if (!file.isFile) continue;
-      _files[_normalizePath(file.name)] = file;
-    }
-
-    final container = _parseXml(_readText('META-INF/container.xml'));
-    final rootfile = _firstWhereOrNull(
-      container.findAllElements('rootfile', namespaceUri: '*'),
-      (element) =>
-          (element.getAttribute('media-type') ?? '')
-              .toLowerCase()
-              .contains('oebps-package'),
-    ) ??
-        _firstWhereOrNull(
-          container.findAllElements('rootfile', namespaceUri: '*'),
-          (_) => true,
-        );
-    final opfPath = rootfile?.getAttribute('full-path');
-    if (opfPath == null || opfPath.trim().isEmpty) {
-      throw EpubParseException('缺少 OPF 文件');
-    }
-
-    final opf = _parseXml(_readText(opfPath));
-    final manifest = <String, _ManifestItem>{};
-    for (final item in opf.findAllElements('item', namespaceUri: '*')) {
-      final id = item.getAttribute('id');
-      final href = item.getAttribute('href');
-      if (id == null || href == null || href.trim().isEmpty) continue;
-      manifest[id] = _ManifestItem(
-        id: id,
-        path: _resolvePath(opfPath, href),
-        mediaType: (item.getAttribute('media-type') ?? '').toLowerCase(),
-        properties: item.getAttribute('properties') ?? '',
-      );
-    }
+    final package = _readPackage();
+    final opf = package.opf;
+    final manifest = package.manifest;
 
     final spine = _firstWhereOrNull(
       opf.findAllElements('spine', namespaceUri: '*'),
@@ -165,7 +145,120 @@ class _EpubParser {
     if (chapters.isEmpty) {
       throw EpubParseException('没有可读正文');
     }
-    return EpubDocument(chapters: chapters);
+    return EpubDocument(
+      chapters: chapters,
+      cover: _readCover(opf, manifest),
+    );
+  }
+
+  EpubCover? parseCover() {
+    final package = _readPackage();
+    return _readCover(package.opf, package.manifest);
+  }
+
+  ({XmlDocument opf, Map<String, _ManifestItem> manifest}) _readPackage() {
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } catch (_) {
+      throw EpubParseException('不是有效的 EPUB 压缩包');
+    }
+
+    _files = {};
+    for (final file in archive.files) {
+      if (!file.isFile) continue;
+      _files[_normalizePath(file.name)] = file;
+    }
+
+    final container = _parseXml(_readText('META-INF/container.xml'));
+    final rootfile = _firstWhereOrNull(
+      container.findAllElements('rootfile', namespaceUri: '*'),
+      (element) =>
+          (element.getAttribute('media-type') ?? '')
+              .toLowerCase()
+              .contains('oebps-package'),
+    ) ??
+        _firstWhereOrNull(
+          container.findAllElements('rootfile', namespaceUri: '*'),
+          (_) => true,
+        );
+    final opfPath = rootfile?.getAttribute('full-path');
+    if (opfPath == null || opfPath.trim().isEmpty) {
+      throw EpubParseException('缺少 OPF 文件');
+    }
+
+    final opf = _parseXml(_readText(opfPath));
+    final manifest = <String, _ManifestItem>{};
+    for (final item in opf.findAllElements('item', namespaceUri: '*')) {
+      final id = item.getAttribute('id');
+      final href = item.getAttribute('href');
+      if (id == null || href == null || href.trim().isEmpty) continue;
+      manifest[id] = _ManifestItem(
+        id: id,
+        path: _resolvePath(opfPath, href),
+        mediaType: (item.getAttribute('media-type') ?? '').toLowerCase(),
+        properties: item.getAttribute('properties') ?? '',
+      );
+    }
+
+    return (opf: opf, manifest: manifest);
+  }
+
+  EpubCover? _readCover(
+    XmlDocument opf,
+    Map<String, _ManifestItem> manifest,
+  ) {
+    final item = _coverItem(opf, manifest);
+    if (item == null) return null;
+    final file = _files[_normalizePath(item.path)];
+    if (file == null) return null;
+    final data = file.content;
+    if (data.isEmpty) return null;
+    final extension =
+        p.url.extension(item.path).replaceFirst('.', '').toLowerCase();
+    return EpubCover(
+      bytes: data,
+      extension: extension == 'jpeg' ? 'jpg' : extension,
+    );
+  }
+
+  _ManifestItem? _coverItem(
+    XmlDocument opf,
+    Map<String, _ManifestItem> manifest,
+  ) {
+    for (final item in manifest.values) {
+      if (!_isRasterImage(item)) continue;
+      if (item.properties.split(RegExp(r'\s+')).contains('cover-image')) {
+        return item;
+      }
+    }
+
+    final meta = _firstWhereOrNull(
+      opf.findAllElements('meta', namespaceUri: '*'),
+      (element) =>
+          (element.getAttribute('name') ?? '').toLowerCase() == 'cover',
+    );
+    final metaId = meta?.getAttribute('content')?.trim();
+    if (metaId != null && metaId.isNotEmpty) {
+      final item = manifest[metaId];
+      if (item != null && _isRasterImage(item)) return item;
+    }
+
+    return _firstWhereOrNull(manifest.values, (item) {
+      if (!_isRasterImage(item)) return false;
+      final name =
+          p.url.basenameWithoutExtension(item.path).toLowerCase();
+      return item.id.toLowerCase().contains('cover') ||
+          name.contains('cover');
+    });
+  }
+
+  bool _isRasterImage(_ManifestItem item) {
+    if (!item.mediaType.startsWith('image/')) return false;
+    if (item.mediaType.contains('svg')) return false;
+    final extension =
+        p.url.extension(item.path).replaceFirst('.', '').toLowerCase();
+    return _rasterExtensions.contains(extension);
   }
 
   Map<String, String> _readTocTitles(
@@ -400,6 +493,15 @@ String _normalizePlainText(String raw) {
   }
   return lines.join('\n');
 }
+
+const Set<String> _rasterExtensions = {
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'bmp',
+};
 
 const Set<String> _ignoredTags = {
   'script',
