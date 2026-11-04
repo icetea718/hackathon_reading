@@ -1,0 +1,103 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/distill/llm/llm_client.dart';
+import 'package:hackathon_reading/search/agent_service.dart';
+import 'package:hackathon_reading/search/search_hit.dart';
+
+import '../support/fake_llm_client.dart';
+
+void main() {
+  LlmMessage user(String text) => LlmMessage(LlmRole.user, text);
+  LlmMessage assistant(String text) => LlmMessage(LlmRole.assistant, text);
+
+  test('puts the system prompt first and the question last', () async {
+    final client = FakeLlmClient(reply: 'ok');
+    final service = SearchAgentService(client: client);
+
+    final chunks = await service.send(
+      history: [user('之前的问题'), assistant('之前的回答')],
+      userText: '今天天气怎么样',
+      cancel: CancelToken(),
+    ).toList();
+
+    expect(chunks.join(), 'ok');
+    final messages = client.lastMessages;
+    expect(messages.first.role, LlmRole.system);
+    expect(messages.first.content, searchSystemPrompt);
+    expect(messages.last.role, LlmRole.user);
+    expect(messages.last.content, '今天天气怎么样');
+    expect(messages.first.content, isNot(contains('检索结果')));
+  });
+
+  test('injects every hit, with its url, into the system prompt', () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+
+    await service.send(
+      history: const [],
+      userText: 'flutter 3.47 有什么变化',
+      hits: const [
+        SearchHit(
+          title: 'Flutter 3.47 release notes',
+          snippet: 'Impeller 改进。',
+          source: 'flutter.dev',
+          url: 'https://flutter.dev/release/3-47',
+        ),
+        SearchHit(
+          title: 'Dart 3.13',
+          snippet: '新的格式化器。',
+          source: 'dart.dev',
+          url: 'https://dart.dev/blog/3-13',
+        ),
+      ],
+      cancel: CancelToken(),
+    ).toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains('https://flutter.dev/release/3-47'));
+    expect(system, contains('https://dart.dev/blog/3-13'));
+    expect(system, contains('Flutter 3.47 release notes'));
+    expect(system, contains('Impeller 改进。'));
+  });
+
+  test('drops the oldest turns once the history gets long', () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+    final long = 'x' * 900;
+
+    await service.send(
+      history: [
+        for (var i = 0; i < 30; i++)
+          i.isEven ? user('$i$long') : assistant('$i$long'),
+      ],
+      userText: '现在是哪个问题',
+      cancel: CancelToken(),
+    ).toList();
+
+    final messages = client.lastMessages;
+    // 1 system + kept turns + 1 question.
+    expect(messages.length, lessThan(32));
+    expect(messages.last.content, '现在是哪个问题');
+
+    final kept = messages.sublist(1, messages.length - 1);
+    expect(kept, isNotEmpty);
+    expect(
+      kept.fold<int>(0, (sum, message) => sum + message.content.length),
+      lessThanOrEqualTo(SearchAgentService.maxHistoryChars),
+    );
+    // The newest turns survive; the oldest ones go first.
+    expect(kept.last.content, startsWith('29'));
+  });
+
+  test('a pre-cancelled request never reaches the client', () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+    final cancel = CancelToken()..cancel();
+
+    final chunks = await service
+        .send(history: const [], userText: '你好', cancel: cancel)
+        .toList();
+
+    expect(chunks, isEmpty);
+    expect(client.calls, isEmpty);
+  });
+}
