@@ -18,6 +18,7 @@ class CompanionPresence extends StatefulWidget {
     this.greeting = '读到哪儿了？',
     this.autoGreet = true,
     this.greetingLoader,
+    this.onSpeak,
     this.onOpenChat,
     this.pageTurns,
   });
@@ -44,6 +45,12 @@ class CompanionPresence extends StatefulWidget {
   /// bubble instead.
   final VoidCallback? onOpenChat;
 
+  /// Produces a fresh line every time the reader clicks the character.
+  ///
+  /// The bubble shows [_thinkingLine] right away and swaps in whatever this
+  /// resolves to; when it resolves to nothing the thinking line stays.
+  final Future<String?> Function()? onSpeak;
+
   /// Ticks every time the reader turns the page; the companion flinches.
   final ValueListenable<int>? pageTurns;
 
@@ -58,6 +65,9 @@ class _CompanionPresenceState extends State<CompanionPresence>
   static const _greetDelay = Duration(milliseconds: 600);
   static const _loadTimeout = Duration(seconds: 3);
   static const _lingerFor = Duration(seconds: 6);
+
+  /// Shown the instant the reader clicks, while the model is still thinking.
+  static const _thinkingLine = '嗯……';
 
   late final AnimationController _bubble;
   late final Animation<double> _scale;
@@ -115,21 +125,7 @@ class _CompanionPresenceState extends State<CompanionPresence>
       _open();
       return;
     }
-    final completer = Completer<String?>();
-    void finish(String? value) {
-      if (!completer.isCompleted) completer.complete(value);
-    }
-
-    _loadTimer?.cancel();
-    _loadTimer = Timer(_loadTimeout, () => finish(null));
-    unawaited(
-      loader().then(
-        finish,
-        onError: (Object _, StackTrace _) => finish(null),
-      ),
-    );
-    final text = await completer.future;
-    _loadTimer?.cancel();
+    final text = await _resolve(loader);
     if (!mounted) return;
     _open(text);
   }
@@ -171,8 +167,12 @@ class _CompanionPresenceState extends State<CompanionPresence>
     }
   }
 
-  void _handleAvatarTap() {
+  Future<void> _handleAvatarTap() async {
     _greetTimer?.cancel();
+    if (widget.onSpeak != null) {
+      await _speak();
+      return;
+    }
     final openChat = widget.onOpenChat;
     if (openChat == null) {
       _toggle();
@@ -180,6 +180,45 @@ class _CompanionPresenceState extends State<CompanionPresence>
     }
     _close();
     openChat();
+  }
+
+  /// Pops the thinking line at once, then swaps in the new line.
+  Future<void> _speak() async {
+    final speak = widget.onSpeak;
+    if (speak == null) return;
+    _open(_thinkingLine);
+    final line = await _resolve(speak);
+    if (!mounted || line == null || line.isEmpty) return;
+    setState(() => _line = line);
+    // The reader is reading a new line, so give it a fresh six seconds.
+    _hideTimer?.cancel();
+    _hideTimer = Timer(_lingerFor, _close);
+  }
+
+  /// Runs [load] but never waits longer than [_loadTimeout].
+  Future<String?> _resolve(Future<String?> Function() load) async {
+    final completer = Completer<String?>();
+    void finish(String? value) {
+      if (!completer.isCompleted) completer.complete(value);
+    }
+
+    _loadTimer?.cancel();
+    _loadTimer = Timer(_loadTimeout, () => finish(null));
+    unawaited(
+      load().then(
+        finish,
+        onError: (Object _, StackTrace _) => finish(null),
+      ),
+    );
+    final text = await completer.future;
+    _loadTimer?.cancel();
+    return text?.trim();
+  }
+
+  void _handleSecondaryTap() {
+    _greetTimer?.cancel();
+    _close();
+    widget.onOpenChat?.call();
   }
 
   void _handleBubbleTap() {
@@ -222,6 +261,7 @@ class _CompanionPresenceState extends State<CompanionPresence>
             assetPath: widget.assetPath,
             height: widget.height,
             onTap: _handleAvatarTap,
+            onSecondaryTap: _handleSecondaryTap,
           ),
         ),
       ],

@@ -1,7 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show PointerEnterEvent, PointerExitEvent, PointerHoverEvent;
+import 'package:flutter/gestures.dart'
+    show
+        PointerDownEvent,
+        PointerEnterEvent,
+        PointerExitEvent,
+        PointerHoverEvent,
+        kSecondaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -22,6 +28,7 @@ class CompanionBody extends StatefulWidget {
     this.idleMotion = true,
     this.onTap,
     this.onPress,
+    this.onSecondaryTap,
     this.onGrabbed,
     this.onReleased,
     this.motion,
@@ -38,6 +45,10 @@ class CompanionBody extends StatefulWidget {
 
   /// Fired the moment a pointer goes down, before the tap or drag resolves.
   final VoidCallback? onPress;
+
+  /// Fired on a right click (desktop) or a long press (touch), which is how
+  /// the reader asks the companion to open its chat.
+  final VoidCallback? onSecondaryTap;
 
   final VoidCallback? onGrabbed;
   final VoidCallback? onReleased;
@@ -250,8 +261,16 @@ class CompanionBodyState extends State<CompanionBody>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    // A right click is aimed at the chat, not at poking the character.
+    if (event.buttons == kSecondaryMouseButton) return;
     poke();
     widget.onPress?.call();
+  }
+
+  void _handleSecondaryTap() {
+    if (widget.onSecondaryTap == null) return;
+    poke();
+    widget.onSecondaryTap!();
   }
 
   void _handlePanStart(DragStartDetails _) {
@@ -334,6 +353,8 @@ class CompanionBodyState extends State<CompanionBody>
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _handleTap,
+          onSecondaryTapDown: (_) => _handleSecondaryTap(),
+          onLongPress: _handleSecondaryTap,
           onPanStart: _handlePanStart,
           onPanUpdate: _handlePanUpdate,
           onPanEnd: _handlePanEnd,

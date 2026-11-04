@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/features/companion/companion_clip.dart';
@@ -202,5 +203,79 @@ void main() {
     turns.value = 1;
     await tester.pump();
     expect(stage.clip, companionSurpriseClip);
+  });
+
+  testWidgets('says a fresh line on every left click', (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          onSpeak: () async {
+            calls++;
+            return '第 $calls 句';
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+    expect(find.text('第 1 句'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('第 2 句'), findsOneWidget);
+    expect(find.text('第 1 句'), findsNothing);
+  });
+
+  testWidgets('keeps the thinking line when the loader has nothing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          onSpeak: () async => null,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('嗯……'), findsOneWidget);
+  });
+
+  testWidgets('right click opens the chat instead of toggling the bubble', (
+    tester,
+  ) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          onSpeak: () async => '你翻到哪儿了？',
+          onOpenChat: () => opened++,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('companion-avatar')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+
+    expect(opened, 1);
+    expect(find.byKey(const Key('companion-bubble')), findsNothing);
   });
 }

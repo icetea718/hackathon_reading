@@ -28,6 +28,7 @@ class CompanionAvatar extends StatefulWidget {
     this.assetPath,
     required this.height,
     this.onTap,
+    this.onSecondaryTap,
     this.idleMotion = true,
   });
 
@@ -40,6 +41,9 @@ class CompanionAvatar extends StatefulWidget {
 
   /// Fired when the character is tapped or clicked (not when it is dragged).
   final VoidCallback? onTap;
+
+  /// Fired on a right click or a long press, the way to the chat.
+  final VoidCallback? onSecondaryTap;
 
   /// Breathing and idle nudges. Tests pass false so nothing keeps ticking.
   final bool idleMotion;
@@ -109,6 +113,7 @@ class CompanionAvatarState extends State<CompanionAvatar>
           key: _bodyKey,
           idleMotion: widget.idleMotion && !_runningInTests,
           onTap: widget.onTap,
+          onSecondaryTap: widget.onSecondaryTap,
           onPress: () => _stageKey.currentState?.play(companionPokeClip),
           onGrabbed: () => _stageKey.currentState?.play(companionDragClip),
           onReleased: () => _stageKey.currentState?.playIdle(),
