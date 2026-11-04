@@ -80,20 +80,6 @@ void main() {
     expect(location.fraction, closeTo(0.5, 1e-9));
   });
 
-  test('anchor offsets stay inside the chapter at both ends', () {
-    final chapter = _chapter(0, 10, '0123456789');
-    expect(anchorOffsetForFraction(chapter, 0.0), chapter.startOffset + 1);
-    expect(anchorOffsetForFraction(chapter, 1.0), chapter.endOffset - 1);
-
-    final top = locateAnchor([chapter], anchorOffsetForFraction(chapter, 0.0));
-    expect(top.chapterIndex, 0);
-    final bottom = locateAnchor(
-      [chapter],
-      anchorOffsetForFraction(chapter, 1.0),
-    );
-    expect(bottom.chapterIndex, 0);
-  });
-
   test('formats the chapter and whole-book footer, with placeholders', () {
     expect(
       readingFooterText(pageIndex: 2, chapterPageCount: 12),
@@ -112,12 +98,5 @@ void main() {
       bookPageAt(chapterPageCounts: [5, 7, 3], chapterIndex: 2, pageIndex: 1),
       14,
     );
-  });
-
-  test('offsetForPosition never exceeds chapter end', () {
-    final chapter = _chapter(0, 10, '0123456789');
-    expect(offsetForPosition(chapter, 1.0), chapter.startOffset + 10);
-    expect(offsetForPosition(chapter, 2.0), chapter.endOffset);
-    expect(offsetForPosition(chapter, -1.0), chapter.startOffset);
   });
 }

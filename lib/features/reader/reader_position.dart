@@ -66,20 +66,3 @@ String readingFooterText({
   return '第 ${pageIndex + 1} / ${chapterPageCount ?? '…'} 页 · '
       '全书 ${bookPageIndex ?? '…'} / ${bookPageTotal ?? '…'} 页';
 }
-
-int offsetForPosition(Chapter chapter, double fraction) {
-  final clamped = fraction.clamp(0.0, 1.0);
-  final length = chapter.endOffset - chapter.startOffset;
-  final offset = chapter.startOffset + (clamped * length).round();
-  return offset > chapter.endOffset ? chapter.endOffset : offset;
-}
-
-int anchorOffsetForFraction(Chapter chapter, double fraction) {
-  final length = chapter.endOffset - chapter.startOffset;
-  if (length <= 1) return chapter.startOffset;
-  final clamped = fraction.clamp(0.0, 1.0);
-  final offset = chapter.startOffset + (clamped * length).round();
-  if (offset <= chapter.startOffset) return chapter.startOffset + 1;
-  if (offset >= chapter.endOffset) return chapter.endOffset - 1;
-  return offset;
-}
