@@ -72,4 +72,41 @@ void main() {
 
     await db.close();
   });
+
+  test('upgrades a v7 database whose chapters table already has level', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 7;');
+        raw.execute(
+          'CREATE TABLE chapters ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          'book_id TEXT NOT NULL, '
+          'chapter_index INTEGER NOT NULL, '
+          'title TEXT NOT NULL, '
+          'start_offset INTEGER NOT NULL, '
+          'end_offset INTEGER NOT NULL, '
+          'content_text TEXT NOT NULL, '
+          'level INTEGER NOT NULL DEFAULT 1)',
+        );
+        raw.execute(
+          "INSERT INTO chapters "
+          '(id, book_id, chapter_index, title, start_offset, end_offset, '
+          "content_text, level) VALUES ('c1', 'b1', 0, '旧章', 0, 10, '正文', 2)",
+        );
+      },
+    ));
+
+    final chapter = await db
+        .customSelect(
+          'SELECT level FROM chapters WHERE id = ?',
+          variables: [Variable.withString('c1')],
+        )
+        .getSingle();
+    expect(chapter.read<int>('level'), 2);
+
+    final version = await db.customSelect('PRAGMA user_version').getSingle();
+    expect(version.read<int>('user_version'), 8);
+
+    await db.close();
+  });
 }

@@ -57,7 +57,14 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(books, books.comic);
           }
           if (from < 8) {
-            await m.addColumn(chapters, chapters.level);
+            final columns = await m.database
+                .customSelect('PRAGMA table_info(chapters)')
+                .get();
+            final hasLevel =
+                columns.any((row) => row.read<String>('name') == 'level');
+            if (!hasLevel) {
+              await m.addColumn(chapters, chapters.level);
+            }
           }
         },
       );
