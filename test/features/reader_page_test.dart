@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/repositories/settings_repository.dart';
+import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
@@ -690,4 +693,243 @@ void main() {
       await disposeApp(tester);
     },
   );
+
+  group('comic reader', () {
+    late Directory temp;
+    late BookStorage storage;
+
+    setUp(() async {
+      temp = await Directory.systemTemp.createTemp('reader_comic_test');
+      storage = BookStorage(temp);
+      await storage.saveComicPages('manga', [
+        (bytes: const [1, 2, 3], extension: 'png', title: '封面'),
+        (bytes: const [4, 5, 6], extension: 'png', title: '第一话'),
+        (bytes: const [7, 8, 9], extension: 'png', title: '第二话'),
+      ]);
+      await BookRepository(db).upsert(
+        Book(
+          id: 'manga',
+          title: '测试漫画',
+          author: '',
+          format: BookFormat.epub,
+          sourcePath: 'C:/books/manga.epub',
+          addedAt: DateTime(2026, 1, 6),
+          comic: true,
+        ),
+      );
+    });
+
+    tearDown(() async {
+      try {
+        await temp.delete(recursive: true);
+      } on FileSystemException {
+        // Windows may still hold the decoded page files open.
+      }
+    });
+
+    Future<void> pumpComic(WidgetTester tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            bookStorageProvider.overrideWith((ref) async => storage),
+          ],
+          child: const MaterialApp(home: ReaderPage(bookId: 'manga')),
+        ),
+      );
+      // The page listing is real file IO, so alternate fake frames with
+      // real-time slices until the provider resolves.
+      for (var round = 0; round < 16; round++) {
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+      }
+      await tester.pump();
+    }
+
+    IconButton toolbarButton(WidgetTester tester, String tooltip) {
+      return tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip(tooltip),
+          matching: find.byType(IconButton),
+        ),
+      );
+    }
+
+    testWidgets('renders the first page and the page counter', (tester) async {
+      await pumpComic(tester);
+
+      expect(find.byKey(const Key('comic-page-view')), findsOneWidget);
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.text('第 1 / 3 页 · 33%'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('comic-page-0'))),
+        tester.getSize(find.byKey(const Key('comic-page-view'))),
+      );
+      await disposeApp(tester);
+    });
+
+    testWidgets('next and previous buttons move between pages', (tester) async {
+      await pumpComic(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      expect(find.text('第 2 / 3 页 · 67%'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '上一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('annotation-only toolbar entries are disabled', (
+      tester,
+    ) async {
+      await pumpComic(tester);
+
+      for (final tooltip in const [
+        '漫画暂不支持标注',
+        '漫画暂不支持陪读',
+        '漫画暂不支持设置',
+      ]) {
+        expect(toolbarButton(tester, tooltip).onPressed, isNull);
+      }
+      expect(toolbarButton(tester, '目录').onPressed, isNotNull);
+      expect(toolbarButton(tester, '书签').onPressed, isNotNull);
+      expect(toolbarButton(tester, '固定左栏').onPressed, isNotNull);
+      await disposeApp(tester);
+    });
+
+    testWidgets('bookmarks the current page and toggles it off', (tester) async {
+      await pumpComic(tester);
+
+      await tester.tap(find.byTooltip('书签'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pumpAndSettle();
+      final saved = await tester.runAsync(
+        () => AnnotationRepository(db).getForBook(
+          'manga',
+          type: AnnotationType.bookmark,
+        ),
+      );
+      expect(saved, hasLength(1));
+      expect(saved!.single.anchorStart, 1);
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+
+      await tester.tap(find.byTooltip('书签'));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pumpAndSettle();
+      final cleared = await tester.runAsync(
+        () => AnnotationRepository(db).getForBook(
+          'manga',
+          type: AnnotationType.bookmark,
+        ),
+      );
+      expect(cleared, isEmpty);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the bookmark tab jumps to a bookmarked page', (tester) async {
+      await AnnotationRepository(db).upsert(
+        Annotation(
+          id: 'bm',
+          bookId: 'manga',
+          type: AnnotationType.bookmark,
+          anchorStart: 2,
+          createdAt: DateTime(2026, 1, 6),
+          updatedAt: DateTime(2026, 1, 6),
+        ),
+      );
+      await pumpComic(tester);
+
+      await tester.tap(find.byTooltip('目录'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('书签'));
+      await tester.pumpAndSettle();
+      expect(find.text('第一话'), findsOneWidget);
+
+      await tester.tap(find.text('第一话'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the left rail can be pinned while reading a comic', (
+      tester,
+    ) async {
+      await pumpComic(tester);
+
+      await tester.tap(find.byTooltip('固定左栏'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+      expect(find.byTooltip('应用设置'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('rail-companion')))
+            .onPressed,
+        isNull,
+      );
+      await disposeApp(tester);
+    });
+
+    testWidgets('resumes from the saved page', (tester) async {
+      await ProgressRepository(db).save(
+        ReadingProgress(
+          bookId: 'manga',
+          anchor: const ReadingAnchor.page(2),
+          percent: 2 / 3,
+          updatedAt: DateTime(2026, 1, 6),
+        ),
+      );
+      await pumpComic(tester);
+
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      expect(find.text('第 2 / 3 页 · 67%'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the page drawer lists titles and jumps to a page', (
+      tester,
+    ) async {
+      await pumpComic(tester);
+
+      await tester.tap(find.byTooltip('目录'));
+      await tester.pumpAndSettle();
+      expect(find.text('封面'), findsOneWidget);
+      expect(find.text('第一话'), findsOneWidget);
+      expect(find.text('第二话'), findsOneWidget);
+
+      await tester.tap(find.text('第一话'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comic-page-view')), findsOneWidget);
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('paging saves the page progress', (tester) async {
+      await pumpComic(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+
+      final saved = await tester.runAsync(
+        () => ProgressRepository(db).get('manga'),
+      );
+      expect(saved!.anchor.page, 3);
+      expect(saved.percent, closeTo(1.0, 0.001));
+      await disposeApp(tester);
+    });
+  });
 }

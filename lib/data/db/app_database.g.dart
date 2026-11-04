@@ -78,6 +78,19 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _comicMeta = const VerificationMeta('comic');
+  @override
+  late final GeneratedColumn<bool> comic = GeneratedColumn<bool>(
+    'comic',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("comic" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _addedAtMeta = const VerificationMeta(
     'addedAt',
   );
@@ -109,6 +122,7 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
     sourcePath,
     coverPath,
     contentHash,
+    comic,
     addedAt,
     lastOpenedAt,
   ];
@@ -174,6 +188,12 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         ),
       );
     }
+    if (data.containsKey('comic')) {
+      context.handle(
+        _comicMeta,
+        comic.isAcceptableOrUnknown(data['comic']!, _comicMeta),
+      );
+    }
     if (data.containsKey('added_at')) {
       context.handle(
         _addedAtMeta,
@@ -228,6 +248,10 @@ class $BooksTable extends Books with TableInfo<$BooksTable, BookRow> {
         DriftSqlType.string,
         data['${effectivePrefix}content_hash'],
       ),
+      comic: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}comic'],
+      )!,
       addedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}added_at'],
@@ -253,6 +277,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
   final String sourcePath;
   final String? coverPath;
   final String? contentHash;
+  final bool comic;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
   const BookRow({
@@ -263,6 +288,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     required this.sourcePath,
     this.coverPath,
     this.contentHash,
+    required this.comic,
     required this.addedAt,
     this.lastOpenedAt,
   });
@@ -280,6 +306,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     if (!nullToAbsent || contentHash != null) {
       map['content_hash'] = Variable<String>(contentHash);
     }
+    map['comic'] = Variable<bool>(comic);
     map['added_at'] = Variable<DateTime>(addedAt);
     if (!nullToAbsent || lastOpenedAt != null) {
       map['last_opened_at'] = Variable<DateTime>(lastOpenedAt);
@@ -300,6 +327,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       contentHash: contentHash == null && nullToAbsent
           ? const Value.absent()
           : Value(contentHash),
+      comic: Value(comic),
       addedAt: Value(addedAt),
       lastOpenedAt: lastOpenedAt == null && nullToAbsent
           ? const Value.absent()
@@ -320,6 +348,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       sourcePath: serializer.fromJson<String>(json['sourcePath']),
       coverPath: serializer.fromJson<String?>(json['coverPath']),
       contentHash: serializer.fromJson<String?>(json['contentHash']),
+      comic: serializer.fromJson<bool>(json['comic']),
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       lastOpenedAt: serializer.fromJson<DateTime?>(json['lastOpenedAt']),
     );
@@ -335,6 +364,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       'sourcePath': serializer.toJson<String>(sourcePath),
       'coverPath': serializer.toJson<String?>(coverPath),
       'contentHash': serializer.toJson<String?>(contentHash),
+      'comic': serializer.toJson<bool>(comic),
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'lastOpenedAt': serializer.toJson<DateTime?>(lastOpenedAt),
     };
@@ -348,6 +378,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     String? sourcePath,
     Value<String?> coverPath = const Value.absent(),
     Value<String?> contentHash = const Value.absent(),
+    bool? comic,
     DateTime? addedAt,
     Value<DateTime?> lastOpenedAt = const Value.absent(),
   }) => BookRow(
@@ -358,6 +389,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     sourcePath: sourcePath ?? this.sourcePath,
     coverPath: coverPath.present ? coverPath.value : this.coverPath,
     contentHash: contentHash.present ? contentHash.value : this.contentHash,
+    comic: comic ?? this.comic,
     addedAt: addedAt ?? this.addedAt,
     lastOpenedAt: lastOpenedAt.present ? lastOpenedAt.value : this.lastOpenedAt,
   );
@@ -374,6 +406,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
       contentHash: data.contentHash.present
           ? data.contentHash.value
           : this.contentHash,
+      comic: data.comic.present ? data.comic.value : this.comic,
       addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
       lastOpenedAt: data.lastOpenedAt.present
           ? data.lastOpenedAt.value
@@ -391,6 +424,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
           ..write('contentHash: $contentHash, ')
+          ..write('comic: $comic, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt')
           ..write(')'))
@@ -406,6 +440,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
     sourcePath,
     coverPath,
     contentHash,
+    comic,
     addedAt,
     lastOpenedAt,
   );
@@ -420,6 +455,7 @@ class BookRow extends DataClass implements Insertable<BookRow> {
           other.sourcePath == this.sourcePath &&
           other.coverPath == this.coverPath &&
           other.contentHash == this.contentHash &&
+          other.comic == this.comic &&
           other.addedAt == this.addedAt &&
           other.lastOpenedAt == this.lastOpenedAt);
 }
@@ -432,6 +468,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
   final Value<String> sourcePath;
   final Value<String?> coverPath;
   final Value<String?> contentHash;
+  final Value<bool> comic;
   final Value<DateTime> addedAt;
   final Value<DateTime?> lastOpenedAt;
   final Value<int> rowid;
@@ -443,6 +480,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     this.sourcePath = const Value.absent(),
     this.coverPath = const Value.absent(),
     this.contentHash = const Value.absent(),
+    this.comic = const Value.absent(),
     this.addedAt = const Value.absent(),
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -455,6 +493,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     required String sourcePath,
     this.coverPath = const Value.absent(),
     this.contentHash = const Value.absent(),
+    this.comic = const Value.absent(),
     required DateTime addedAt,
     this.lastOpenedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -471,6 +510,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Expression<String>? sourcePath,
     Expression<String>? coverPath,
     Expression<String>? contentHash,
+    Expression<bool>? comic,
     Expression<DateTime>? addedAt,
     Expression<DateTime>? lastOpenedAt,
     Expression<int>? rowid,
@@ -483,6 +523,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       if (sourcePath != null) 'source_path': sourcePath,
       if (coverPath != null) 'cover_path': coverPath,
       if (contentHash != null) 'content_hash': contentHash,
+      if (comic != null) 'comic': comic,
       if (addedAt != null) 'added_at': addedAt,
       if (lastOpenedAt != null) 'last_opened_at': lastOpenedAt,
       if (rowid != null) 'rowid': rowid,
@@ -497,6 +538,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     Value<String>? sourcePath,
     Value<String?>? coverPath,
     Value<String?>? contentHash,
+    Value<bool>? comic,
     Value<DateTime>? addedAt,
     Value<DateTime?>? lastOpenedAt,
     Value<int>? rowid,
@@ -509,6 +551,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
       sourcePath: sourcePath ?? this.sourcePath,
       coverPath: coverPath ?? this.coverPath,
       contentHash: contentHash ?? this.contentHash,
+      comic: comic ?? this.comic,
       addedAt: addedAt ?? this.addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
       rowid: rowid ?? this.rowid,
@@ -539,6 +582,9 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
     if (contentHash.present) {
       map['content_hash'] = Variable<String>(contentHash.value);
     }
+    if (comic.present) {
+      map['comic'] = Variable<bool>(comic.value);
+    }
     if (addedAt.present) {
       map['added_at'] = Variable<DateTime>(addedAt.value);
     }
@@ -561,6 +607,7 @@ class BooksCompanion extends UpdateCompanion<BookRow> {
           ..write('sourcePath: $sourcePath, ')
           ..write('coverPath: $coverPath, ')
           ..write('contentHash: $contentHash, ')
+          ..write('comic: $comic, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastOpenedAt: $lastOpenedAt, ')
           ..write('rowid: $rowid')
@@ -4713,6 +4760,7 @@ typedef $$BooksTableCreateCompanionBuilder = BooksCompanion Function({
   required String sourcePath,
   Value<String?> coverPath,
   Value<String?> contentHash,
+  Value<bool> comic,
   required DateTime addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -4725,6 +4773,7 @@ typedef $$BooksTableUpdateCompanionBuilder = BooksCompanion Function({
   Value<String> sourcePath,
   Value<String?> coverPath,
   Value<String?> contentHash,
+  Value<bool> comic,
   Value<DateTime> addedAt,
   Value<DateTime?> lastOpenedAt,
   Value<int> rowid,
@@ -4770,6 +4819,11 @@ class $$BooksTableFilterComposer extends Composer<_$AppDatabase, $BooksTable> {
 
   ColumnFilters<String> get contentHash => $composableBuilder(
     column: $table.contentHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get comic => $composableBuilder(
+    column: $table.comic,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4828,6 +4882,11 @@ class $$BooksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get comic => $composableBuilder(
+    column: $table.comic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get addedAt => $composableBuilder(
     column: $table.addedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4873,6 +4932,9 @@ class $$BooksTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get comic =>
+      $composableBuilder(column: $table.comic, builder: (column) => column);
+
   GeneratedColumn<DateTime> get addedAt =>
       $composableBuilder(column: $table.addedAt, builder: (column) => column);
 
@@ -4917,6 +4979,7 @@ class $$BooksTableTableManager
                 Value<String> sourcePath = const Value.absent(),
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> contentHash = const Value.absent(),
+                Value<bool> comic = const Value.absent(),
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4928,6 +4991,7 @@ class $$BooksTableTableManager
                 sourcePath: sourcePath,
                 coverPath: coverPath,
                 contentHash: contentHash,
+                comic: comic,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,
@@ -4941,6 +5005,7 @@ class $$BooksTableTableManager
                 required String sourcePath,
                 Value<String?> coverPath = const Value.absent(),
                 Value<String?> contentHash = const Value.absent(),
+                Value<bool> comic = const Value.absent(),
                 required DateTime addedAt,
                 Value<DateTime?> lastOpenedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -4952,6 +5017,7 @@ class $$BooksTableTableManager
                 sourcePath: sourcePath,
                 coverPath: coverPath,
                 contentHash: contentHash,
+                comic: comic,
                 addedAt: addedAt,
                 lastOpenedAt: lastOpenedAt,
                 rowid: rowid,

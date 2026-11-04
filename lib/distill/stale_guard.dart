@@ -41,6 +41,7 @@ class DistillStaleGuard {
         addedAt: book.addedAt,
         coverPath: book.coverPath,
         contentHash: hash,
+        comic: book.comic,
         lastOpenedAt: book.lastOpenedAt,
       ),
     );

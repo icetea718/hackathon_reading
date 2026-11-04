@@ -43,6 +43,21 @@ void main() {
     expect((await repo.getAll()).map((b) => b.id), ['new', 'old']);
   });
 
+  test('round-trips the comic flag', () async {
+    await repo.upsert(Book(
+      id: 'comic',
+      title: '漫画',
+      author: '',
+      format: BookFormat.epub,
+      sourcePath: 'C:/books/comic.epub',
+      comic: true,
+      addedAt: DateTime(2026, 1, 1),
+    ));
+
+    expect((await repo.getById('comic'))!.comic, isTrue);
+    expect((await repo.getById('b1')), isNull);
+  });
+
   test('parses extensions case-insensitively', () {
     expect(BookFormat.fromExtension('A.TXT'), BookFormat.txt);
     expect(BookFormat.fromExtension('book.epub'), BookFormat.epub);

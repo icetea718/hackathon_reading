@@ -148,6 +148,61 @@ void main() {
     });
   });
 
+  group('EPUB comic pages', () {
+    List<int> comicBytes({bool fixedLayout = false}) => buildEpubBytes(
+          docs: const [
+            EpubFixtureDoc(
+              href: 'text/p1.xhtml',
+              body: '<img src="../images/p1.jpg" alt="1"/>',
+            ),
+            EpubFixtureDoc(
+              href: 'text/p2.xhtml',
+              body: '<div><svg><image xlink:href="../images/p2.png"/></svg></div>',
+            ),
+          ],
+          toc: const {'text/p1.xhtml': '第一话', 'text/p2.xhtml': '第二话'},
+          images: const [
+            EpubFixtureImage(href: 'images/p1.jpg', bytes: [1, 2, 3]),
+            EpubFixtureImage(
+              href: 'images/p2.png',
+              bytes: [4, 5],
+              mediaType: 'image/png',
+            ),
+          ],
+          renditionLayout: fixedLayout ? 'pre-paginated' : null,
+        );
+
+    test('extracts raster pages in spine order with nav titles', () {
+      final comic = parseEpubComic(comicBytes());
+
+      expect(comic, isNotNull);
+      expect(comic!.pages, hasLength(2));
+      expect(comic.pages.map((page) => page.extension), ['jpg', 'png']);
+      expect(comic.pages.map((page) => page.bytes), [
+        [1, 2, 3],
+        [4, 5],
+      ]);
+      expect(comic.pages.map((page) => page.title), ['第一话', '第二话']);
+    });
+
+    test('marks pre-paginated packages as fixed layout', () {
+      final document = parseEpubDocument(comicBytes(fixedLayout: true));
+
+      expect(document.fixedLayout, isTrue);
+      expect(document.chapters, isEmpty);
+    });
+
+    test('returns null when the spine has no raster images', () {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(href: 'text/a.xhtml', body: '<p>正文</p>'),
+        ],
+      );
+
+      expect(parseEpubComic(bytes), isNull);
+    });
+  });
+
   group('EPUB cover extraction', () {
     const coverBytes = <int>[0xFF, 0xD8, 0xFF, 0xE0, 7, 8, 9];
 
@@ -289,6 +344,7 @@ void main() {
       final stored = await chapters.getForBook(book.id);
 
       expect(book.format, BookFormat.epub);
+      expect(book.comic, isFalse);
       expect(stored.map((c) => c.title), ['第一章', '第二章']);
       expect(stored.map((c) => c.contentText), ['第一章\n你好，世界。', '第二章\n再见。']);
       expect(stored.first.startOffset, 0);
@@ -390,6 +446,92 @@ void main() {
       await service.deleteBook(book);
 
       expect(File(coverPath).existsSync(), isFalse);
+    });
+
+    test('imports an image-only EPUB as a comic with ordered pages', () async {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/p1.xhtml',
+            body: '<img src="../images/p1.jpg" alt="1"/>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/p2.xhtml',
+            body: '<img src="../images/p2.png" alt="2"/>',
+          ),
+        ],
+        toc: const {'text/p1.xhtml': '第一话', 'text/p2.xhtml': '第二话'},
+        images: const [
+          EpubFixtureImage(href: 'images/p1.jpg', bytes: [1, 2, 3]),
+          EpubFixtureImage(
+            href: 'images/p2.png',
+            bytes: [4, 5],
+            mediaType: 'image/png',
+          ),
+        ],
+      );
+      final source = File('${temp.path}/漫画.epub')
+        ..writeAsBytesSync(bytes);
+
+      final book = await service.importFile(source.path);
+
+      expect(book.comic, isTrue);
+      expect(book.format, BookFormat.epub);
+      expect(await chapters.getForBook(book.id), isEmpty);
+      final pages = await service.storage.loadComicPages(book.id);
+      expect(pages.map((page) => page.title), ['第一话', '第二话']);
+      expect(File(pages[1].path).readAsBytesSync(), [4, 5]);
+      expect(book.coverPath, isNotNull);
+      expect(File(book.coverPath!).readAsBytesSync(), [1, 2, 3]);
+      expect((await books.getAll()).single.comic, isTrue);
+    });
+
+    test('deleting a comic removes its page files', () async {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/p1.xhtml',
+            body: '<img src="../images/p1.jpg" alt="1"/>',
+          ),
+        ],
+        images: const [
+          EpubFixtureImage(href: 'images/p1.jpg', bytes: [1, 2, 3]),
+        ],
+        renditionLayout: 'pre-paginated',
+      );
+      final source = File('${temp.path}/要删的漫画.epub')
+        ..writeAsBytesSync(bytes);
+      final book = await service.importFile(source.path);
+
+      await service.deleteBook(book);
+
+      expect(await service.storage.loadComicPages(book.id), isEmpty);
+    });
+
+    test('a pre-paginated EPUB with text is still read as a comic', () async {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/p1.xhtml',
+            body: '<p>第 1 页</p><img src="../images/p1.jpg" alt="1"/>',
+          ),
+        ],
+        images: const [
+          EpubFixtureImage(href: 'images/p1.jpg', bytes: [7, 8]),
+        ],
+        renditionLayout: 'pre-paginated',
+      );
+      final source = File('${temp.path}/固定版式.epub')
+        ..writeAsBytesSync(bytes);
+
+      final book = await service.importFile(source.path);
+
+      expect(book.comic, isTrue);
+      expect(await chapters.getForBook(book.id), isEmpty);
+      expect(
+        await service.storage.loadComicPages(book.id),
+        hasLength(1),
+      );
     });
 
     test('malformed EPUB leaves no book row or copied file', () async {

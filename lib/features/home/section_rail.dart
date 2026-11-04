@@ -9,6 +9,8 @@ class SectionRail extends StatelessWidget {
     required this.onSelectSection,
     required this.onSettings,
     this.settingsTooltip = '设置',
+    this.companionEnabled = true,
+    this.companionTooltip = '陪读',
     this.footer,
     this.backgroundColor,
     this.foregroundColor,
@@ -20,6 +22,8 @@ class SectionRail extends StatelessWidget {
   final AppSection? activeSection;
   final ValueChanged<AppSection> onSelectSection;
   final VoidCallback onSettings;
+  final bool companionEnabled;
+  final String companionTooltip;
   final String settingsTooltip;
   final Widget? footer;
   final Color? backgroundColor;
@@ -113,10 +117,12 @@ class SectionRail extends StatelessWidget {
           ),
           button(
             key: const Key('rail-companion'),
-            tooltip: '陪读',
+            tooltip: companionTooltip,
             icon: Icons.chat_bubble_outline,
             active: activeSection == AppSection.companion,
-            onPressed: () => onSelectSection(AppSection.companion),
+            onPressed: companionEnabled
+                ? () => onSelectSection(AppSection.companion)
+                : null,
           ),
           button(
             key: const Key('rail-add'),

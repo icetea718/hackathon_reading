@@ -9,13 +9,14 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.background,
     required this.foreground,
     required this.pinned,
-    required this.onTogglePinned,
+    this.onTogglePinned,
     required this.bookmarked,
-    required this.onToggleBookmark,
-    required this.onOpenAnnotations,
+    this.onToggleBookmark,
+    this.onOpenAnnotations,
     required this.onOpenToc,
-    required this.onOpenCompanion,
-    required this.onOpenReaderSettings,
+    this.onOpenCompanion,
+    this.onOpenReaderSettings,
+    this.comicMode = false,
   });
 
   static const double height = 48;
@@ -24,13 +25,14 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   final Color background;
   final Color foreground;
   final bool pinned;
-  final VoidCallback onTogglePinned;
+  final VoidCallback? onTogglePinned;
   final bool bookmarked;
-  final VoidCallback onToggleBookmark;
-  final VoidCallback onOpenAnnotations;
+  final VoidCallback? onToggleBookmark;
+  final VoidCallback? onOpenAnnotations;
   final VoidCallback onOpenToc;
-  final VoidCallback onOpenCompanion;
-  final VoidCallback onOpenReaderSettings;
+  final VoidCallback? onOpenCompanion;
+  final VoidCallback? onOpenReaderSettings;
+  final bool comicMode;
 
   @override
   Size get preferredSize => const Size.fromHeight(height);
@@ -87,17 +89,17 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: onToggleBookmark,
               ),
               IconButton(
-                tooltip: '标注',
+                tooltip: comicMode ? '漫画暂不支持标注' : '标注',
                 icon: const Icon(Icons.format_list_bulleted),
                 onPressed: onOpenAnnotations,
               ),
               IconButton(
-                tooltip: '陪读',
+                tooltip: comicMode ? '漫画暂不支持陪读' : '陪读',
                 icon: const Icon(Icons.forum_outlined),
                 onPressed: onOpenCompanion,
               ),
               IconButton(
-                tooltip: '设置',
+                tooltip: comicMode ? '漫画暂不支持设置' : '设置',
                 icon: const Icon(Icons.text_fields),
                 onPressed: onOpenReaderSettings,
               ),

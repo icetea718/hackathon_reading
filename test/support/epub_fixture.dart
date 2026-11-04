@@ -24,6 +24,22 @@ class EpubFixtureDoc {
   final bool inSpine;
 }
 
+/// A plain image resource referenced from an XHTML page.
+class EpubFixtureImage {
+  const EpubFixtureImage({
+    required this.href,
+    required this.bytes,
+    this.mediaType = 'image/jpeg',
+    this.id,
+  });
+
+  /// Path relative to the OPF file.
+  final String href;
+  final List<int> bytes;
+  final String mediaType;
+  final String? id;
+}
+
 /// An image item to declare as the EPUB cover.
 class EpubFixtureCover {
   const EpubFixtureCover({
@@ -58,7 +74,8 @@ String _escapeXml(String value) => value
 String _xhtml(String title, String body) {
   return '<?xml version="1.0" encoding="utf-8"?>\n'
       '<!DOCTYPE html>\n'
-      '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh">\n'
+      '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh" '
+      'xmlns:xlink="http://www.w3.org/1999/xlink">\n'
       '<head><title>${_escapeXml(title)}</title></head>\n'
       '<body>$body</body>\n'
       '</html>';
@@ -75,6 +92,8 @@ List<int> buildEpubBytes({
   bool useNcx = false,
   bool includeNavInSpine = false,
   EpubFixtureCover? cover,
+  List<EpubFixtureImage> images = const [],
+  String? renditionLayout,
   String mimetype = 'application/epub+zip',
 }) {
   final opfDir = p.url.dirname(opfPath);
@@ -105,6 +124,18 @@ List<int> buildEpubBytes({
     archive.add(ArchiveFile.bytes(
       fullPath,
       utf8.encode(_xhtml(doc.title, doc.body)),
+    ));
+  }
+
+  for (var i = 0; i < images.length; i++) {
+    final image = images[i];
+    manifest.writeln(
+      '<item id="${image.id ?? 'img$i'}" href="${_escapeXml(image.href)}" '
+      'media-type="${image.mediaType}"/>',
+    );
+    archive.add(ArchiveFile.bytes(
+      p.url.normalize(p.url.join(opfDir, image.href)),
+      image.bytes,
     ));
   }
 
@@ -189,6 +220,7 @@ List<int> buildEpubBytes({
       '<dc:creator>Fixture Author</dc:creator>\n'
       '<dc:language>zh</dc:language>\n'
       '${cover != null && cover.useMeta ? '<meta name="cover" content="${cover.id}"/>' : ''}'
+      '${renditionLayout == null ? '' : '<meta property="rendition:layout">$renditionLayout</meta>'}'
       '</metadata>\n'
       '<manifest>\n$manifest</manifest>\n'
       '<spine${useNcx ? ' toc="$navId"' : ''}>\n$itemRefs</spine>\n'

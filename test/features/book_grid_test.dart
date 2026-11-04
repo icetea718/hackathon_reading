@@ -21,6 +21,7 @@ Book mkBook(
   String author = '',
   BookFormat format = BookFormat.txt,
   String? coverPath,
+  bool comic = false,
 }) {
   return Book(
     id: id,
@@ -30,6 +31,7 @@ Book mkBook(
     sourcePath: 'C:/books/$id.${format.name}',
     coverPath: coverPath,
     contentHash: 'hash-$id',
+    comic: comic,
     addedAt: DateTime(2026, 1, 1),
   );
 }
@@ -168,11 +170,17 @@ void main() {
     await disposeShelf(tester);
   });
 
-  testWidgets('card menu offers actions and disables distill for PDF', (
+  testWidgets('card menu disables distill for PDF and comic books', (
     tester,
   ) async {
     await seed(tester, mkBook('b1', title: '三体', author: '刘慈欣'));
     await seed(tester, mkBook('b2', title: '论文', format: BookFormat.pdf));
+    await seed(tester, mkBook(
+      'b3',
+      title: '漫画',
+      format: BookFormat.epub,
+      comic: true,
+    ));
     await pumpShelf(tester);
 
     await tester.tap(cardMenu('b1'));
@@ -195,6 +203,18 @@ void main() {
       ),
     );
     expect(distill.enabled, isFalse);
+
+    await tester.tapAt(const Offset(400, 590));
+    await tester.pumpAndSettle();
+    await tester.tap(cardMenu('b3'));
+    await tester.pumpAndSettle();
+    final comicDistill = tester.widget<PopupMenuItem<dynamic>>(
+      find.ancestor(
+        of: find.text('蒸馏'),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+      ),
+    );
+    expect(comicDistill.enabled, isFalse);
     await disposeShelf(tester);
   });
 

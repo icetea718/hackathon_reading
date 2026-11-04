@@ -39,10 +39,36 @@ class EpubCover {
 }
 
 class EpubDocument {
-  const EpubDocument({required this.chapters, this.cover});
+  const EpubDocument({
+    required this.chapters,
+    this.cover,
+    this.fixedLayout = false,
+  });
 
   final List<EpubBookChapter> chapters;
   final EpubCover? cover;
+
+  /// True for pre-paginated/comic packages whose pages are images.
+  final bool fixedLayout;
+}
+
+/// One raster page of a comic EPUB, already decoded from the archive.
+class EpubComicPage {
+  const EpubComicPage({
+    required this.bytes,
+    required this.extension,
+    this.title,
+  });
+
+  final List<int> bytes;
+  final String extension;
+  final String? title;
+}
+
+class EpubComicDocument {
+  const EpubComicDocument({required this.pages});
+
+  final List<EpubComicPage> pages;
 }
 
 /// Parses an EPUB into plain-text chapters in spine order.
@@ -68,6 +94,19 @@ EpubCover? parseEpubCover(List<int> bytes) {
   if (bytes.isEmpty) return null;
   try {
     return _EpubParser(bytes).parseCover();
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Reads the raster pages of a comic/fixed-layout EPUB in spine order.
+///
+/// Returns null when the archive cannot be read or has no images, so callers
+/// can treat it as a plain text import.
+EpubComicDocument? parseEpubComic(List<int> bytes) {
+  if (bytes.isEmpty) return null;
+  try {
+    return _EpubParser(bytes).parseComic();
   } catch (_) {
     return null;
   }
@@ -142,18 +181,77 @@ class _EpubParser {
       cursor += text.length;
     }
 
-    if (chapters.isEmpty) {
-      throw EpubParseException('没有可读正文');
-    }
     return EpubDocument(
       chapters: chapters,
       cover: _readCover(opf, manifest),
+      fixedLayout: _readFixedLayout(opf),
     );
   }
 
   EpubCover? parseCover() {
     final package = _readPackage();
     return _readCover(package.opf, package.manifest);
+  }
+
+  EpubComicDocument? parseComic() {
+    final package = _readPackage();
+    final opf = package.opf;
+    final manifest = package.manifest;
+    final spine = _firstWhereOrNull(
+      opf.findAllElements('spine', namespaceUri: '*'),
+      (_) => true,
+    );
+    if (spine == null) return null;
+
+    final navPath = _firstWhereOrNull(
+      manifest.values,
+      (item) => item.properties
+          .split(RegExp(r'\s+'))
+          .contains('nav'),
+    )?.path;
+    final titles = _readTocTitles(opf, spine, manifest);
+
+    final pages = <EpubComicPage>[];
+    for (final itemref in spine.findAllElements('itemref', namespaceUri: '*')) {
+      final idref = itemref.getAttribute('idref');
+      if (idref == null) continue;
+      final item = manifest[idref];
+      if (item == null) continue;
+      if (item.path == navPath) continue;
+      if (item.mediaType.isNotEmpty &&
+          !item.mediaType.contains('xhtml') &&
+          !item.mediaType.contains('html')) {
+        continue;
+      }
+
+      final images = _extractPageImages(item.path);
+      for (var i = 0; i < images.length; i++) {
+        pages.add(EpubComicPage(
+          bytes: images[i].bytes,
+          extension: images[i].extension,
+          title: i == 0 ? titles[item.path] : null,
+        ));
+      }
+    }
+
+    if (pages.isEmpty) return null;
+    return EpubComicDocument(pages: List.unmodifiable(pages));
+  }
+
+  bool _readFixedLayout(XmlDocument opf) {
+    for (final meta in opf.findAllElements('meta', namespaceUri: '*')) {
+      final property =
+          (meta.getAttribute('property') ?? '').trim().toLowerCase();
+      if (property == 'rendition:layout') {
+        final value = meta.innerText.trim().toLowerCase();
+        if (value == 'pre-paginated' || value == 'prepaginated') return true;
+      }
+      final name = (meta.getAttribute('name') ?? '').trim().toLowerCase();
+      final content = (meta.getAttribute('content') ?? '').trim().toLowerCase();
+      if (name == 'book-type' && content.contains('comic')) return true;
+      if (name == 'fixed-layout' && content == 'true') return true;
+    }
+    return false;
   }
 
   ({XmlDocument opf, Map<String, _ManifestItem> manifest}) _readPackage() {
@@ -349,6 +447,53 @@ class _EpubParser {
     } catch (_) {
       return const {};
     }
+  }
+
+  List<({List<int> bytes, String extension})> _extractPageImages(
+    String path,
+  ) {
+    try {
+      final document = _parseXml(_readText(path));
+      final body = _firstWhereOrNull(
+        document.findAllElements('body', namespaceUri: '*'),
+        (_) => true,
+      );
+      final container = body ?? document;
+      final images = <({List<int> bytes, String extension})>[];
+      for (final element in container.descendants.whereType<XmlElement>()) {
+        final tag = element.name.local.toLowerCase();
+        if (tag != 'img' && tag != 'image') continue;
+        final href = _hrefOf(element);
+        if (href == null || href.trim().isEmpty) continue;
+
+        final resolved = _resolvePath(path, href);
+        final file = _files[_normalizePath(resolved)];
+        if (file == null) continue;
+        final extension =
+            p.url.extension(resolved).replaceFirst('.', '').toLowerCase();
+        if (!_rasterExtensions.contains(extension)) continue;
+        final data = file.content;
+        if (data.isEmpty) continue;
+        images.add((
+          bytes: data,
+          extension: extension == 'jpeg' ? 'jpg' : extension,
+        ));
+      }
+      return images;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String? _hrefOf(XmlElement element) {
+    final src = element.getAttribute('src');
+    if (src != null) return src;
+    for (final attribute in element.attributes) {
+      if (attribute.name.local.toLowerCase() == 'href') {
+        return attribute.value;
+      }
+    }
+    return null;
   }
 
   String _extractPlainText(String path) {

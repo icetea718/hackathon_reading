@@ -52,6 +52,7 @@ class BookRepository {
       sourcePath: row.sourcePath,
       coverPath: row.coverPath,
       contentHash: row.contentHash,
+      comic: row.comic,
       addedAt: row.addedAt,
       lastOpenedAt: row.lastOpenedAt,
     );
@@ -66,6 +67,7 @@ class BookRepository {
       sourcePath: book.sourcePath,
       coverPath: Value(book.coverPath),
       contentHash: Value(book.contentHash),
+      comic: Value(book.comic),
       addedAt: book.addedAt,
       lastOpenedAt: Value(book.lastOpenedAt),
     );

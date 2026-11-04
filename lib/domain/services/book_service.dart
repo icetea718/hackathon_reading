@@ -108,8 +108,40 @@ class BookService {
       } else if (format == BookFormat.epub) {
         final bytes = await File(copiedPath).readAsBytes();
         final document = parseEpubDocument(bytes);
-        await chapters.replaceForBook(id, _toEpubChapters(book, document));
-        final cover = document.cover;
+        var cover = document.cover;
+
+        if (document.fixedLayout || document.chapters.isEmpty) {
+          final comic = parseEpubComic(bytes);
+          if (comic != null) {
+            await storage.saveComicPages(
+              id,
+              [
+                for (final page in comic.pages)
+                  (
+                    bytes: page.bytes,
+                    extension: page.extension,
+                    title: page.title,
+                  ),
+              ],
+            );
+            book = _asComic(book);
+            await books.upsert(book);
+            cover ??= EpubCover(
+              bytes: comic.pages.first.bytes,
+              extension: comic.pages.first.extension,
+            );
+          }
+        }
+
+        if (book.comic) {
+          await chapters.replaceForBook(id, const []);
+        } else {
+          if (document.chapters.isEmpty) {
+            throw EpubParseException('没有可读正文');
+          }
+          await chapters.replaceForBook(id, _toEpubChapters(book, document));
+        }
+
         if (cover != null) {
           try {
             coverPath = await storage.saveCover(
@@ -127,6 +159,7 @@ class BookService {
       }
     } catch (_) {
       await chapters.replaceForBook(id, const []);
+      await storage.deleteComicPages(id);
       await books.delete(id);
       await storage.deleteFile(copiedPath);
       if (coverPath != null) await storage.deleteFile(coverPath);
@@ -167,6 +200,22 @@ class BookService {
       sourcePath: book.sourcePath,
       coverPath: coverPath,
       contentHash: book.contentHash,
+      comic: book.comic,
+      addedAt: book.addedAt,
+      lastOpenedAt: book.lastOpenedAt,
+    );
+  }
+
+  Book _asComic(Book book) {
+    return Book(
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      format: book.format,
+      sourcePath: book.sourcePath,
+      coverPath: book.coverPath,
+      contentHash: book.contentHash,
+      comic: true,
       addedAt: book.addedAt,
       lastOpenedAt: book.lastOpenedAt,
     );
@@ -187,6 +236,7 @@ class BookService {
           sourcePath: book.sourcePath,
           coverPath: book.coverPath,
           contentHash: hash,
+          comic: book.comic,
           addedAt: book.addedAt,
           lastOpenedAt: book.lastOpenedAt,
         ));
@@ -205,6 +255,7 @@ class BookService {
     await distillJobs?.deleteForBook(book.id);
     await categories?.deleteForBook(book.id);
     await books.delete(book.id);
+    await storage.deleteComicPages(book.id);
     await storage.deleteFile(book.sourcePath);
     if (book.coverPath != null) await storage.deleteFile(book.coverPath!);
   }

@@ -32,6 +32,7 @@ class Book {
     required this.addedAt,
     this.coverPath,
     this.contentHash,
+    this.comic = false,
     this.lastOpenedAt,
   });
 
@@ -42,6 +43,9 @@ class Book {
   final String sourcePath;
   final String? coverPath;
   final String? contentHash;
+
+  /// True when the EPUB is a page-image comic rather than flowing text.
+  final bool comic;
   final DateTime addedAt;
   final DateTime? lastOpenedAt;
 }

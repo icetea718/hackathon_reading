@@ -75,7 +75,8 @@ class BookCard extends StatelessWidget {
                         ),
                         PopupMenuItem(
                           value: _BookAction.distill,
-                          enabled: book.format != BookFormat.pdf,
+                          enabled:
+                              book.format != BookFormat.pdf && !book.comic,
                           child: const Text('蒸馏'),
                         ),
                         const PopupMenuItem(

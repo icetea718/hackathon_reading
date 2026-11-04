@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,11 +13,13 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
+import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_panel.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
+import 'comic_toc_drawer.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
 import 'reader_rail.dart';
@@ -123,9 +126,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Timer? _settingsSaveTimer;
   Timer? _percentTimer;
   Timer? _hideTimer;
+  Timer? _comicSaveTimer;
   ReaderData? _cachedData;
   ProgressRepository? _progressRepository;
   SettingsRepository? _settingsRepository;
+  PageController? _comicController;
+  int _comicPageIndex = 0;
+  int _comicPageCount = 0;
+  bool _comicInitialized = false;
 
   @override
   void initState() {
@@ -143,10 +151,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _settingsSaveTimer?.cancel();
     _percentTimer?.cancel();
     _hideTimer?.cancel();
+    _comicSaveTimer?.cancel();
     _persistProgress();
+    _persistComicProgress();
     _persistReadingSettings();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _comicController?.dispose();
     super.dispose();
   }
 
@@ -312,6 +323,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           sourcePath: book.sourcePath,
           coverPath: book.coverPath,
           contentHash: book.contentHash,
+          comic: book.comic,
           addedAt: book.addedAt,
           lastOpenedAt: DateTime.now(),
         );
@@ -456,6 +468,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           chapterId: chapter.id,
           type: AnnotationType.bookmark,
           anchorStart: anchorStart,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      _refreshBookmarks();
+      _showSnackBar('已添加书签');
+    } catch (_) {
+      _showSnackBar('书签操作失败，请重试');
+    }
+  }
+
+  Future<void> _toggleComicBookmark(int page) async {
+    final repository = ref.read(annotationRepositoryProvider);
+    try {
+      final existing = (await repository.getForBook(
+        widget.bookId,
+        type: AnnotationType.bookmark,
+      )).where((bookmark) => bookmark.anchorStart == page).toList();
+
+      if (existing.isNotEmpty) {
+        for (final bookmark in existing) {
+          await repository.delete(bookmark.id);
+        }
+        _refreshBookmarks();
+        _showSnackBar('已取消书签');
+        return;
+      }
+
+      final now = DateTime.now();
+      await repository.upsert(
+        Annotation(
+          id: const Uuid().v4(),
+          bookId: widget.bookId,
+          type: AnnotationType.bookmark,
+          anchorStart: page,
           createdAt: now,
           updatedAt: now,
         ),
@@ -715,6 +762,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _progressRepository ??= ref.read(progressRepositoryProvider);
         _scheduleRestore(readerData);
         final title = readerData.book?.title ?? '阅读';
+        if (readerData.book?.comic ?? false) {
+          return _buildComic(readerData, title);
+        }
         if (readerData.chapters.isEmpty) {
           return _scaffold(
             title: title,
@@ -788,85 +838,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           },
         );
 
-        Widget body;
-        if (_railPinned) {
-          body = AnimatedSize(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOut,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              children: [
-                ReaderRail(
-                  key: const Key('reader-rail-pinned'),
-                  pinned: true,
-                  onTogglePinned: _toggleRailPinned,
-                  onBackToLibrary: _backToLibrary,
-                  onOpenCompanion: _openCompanion,
-                  onOpenSettings: _openAppSettings,
-                  background: _colors.$1,
-                  foreground: _colors.$2,
-                  accent: _accent,
-                ),
-                Expanded(child: contentBody),
-              ],
-            ),
-          );
-        } else {
-          body = Stack(
-            fit: StackFit.expand,
-            children: [
-              contentBody,
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: MouseRegion(
-                  key: const Key('reader-rail-hotzone'),
-                  onEnter: (_) => _showRail(),
-                  onExit: (_) => _suppressHotzone = false,
-                  child: const SizedBox(width: 12),
-                ),
-              ),
-              if (_railVisible)
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _hideRailNow,
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              if (_railVisible)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: MouseRegion(
-                    key: const Key('reader-rail-overlay'),
-                    onEnter: (_) => _showRail(),
-                    onExit: (_) => _scheduleHideRail(),
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 150),
-                      curve: Curves.easeOut,
-                      builder: (context, value, child) =>
-                          Opacity(opacity: value, child: child),
-                      child: ReaderRail(
-                        pinned: false,
-                        elevated: true,
-                        onTogglePinned: _toggleRailPinned,
-                        onBackToLibrary: _backToLibrary,
-                        onOpenCompanion: _openCompanion,
-                        onOpenSettings: _openAppSettings,
-                        background: _colors.$1,
-                        foreground: _colors.$2,
-                        accent: _accent,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        }
+        final body = _decorateBody(contentBody);
 
         return Scaffold(
           key: _scaffoldKey,
@@ -903,6 +875,300 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           bottomNavigationBar: _navigationBar(index, chapters),
         );
       },
+    );
+  }
+
+  Widget _decorateBody(
+    Widget contentBody, {
+    bool companionEnabled = true,
+    String companionTooltip = '陪读',
+  }) {
+    if (_railPinned) {
+      return AnimatedSize(
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            ReaderRail(
+              key: const Key('reader-rail-pinned'),
+              pinned: true,
+              onTogglePinned: _toggleRailPinned,
+              onBackToLibrary: _backToLibrary,
+              onOpenCompanion: _openCompanion,
+              onOpenSettings: _openAppSettings,
+              background: _colors.$1,
+              foreground: _colors.$2,
+              accent: _accent,
+              companionEnabled: companionEnabled,
+              companionTooltip: companionTooltip,
+            ),
+            Expanded(child: contentBody),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        contentBody,
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          child: MouseRegion(
+            key: const Key('reader-rail-hotzone'),
+            onEnter: (_) => _showRail(),
+            onExit: (_) => _suppressHotzone = false,
+            child: const SizedBox(width: 12),
+          ),
+        ),
+        if (_railVisible)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _hideRailNow,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        if (_railVisible)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: MouseRegion(
+              key: const Key('reader-rail-overlay'),
+              onEnter: (_) => _showRail(),
+              onExit: (_) => _scheduleHideRail(),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                builder: (context, value, child) =>
+                    Opacity(opacity: value, child: child),
+                child: ReaderRail(
+                  pinned: false,
+                  elevated: true,
+                  onTogglePinned: _toggleRailPinned,
+                  onBackToLibrary: _backToLibrary,
+                  onOpenCompanion: _openCompanion,
+                  onOpenSettings: _openAppSettings,
+                  background: _colors.$1,
+                  foreground: _colors.$2,
+                  accent: _accent,
+                  companionEnabled: companionEnabled,
+                  companionTooltip: companionTooltip,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildComic(ReaderData data, String title) {
+    final pagesAsync = ref.watch(comicPagesProvider(widget.bookId));
+    return pagesAsync.when(
+      loading: () => _scaffold(
+        title: title,
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => _scaffold(
+        title: title,
+        body: Center(child: Text('漫画加载失败：$error')),
+      ),
+      data: (pages) {
+        if (pages.isEmpty) {
+          return _scaffold(
+            title: title,
+            body: const Center(child: Text('这本书没有可显示的漫画页面')),
+          );
+        }
+        final total = pages.length;
+        if (!_comicInitialized) {
+          _comicInitialized = true;
+          _comicPageCount = total;
+          final saved = data.progress?.anchor.page ?? 1;
+          _comicPageIndex = (saved - 1).clamp(0, total - 1);
+          _comicController = PageController(initialPage: _comicPageIndex);
+        } else if (_comicPageCount != total) {
+          _comicPageCount = total;
+          _comicPageIndex = _comicPageIndex.clamp(0, total - 1);
+        }
+        final index = _comicPageIndex.clamp(0, total - 1);
+        final percent = (index + 1) / total;
+        final bookmarks =
+            ref.watch(bookmarkListProvider(widget.bookId)).value ??
+            const <Annotation>[];
+        final pageBookmarked = bookmarks.any(
+          (bookmark) => bookmark.anchorStart == index + 1,
+        );
+
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: _colors.$1,
+          appBar: ReaderTopBar(
+            title: '$title · 第 ${index + 1} / $total 页',
+            background: _colors.$1,
+            foreground: _colors.$2,
+            pinned: _railPinned,
+            onTogglePinned: _toggleRailPinned,
+            bookmarked: pageBookmarked,
+            onToggleBookmark: () => _toggleComicBookmark(index + 1),
+            comicMode: true,
+            onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
+          ),
+          endDrawer: ComicTocDrawer(
+            pages: pages,
+            currentIndex: index,
+            bookmarks: bookmarks,
+            onSelectPage: _goToComicPage,
+            onSelectBookmark: (page) => _goToComicPage(page - 1),
+            onDeleteBookmark: _deleteBookmark,
+          ),
+          body: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                  _goToComicPage(index - 1),
+              const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                  _goToComicPage(index + 1),
+            },
+            child: Focus(
+              autofocus: true,
+              child: _decorateBody(
+                PageView.builder(
+                  key: const Key('comic-page-view'),
+                  controller: _comicController,
+                  itemCount: total,
+                  onPageChanged: _onComicPageChanged,
+                  itemBuilder: (context, pageIndex) =>
+                      _comicPage(pages[pageIndex], pageIndex),
+                ),
+                companionEnabled: false,
+                companionTooltip: '漫画暂不支持陪读',
+              ),
+            ),
+          ),
+          bottomNavigationBar: _comicNavigationBar(total, index, percent),
+        );
+      },
+    );
+  }
+
+  Widget _comicPage(ComicPage page, int index) {
+    return Center(
+      child: Image.file(
+        File(page.path),
+        key: Key('comic-page-$index'),
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => Center(
+          child: Text(
+            '无法显示这一页',
+            style: TextStyle(color: _colors.$2),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onComicPageChanged(int index) {
+    if (!mounted || index == _comicPageIndex) return;
+    setState(() => _comicPageIndex = index);
+    _comicSaveTimer?.cancel();
+    _comicSaveTimer = Timer(
+      const Duration(milliseconds: 300),
+      _persistComicProgress,
+    );
+  }
+
+  void _goToComicPage(int index) {
+    if (_comicPageCount <= 0) return;
+    final target = index.clamp(0, _comicPageCount - 1);
+    final controller = _comicController;
+    if (controller != null && controller.hasClients) {
+      controller.animateToPage(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+      return;
+    }
+    if (target == _comicPageIndex) return;
+    setState(() => _comicPageIndex = target);
+    _comicSaveTimer?.cancel();
+    _comicSaveTimer = Timer(
+      const Duration(milliseconds: 300),
+      _persistComicProgress,
+    );
+  }
+
+  void _persistComicProgress() {
+    final total = _comicPageCount;
+    final repository = _progressRepository;
+    if (total <= 0 || repository == null) return;
+    final page = _comicPageIndex.clamp(0, total - 1) + 1;
+    repository
+        .save(
+          ReadingProgress(
+            bookId: widget.bookId,
+            anchor: ReadingAnchor.page(page),
+            percent: page / total,
+            updatedAt: DateTime.now(),
+          ),
+        )
+        .catchError((Object _) {});
+  }
+
+  Widget _comicNavigationBar(int total, int index, double percent) {
+    final (background, foreground) = _colors;
+    return Container(
+      color: background,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(
+              value: percent.clamp(0.0, 1.0).toDouble(),
+              minHeight: 3,
+              backgroundColor: foreground.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(_accent),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  TextButton.icon(
+                    onPressed:
+                        index > 0 ? () => _goToComicPage(index - 1) : null,
+                    icon: const Icon(Icons.chevron_left),
+                    label: const Text('上一页'),
+                    style: TextButton.styleFrom(foregroundColor: foreground),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '第 ${index + 1} / $total 页 · '
+                      '${(percent.clamp(0.0, 1.0) * 100).round()}%',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: foreground),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: index < total - 1
+                        ? () => _goToComicPage(index + 1)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                    label: const Text('下一页'),
+                    style: TextButton.styleFrom(foregroundColor: foreground),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
