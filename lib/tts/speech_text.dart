@@ -118,6 +118,47 @@ List<String> splitSpeech(
   return chunks;
 }
 
+/// Splits [text] into the requests a reader should send, in order.
+///
+/// The first sentence is sent on its own so sound starts as soon as one clip
+/// exists; the ones after it are merged up to [maxChars], because a local clone
+/// engine is several times slower than playback and every extra round trip buys
+/// another stall. Returns an empty list for blank input.
+List<String> speechChunks(
+  String text, {
+  int maxChars = defaultSpeechChunkChars,
+}) {
+  final parts = splitSpeech(text, maxChars: maxChars);
+  if (parts.length <= 1) return parts;
+
+  final chunks = <String>[parts.first];
+  var current = '';
+  for (final part in parts.skip(1)) {
+    if (current.isEmpty) {
+      current = part;
+      continue;
+    }
+    final candidate = _join(current, part);
+    if (candidate.length > maxChars) {
+      chunks.add(current);
+      current = part;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.isNotEmpty) chunks.add(current);
+  return chunks;
+}
+
+/// Glues two sentences, keeping the space Latin text needs between them.
+String _join(String left, String right) {
+  if (left.isEmpty) return right;
+  if (right.isEmpty) return left;
+  final before = left.codeUnitAt(left.length - 1);
+  final after = right.codeUnitAt(0);
+  return before < 128 && after < 128 ? '$left $right' : '$left$right';
+}
+
 List<String> _wrapLong(String sentence, int maxChars) {
   if (sentence.length <= maxChars) return [sentence];
   final parts = <String>[];

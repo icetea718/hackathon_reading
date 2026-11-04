@@ -2,8 +2,9 @@ import '../data/repositories/settings_repository.dart';
 
 /// Where the companion voice comes from and how it should sound.
 ///
-/// The endpoint is a GPT-SoVITS `api_v2` server, which speaks the OpenAI
-/// `/audio/speech` shape — the same one the reference Coopanion plugin exposes.
+/// The endpoint speaks the OpenAI `/audio/speech` shape, which both
+/// `chino-tts` (127.0.0.1:8766 by default) and GPT-SoVITS `api_v2` implement —
+/// the same shape the reference Coopanion plugin exposes.
 class TtsConfig {
   const TtsConfig({
     required this.baseUrl,
@@ -21,12 +22,20 @@ class TtsConfig {
   static const String enabledKey = 'tts.enabled';
   static const String autoSpeakKey = 'tts.autoSpeak';
 
-  /// Preset voices shipped by the reference plugin.
-  static const List<String> voicePresets = ['xll', 'dfy', 'female', 'male'];
+  /// Voices offered as one-tap presets, chino-tts first (its own defaults) and
+  /// the GPT-SoVITS names the reference plugin ships.
+  static const List<String> voicePresets = [
+    'zhino',
+    'zhino-clone',
+    'xiaoyi',
+    'xiaoxiao',
+    'xll',
+    'dfy',
+  ];
 
   static const TtsConfig defaults = TtsConfig(
-    baseUrl: 'http://127.0.0.1:9880',
-    voice: 'xll',
+    baseUrl: 'http://127.0.0.1:8766',
+    voice: 'zhino',
     speed: 1,
     volume: 1,
     enabled: true,

@@ -62,4 +62,38 @@ void main() {
       expect(chunks.join(), long);
     });
   });
+
+  group('speechChunks', () {
+    test('returns nothing for blank input', () {
+      expect(speechChunks('   '), isEmpty);
+    });
+
+    test('sends the first sentence alone, then merges the rest', () {
+      expect(
+        speechChunks('福贵输了钱。家珍哭了！老牛还在。'),
+        ['福贵输了钱。', '家珍哭了！老牛还在。'],
+      );
+    });
+
+    test('starts a new chunk once the merged text would be too long', () {
+      final a = '${'甲' * 20}。';
+      final b = '${'乙' * 20}。';
+      final c = '${'丙' * 20}。';
+      expect(speechChunks('$a$b$c', maxChars: 45), [a, '$b$c']);
+    });
+
+    test('keeps a space between latin sentences', () {
+      expect(
+        speechChunks('Hi? Ok. Yes.'),
+        ['Hi?', 'Ok. Yes.'],
+      );
+    });
+
+    test('keeps the very first sentence short for a fast start', () {
+      final long = '${'这是一句很长的旁白，' * 12}结束。下一句很短。';
+      final chunks = speechChunks(long, maxChars: 40);
+      expect(chunks.first.length, lessThanOrEqualTo(40));
+      expect(chunks.length, greaterThan(1));
+    });
+  });
 }

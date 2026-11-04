@@ -45,3 +45,45 @@ Uint8List makeWav({
   }
   return bytes;
 }
+
+/// Builds a WAV padded with silence, the way speech engines return clips.
+///
+/// The VoxCPM path of chino-tts appends about a second of digital silence to
+/// every line; [makePaddedWav] reproduces that so trimming can be tested.
+Uint8List makePaddedWav({
+  int sampleRate = 24000,
+  int leadMs = 300,
+  int speechMs = 80,
+  int tailMs = 300,
+  int amplitude = 8000,
+}) {
+  final head = makeWav(
+    sampleRate: sampleRate,
+    milliseconds: leadMs,
+    amplitude: 0,
+  );
+  final speech = makeWav(
+    sampleRate: sampleRate,
+    milliseconds: speechMs,
+    amplitude: amplitude,
+  );
+  final tail = makeWav(
+    sampleRate: sampleRate,
+    milliseconds: tailMs,
+    amplitude: 0,
+  );
+
+  final body = BytesBuilder()
+    ..add(head.sublist(44))
+    ..add(speech.sublist(44))
+    ..add(tail.sublist(44));
+  final payload = body.takeBytes();
+  final bytes = Uint8List(44 + payload.length);
+  bytes.setRange(0, 44, head.sublist(0, 44));
+  bytes.setRange(44, bytes.length, payload);
+
+  final data = ByteData.sublistView(bytes);
+  data.setUint32(4, 36 + payload.length, Endian.little);
+  data.setUint32(40, payload.length, Endian.little);
+  return bytes;
+}

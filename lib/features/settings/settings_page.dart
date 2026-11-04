@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../distill/llm/llm_config.dart';
+import '../../tts/tts_client.dart';
 import '../../tts/tts_config.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -115,9 +116,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     // Use the values on screen: the shared client still holds the previous
     // snapshot until the settings provider has reloaded from the database.
     final client = ref.read(ttsClientFactoryProvider)(config);
-    bool reachable;
+    TtsProbe probe;
     try {
-      reachable = await client.ping();
+      probe = await client.probe();
     } finally {
       client.dispose();
     }
@@ -125,11 +126,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() => _testingVoice = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          reachable
-              ? '语音服务可用（${config.baseUrl}）'
-              : '语音服务不可用：连不上 ${config.baseUrl}/health',
-        ),
+        content: Text(probe.ok ? probe.message : '语音服务不可用：${probe.message}'),
+        duration: const Duration(seconds: 6),
       ),
     );
   }
@@ -215,7 +213,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const Divider(),
                 const SizedBox(height: 8),
                 Text(
-                  '朗读（GPT-SoVITS）',
+                  '朗读（GPT-SoVITS / chino-tts）',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 SwitchListTile(
@@ -231,8 +229,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   controller: _ttsBaseUrl,
                   decoration: const InputDecoration(
                     labelText: '语音服务地址',
-                    hintText: 'http://127.0.0.1:9880',
-                    helperText: '本机 GPT-SoVITS api_v2 的地址',
+                    hintText: 'http://127.0.0.1:8766',
+                    helperText: 'chino-tts 或 GPT-SoVITS api_v2；根路径 404 是正常的',
                   ),
                   keyboardType: TextInputType.url,
                 ),
@@ -242,8 +240,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   controller: _ttsVoice,
                   decoration: const InputDecoration(
                     labelText: '音色',
-                    helperText: 'xll / dfy / female / male，或自定义音色名',
+                    helperText: '点下面的预设，或自己填服务里的音色名；'
+                        'zhino / xiaoyi 走在线合成，几乎实时，'
+                        'zhino-clone 是本机克隆，比实时慢很多',
                   ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final preset in TtsConfig.voicePresets)
+                      ActionChip(
+                        key: Key('tts-voice-$preset'),
+                        label: Text(preset),
+                        onPressed: () =>
+                            setState(() => _ttsVoice.text = preset),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Row(

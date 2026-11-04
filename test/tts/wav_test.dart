@@ -65,4 +65,63 @@ void main() {
     // Straight multiplication would have wrapped at 32767 and stayed quiet.
     expect(peak, greaterThan(30000));
   });
+
+  group('sniffAudioFormat', () {
+    test('recognises a WAV answer', () {
+      expect(sniffAudioFormat(makeWav(milliseconds: 20)), AudioFormat.wav);
+    });
+
+    test('recognises the MP3 the edge voices answer with', () {
+      expect(
+        sniffAudioFormat(Uint8List.fromList([0x49, 0x44, 0x33, 4, 0, 0])),
+        AudioFormat.mp3,
+      );
+      expect(
+        sniffAudioFormat(Uint8List.fromList([0xFF, 0xFB, 0x90, 0x64])),
+        AudioFormat.mp3,
+      );
+    });
+
+    test('rejects HTML and empty bodies', () {
+      expect(
+        sniffAudioFormat(Uint8List.fromList('<html>'.codeUnits)),
+        AudioFormat.unknown,
+      );
+      expect(sniffAudioFormat(Uint8List(0)), AudioFormat.unknown);
+    });
+  });
+
+  group('trimSilence', () {
+    test('cuts the padded head and tail off a line', () {
+      final padded = makePaddedWav(leadMs: 500, speechMs: 120, tailMs: 900);
+      final trimmed = trimSilence(padded);
+
+      expect(wavDurationMs(padded), closeTo(1520, 3));
+      // Speech plus the kept margins only, so the padding never plays.
+      expect(wavDurationMs(trimmed), lessThan(300));
+      expect(wavDurationMs(trimmed), greaterThan(150));
+      expect(tryParseWavHeader(trimmed), isNotNull);
+    });
+
+    test('keeps the RIFF and data sizes consistent', () {
+      final trimmed = trimSilence(
+        makePaddedWav(leadMs: 300, speechMs: 100, tailMs: 300),
+      );
+      final data = ByteData.sublistView(trimmed);
+      final info = tryParseWavHeader(trimmed)!;
+
+      expect(data.getUint32(4, Endian.little), trimmed.length - 8);
+      expect(data.getUint32(info.dataStart - 4, Endian.little), info.dataLength);
+    });
+
+    test('leaves a clip without padding alone', () {
+      final wav = makeWav(milliseconds: 120);
+      expect(identical(trimSilence(wav), wav), isTrue);
+    });
+
+    test('leaves a buffer that is not WAV alone', () {
+      final bytes = Uint8List.fromList('<html>'.codeUnits);
+      expect(identical(trimSilence(bytes), bytes), isTrue);
+    });
+  });
 }

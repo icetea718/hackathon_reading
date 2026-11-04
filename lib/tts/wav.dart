@@ -81,6 +81,102 @@ int wavDurationMs(Uint8List bytes) {
   return (frames / info.sampleRate * 1000).round();
 }
 
+/// Container the voice service answered with.
+enum AudioFormat { wav, mp3, unknown }
+
+/// Guesses the container of an endpoint reply from its first bytes.
+///
+/// GitHub-style TTS endpoints answer WAV or MP3 depending on the engine, so the
+/// player has to look at the payload instead of trusting a request parameter.
+AudioFormat sniffAudioFormat(Uint8List bytes) {
+  if (bytes.length >= 12 && _tagAt(bytes, 0, 'RIFF') && _tagAt(bytes, 8, 'WAVE')) {
+    return tryParseWavHeader(bytes) != null ? AudioFormat.wav : AudioFormat.unknown;
+  }
+  if (bytes.length >= 3 && _tagAt(bytes, 0, 'ID3')) return AudioFormat.mp3;
+  // MPEG frame sync: eleven set bits, then the version/layer bits.
+  if (bytes.length >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0) {
+    return AudioFormat.mp3;
+  }
+  return AudioFormat.unknown;
+}
+
+bool _tagAt(Uint8List bytes, int offset, String ascii) {
+  if (offset + ascii.length > bytes.length) return false;
+  for (var i = 0; i < ascii.length; i++) {
+    if (bytes[offset + i] != ascii.codeUnitAt(i)) return false;
+  }
+  return true;
+}
+
+/// Silence trimmed off the head and kept at the tail, in milliseconds.
+///
+/// Engines pad every clip with silence (the VoxCPM path adds ~1.1 s of digital
+/// silence), which turns a sentence-by-sentence pipeline into
+/// "sentence, pause, stall, sentence". Peaks under [threshold] count as
+/// silence; the kept tail is what makes lines sound separate without a gap.
+Uint8List trimSilence(
+  Uint8List wav, {
+  int threshold = 320,
+  int keepHeadMs = 30,
+  int keepTailMs = 60,
+  int windowMs = 10,
+}) {
+  final info = tryParseWavHeader(wav);
+  if (info == null) return wav;
+  final frameBytes = info.bytesPerFrame;
+  if (frameBytes <= 0) return wav;
+  final frames = info.dataLength ~/ frameBytes;
+  if (frames <= 0) return wav;
+
+  final data = ByteData.sublistView(wav);
+  final window = math.max(1, info.sampleRate * windowMs ~/ 1000);
+
+  /// True when any sample of the window starting at [frame] reaches the knee.
+  bool loud(int frame) {
+    final start = info.dataStart + frame * frameBytes;
+    for (var i = 0; i < window; i++) {
+      final at = start + i * frameBytes;
+      if (at + frameBytes > wav.length) break;
+      for (var channel = 0; channel < info.channels; channel++) {
+        final sample = data.getInt16(at + channel * 2, Endian.little);
+        if ((sample < 0 ? -sample : sample) >= threshold) return true;
+      }
+    }
+    return false;
+  }
+
+  var first = 0;
+  while (first + window <= frames && !loud(first)) {
+    first += window;
+  }
+  if (first >= frames) return wav; // nothing but silence: keep it as it is
+
+  var cursor = (frames - 1) - ((frames - 1) % window);
+  while (cursor >= 0 && !loud(cursor)) {
+    cursor -= window;
+  }
+  if (cursor < 0) return wav;
+  final last = cursor;
+
+  final head = info.sampleRate * keepHeadMs ~/ 1000;
+  final tail = info.sampleRate * keepTailMs ~/ 1000;
+  final from = math.max(0, first - head);
+  final to = math.min(frames, last + window + tail);
+  if (from == 0 && to >= frames) return wav;
+
+  final start = info.dataStart + from * frameBytes;
+  final length = (to - from) * frameBytes;
+  final out = Uint8List(info.dataStart + length);
+  out.setRange(0, info.dataStart, wav);
+  out.setRange(info.dataStart, out.length, wav, start);
+
+  // Keep the RIFF chunk sizes in step with the shortened payload.
+  final header = ByteData.sublistView(out);
+  header.setUint32(4, out.length - 8, Endian.little);
+  header.setUint32(info.dataStart - 4, length, Endian.little);
+  return out;
+}
+
 /// Soft knee above which samples are bent instead of clipped.
 const double gainKnee = 24000;
 

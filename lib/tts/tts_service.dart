@@ -24,13 +24,13 @@ class TtsStatus {
   String toString() => 'TtsStatus($phase${error == null ? '' : ', $error'})';
 }
 
-/// Speaks assistant replies sentence by sentence.
+/// Speaks assistant replies chunk by chunk.
 ///
-/// The endpoint answers with a whole WAV, so a long reply would otherwise be
-/// silent for seconds: the reply is split into sentences, each one is
-/// synthesized and played in turn, and the next sentence is synthesized while
-/// the current one plays. A new [speak] replaces whatever is in flight: the
-/// user asked for the newest reply, not a queue of old ones.
+/// The endpoint answers with a whole audio file, so a long reply would otherwise
+/// be silent for seconds: the reply is split into chunks, each one is
+/// synthesized and played in turn, and the following ones are synthesized while
+/// the current one plays. A new [speak] replaces whatever is in flight: the user
+/// asked for the newest reply, not a queue of old ones.
 class TtsService {
   TtsService({
     required this.client,
@@ -40,6 +40,16 @@ class TtsService {
     Duration Function(Uint8List wav)? durationOf,
   }) : durationOf = durationOf ??
             ((wav) => Duration(milliseconds: wavDurationMs(wav)));
+
+  /// Requests kept in flight so a slow engine does not starve the speaker.
+  ///
+  /// A local clone engine runs several times slower than real time; with a
+  /// single request in flight every sentence is followed by a long stall, which
+  /// is exactly the "gasps for air" the reader was doing.
+  static const int _prefetch = 2;
+
+  /// Silence left between two lines once the engine padding is trimmed.
+  static const Duration _lineGap = Duration(milliseconds: 80);
 
   final TtsClient client;
   final AudioOutput output;
@@ -68,15 +78,22 @@ class TtsService {
     if (!settings.enabled || chunks.isEmpty) return;
 
     final generation = _generation;
-    var pending = _synthesize(chunks.first, settings, generation);
-    for (var index = 0; index < chunks.length; index++) {
-      final wav = await pending;
-      if (generation != _generation) return;
-      if (wav == null) continue;
-      if (index + 1 < chunks.length) {
-        pending = _synthesize(chunks[index + 1], settings, generation);
+    final pending = <Future<Uint8List?>>[];
+    var next = 0;
+
+    void fill() {
+      while (pending.length < _prefetch && next < chunks.length) {
+        pending.add(_synthesize(chunks[next++], settings, generation));
       }
-      await _play(wav, settings, generation);
+    }
+
+    fill();
+    while (pending.isNotEmpty) {
+      final audio = await pending.removeAt(0);
+      fill();
+      if (generation != _generation) return;
+      if (audio == null) continue;
+      await _play(audio, settings, generation);
       if (generation != _generation) return;
     }
     // Keep the failure visible until the next reply, so the panel can read it.
@@ -137,35 +154,47 @@ class TtsService {
     }
   }
 
-  Future<void> _play(Uint8List wav, TtsConfig settings, int generation) async {
-    final bytes = applyGain(wav, settings.volume);
-    final file = await _writeTemp(bytes);
+  Future<void> _play(Uint8List audio, TtsConfig settings, int generation) async {
+    // Engines pad every clip with silence; playing that padding and then the
+    // stall of the next request is what made the reader gasp.
+    final trimmed = trimSilence(audio);
+    final bytes = applyGain(trimmed, settings.volume);
+    final extension =
+        sniffAudioFormat(bytes) == AudioFormat.mp3 ? '.mp3' : '.wav';
+    final file = await _writeTemp(bytes, extension);
     if (generation != _generation) {
       await _deleteQuietly(file);
       return;
     }
     _playingFile = file;
     _emit(const TtsStatus(phase: TtsPhase.playing));
+
+    final computed = extension == '.wav'
+        ? durationOf(bytes)
+        : Duration.zero;
+    final length = computed > Duration.zero ? computed : null;
     try {
-      await output.playFile(file.path);
+      // The output reports the end of the line; MP3 length is unknown here, so
+      // the player is asked instead of guessing.
+      await output.playFile(file.path, duration: length);
     } on TtsPlaybackException catch (error) {
       _fail(error.message, generation);
       await _deleteQuietly(file);
+      if (_playingFile == file) _playingFile = null;
       return;
     }
-    final length = durationOf(wav);
-    await Future<void>.delayed(
-      length <= Duration.zero ? const Duration(milliseconds: 800) : length,
-    );
+    if (generation == _generation) {
+      await Future<void>.delayed(_lineGap);
+    }
     await _deleteQuietly(file);
     if (_playingFile == file) _playingFile = null;
   }
 
-  Future<File> _writeTemp(Uint8List bytes) async {
+  Future<File> _writeTemp(Uint8List bytes, String extension) async {
     final dir = _tempDir ??= await tempDirectory();
     final file = File(
       '${dir.path}${Platform.pathSeparator}'
-      'line_${DateTime.now().microsecondsSinceEpoch}.wav',
+      'line_${DateTime.now().microsecondsSinceEpoch}$extension',
     );
     await file.writeAsBytes(bytes, flush: true);
     return file;
@@ -182,7 +211,7 @@ class TtsService {
   List<String> _chunksFor(String reply) {
     final spoken = speechText(reply);
     if (spoken.isEmpty) return const [];
-    return splitSpeech(spoken)
+    return speechChunks(spoken)
         .where((chunk) => ttsSafe(chunk).isNotEmpty)
         .toList(growable: false);
   }

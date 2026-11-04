@@ -197,7 +197,9 @@ void main() {
     await pumpPage(
       tester,
       _FakeClient(),
-      ttsClient: FakeTtsClient(pingResult: true),
+      ttsClient: FakeTtsClient(
+        probeResult: const TtsProbe(ok: true, message: '语音服务可用：fake'),
+      ),
     );
 
     await tapAt(tester, find.byKey(const Key('tts-test')));
@@ -211,7 +213,12 @@ void main() {
     await pumpPage(
       tester,
       _FakeClient(),
-      ttsClient: FakeTtsClient(pingResult: true),
+      ttsClient: FakeTtsClient(
+        probeResult: const TtsProbe(
+          ok: true,
+          message: '语音服务可用：chino-tts（http://127.0.0.1:8766），默认音色 zhino',
+        ),
+      ),
       onTtsClientRequested: (config) => requested = config,
     );
 
@@ -225,18 +232,27 @@ void main() {
     // Regression: the client used to be built from the provider snapshot,
     // which still held the defaults on the first save.
     expect(requested?.baseUrl, 'http://127.0.0.1:8766');
-    expect(find.text('语音服务可用（http://127.0.0.1:8766）'), findsOneWidget);
+    expect(
+      find.text('语音服务可用：chino-tts（http://127.0.0.1:8766），默认音色 zhino'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the voice test reports an unreachable service', (tester) async {
     await pumpPage(
       tester,
       _FakeClient(),
-      ttsClient: FakeTtsClient(pingResult: false),
+      ttsClient: FakeTtsClient(
+        probeResult: const TtsProbe(
+          ok: false,
+          message: '连不上 http://127.0.0.1:8766（Connection refused）；先启动 chino-tts',
+        ),
+      ),
     );
 
     await tapAt(tester, find.byKey(const Key('tts-test')));
 
     expect(find.textContaining('语音服务不可用'), findsOneWidget);
+    expect(find.textContaining('先启动 chino-tts'), findsOneWidget);
   });
 }
