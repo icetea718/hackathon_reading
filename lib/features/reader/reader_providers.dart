@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
+import '../../domain/models/book_illustration.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
 
@@ -11,12 +12,28 @@ class ReaderData {
     required this.book,
     required this.chapters,
     required this.progress,
+    this.illustrations = const [],
   });
 
   final Book? book;
   final List<Chapter> chapters;
   final ReadingProgress? progress;
+  final List<BookIllustration> illustrations;
 }
+
+final bookIllustrationsProvider = FutureProvider.autoDispose
+    .family<List<BookIllustration>, String>((ref, bookId) async {
+  final book = await ref.watch(bookRepositoryProvider).getById(bookId);
+  if (book == null || book.format != BookFormat.epub || book.comic) {
+    return const [];
+  }
+  final storage = await ref.watch(bookStorageProvider.future);
+  final saved = await storage.loadIllustrations(bookId);
+  if (saved != null) return saved;
+  final service = await ref.watch(bookServiceProvider.future);
+  await service.ensureIllustrations(book);
+  return await storage.loadIllustrations(bookId) ?? const [];
+});
 
 final readerDataProvider =
     FutureProvider.autoDispose.family<ReaderData, String>((ref, bookId) async {
@@ -24,7 +41,20 @@ final readerDataProvider =
   final chapters =
       await ref.watch(chapterRepositoryProvider).getSummariesForBook(bookId);
   final progress = await ref.watch(progressRepositoryProvider).get(bookId);
-  return ReaderData(book: book, chapters: chapters, progress: progress);
+  var illustrations = const <BookIllustration>[];
+  if (book != null && book.format == BookFormat.epub && !book.comic) {
+    try {
+      illustrations = await ref.watch(bookIllustrationsProvider(bookId).future);
+    } catch (_) {
+      // Reading works without illustrations.
+    }
+  }
+  return ReaderData(
+    book: book,
+    chapters: chapters,
+    progress: progress,
+    illustrations: illustrations,
+  );
 });
 
 final bookmarkListProvider =
