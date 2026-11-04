@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/assistant/assistant_service.dart';
+import 'package:hackathon_reading/assistant/persona.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
@@ -23,8 +24,9 @@ class _EchoAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) async* {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) async* {
     yield '回声';
   }
 

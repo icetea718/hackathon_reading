@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 import '../data/repositories/translation_cache_repository.dart';
 
@@ -65,8 +66,9 @@ class CachedTranslationService implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
-    return inner.chat(context, history, userMessage);
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
+    return inner.chat(context, history, userMessage, persona: persona);
   }
 }

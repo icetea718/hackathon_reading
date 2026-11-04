@@ -1,4 +1,5 @@
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 import 'unconfigured_assistant_service.dart';
 
@@ -42,9 +43,10 @@ class TranslationRouter implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
-    return _assistant.chat(context, history, userMessage);
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
+    return _assistant.chat(context, history, userMessage, persona: persona);
   }
 
   AssistantService get _assistant {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 import 'translation_exception.dart';
 import 'translation_segmenter.dart';
@@ -146,12 +147,14 @@ class MyMemoryTranslator implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     return const UnconfiguredAssistantService().chat(
       context,
       history,
       userMessage,
+      persona: persona,
     );
   }
 }

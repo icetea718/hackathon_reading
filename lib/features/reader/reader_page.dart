@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../app/providers.dart';
 import '../../app/theme/app_theme.dart';
 import '../../assistant/assistant_service.dart';
+import '../../assistant/reading_context.dart';
 import '../../assistant/translation_exception.dart';
 import '../../assistant/translation_segmenter.dart';
 import '../../data/repositories/progress_repository.dart';
@@ -20,7 +21,11 @@ import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
+import '../companion/companion_chat.dart';
+import '../companion/companion_chat_controller.dart';
+import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
+import '../companion/companion_presence.dart';
 import '../illustration/illustration_composer_page.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
@@ -122,6 +127,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
   int _pageIndex = 0;
+
+  /// Ticks on every page turn so the companion can flinch.
+  final ValueNotifier<int> _pageTurns = ValueNotifier<int>(0);
   int? _pendingOffset;
   ChapterPagination? _pagination;
   String? _paginationKey;
@@ -181,6 +189,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _settingsRepository = ref.read(settingsRepositoryProvider);
+    _chatController = CompanionChatController(
+      loadService: () => ref.read(assistantServiceProvider.future),
+      loadPersona: () => ref.read(personaModeProvider),
+    );
+    // The stored voice loads asynchronously; chat should not open in the
+    // default temper just because the reader was quick to click.
+    unawaited(ref.read(personaModeProvider.notifier).ensureRestored());
     _loadReadingSettings();
   }
 
@@ -195,6 +210,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _persistComicProgress();
     _persistReadingSettings();
     _comicController?.dispose();
+    _chatController.dispose();
+    _pageTurns.dispose();
     super.dispose();
   }
 
@@ -472,6 +489,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (_pageIndex + step <= pagination.pageCount - 1) {
       if (!_doubleSpread) _doubleAnchorOffset = null;
       setState(() => _pageIndex += step);
+      _bumpPageTurns();
       _scheduleProgressSave();
       return;
     }
@@ -490,6 +508,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       setState(
         () => _pageIndex = (_pageIndex - step).clamp(0, _pageIndex - 1),
       );
+      _bumpPageTurns();
       _scheduleProgressSave();
       return;
     }
@@ -506,6 +525,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
     _scheduleProgressSave();
   }
+
+  /// Tells the companion the page moved; it flinches for a moment.
+  void _bumpPageTurns() => _pageTurns.value = _pageTurns.value + 1;
 
   (Color, Color) get _colors {
     return switch (_background) {
@@ -1806,6 +1828,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
                 _illustrationTargets = const [];
                 _illustrationSeq = 0;
+                _pageText = text.substring(page.start, page.end);
                 final Widget pageBody;
                 if (doubleSpread) {
                   final contentWidth = constraints.maxWidth.clamp(
@@ -1947,7 +1970,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           index,
           currentChapter,
         );
-        final body = _decorateBody(contentBody);
+        final body = _decorateBody(
+          contentBody,
+          companion: _CompanionWiring(
+            greetingLoader: () =>
+                _companionGreeting(currentChapter, _pageText),
+            onSpeak: () => _speakLine(currentChapter, _pageText),
+            onSpokenLine: _readBubbleAloud,
+            onChatSend: (text) => _chatController.ask(
+              currentChapter.id,
+              _chatContext(currentChapter),
+              text,
+            ),
+            chatChapterId: currentChapter.id,
+            chatTitle: '陪读 · ${currentChapter.title}',
+          ),
+        );
         final readerBody = CallbackShortcuts(
           bindings: {
             const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -2013,10 +2051,60 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
+  /// Greeting lines already requested, keyed by chapter id.
+  final Map<String, Future<String?>> _greetings = {};
+
+  /// One thread per chapter; closing the panel must not lose the talk.
+  late final CompanionChatController _chatController;
+
+  bool _chatOpen = false;
+
+  void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
+
+  /// Reads a bubble line out loud; the voice service honours 朗读 on its own.
+  void _readBubbleAloud(String line) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) return;
+    unawaited(ref.read(ttsServiceProvider).speak(trimmed));
+  }
+
+  /// A fresh line for every click; unlike the greeting it is never cached.
+  Future<String?> _speakLine(Chapter chapter, String pageText) async {
+    await ref.read(personaModeProvider.notifier).ensureRestored();
+    final offset =
+        (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+        chapter.startOffset;
+    return ref.read(companionGreeterProvider)(
+      CompanionGreetingRequest(
+        bookId: widget.bookId,
+        chapterIndex: chapter.index,
+        chapterTitle: chapter.title,
+        chapterText: chapter.contentText,
+        pageText: pageText,
+        readerOffset: offset < 0 ? 0 : offset,
+        bookTitle: _cachedData?.book?.title ?? '',
+        author: _cachedData?.book?.author ?? '',
+      ),
+    );
+  }
+
+  ReadingContext _chatContext(Chapter chapter) => ReadingContext(
+    bookTitle: _cachedData?.book?.title ?? '',
+    author: _cachedData?.book?.author ?? '',
+    chapterTitle: chapter.title,
+    chapterText: chapter.contentText,
+    bookId: widget.bookId,
+    chapterIndex: chapter.index,
+  );
+
+  /// Text of the page currently on screen, used to ground the companion line.
+  String _pageText = '';
+
   Widget _decorateBody(
     Widget contentBody, {
     bool companionEnabled = true,
     String companionTooltip = '陪读',
+    _CompanionWiring? companion,
   }) {
     if (_railPinned) {
       return AnimatedSize(
@@ -2039,7 +2127,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               companionEnabled: companionEnabled,
               companionTooltip: companionTooltip,
             ),
-            Expanded(child: contentBody),
+            Expanded(
+              child: companionEnabled
+                  ? _withAvatar(contentBody, companion: companion)
+                  : contentBody,
+            ),
           ],
         ),
       );
@@ -2048,7 +2140,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        contentBody,
+        companionEnabled
+            ? _withAvatar(contentBody, companion: companion)
+            : contentBody,
         Positioned(
           left: 0,
           top: 0,
@@ -2102,6 +2196,93 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           ),
       ],
     );
+  }
+
+  /// Overlays the companion character on the reading area. It is placed after
+  /// the page content (and therefore above the tap zones) so tapping it never
+  /// turns the page.
+  Widget _withAvatar(Widget content, {_CompanionWiring? companion}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = constraints.maxWidth < 720
+            ? constraints.maxWidth
+            : 720.0;
+        final margin = (constraints.maxWidth - columnWidth) / 2;
+        final roomy = margin >= 168;
+        final height = roomy
+            ? (constraints.maxHeight * 0.28).clamp(120.0, 200.0).toDouble()
+            : 120.0;
+        final bottom = roomy ? 24.0 : 12.0;
+        final panelWidth = constraints.maxWidth - 24 < 320
+            ? constraints.maxWidth - 24
+            : 320.0;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            content,
+            Positioned(
+              right: 12,
+              bottom: bottom,
+              child: CompanionPresence(
+                key: const Key('companion-presence'),
+                height: height,
+                greetingLoader: companion?.greetingLoader,
+                onSpeak: companion?.onSpeak,
+                onSpokenLine: companion?.onSpokenLine,
+                onOpenChat: _toggleChat,
+                pageTurns: _pageTurns,
+              ),
+            ),
+            if (_chatOpen)
+              Positioned(
+                right: 12,
+                bottom: bottom + height + 36,
+                width: panelWidth,
+                child: AnimatedBuilder(
+                  animation: _chatController,
+                  builder: (context, _) => CompanionChatPanel(
+                    title: companion?.chatTitle ?? '陪读',
+                    messages: _chatController.messagesFor(
+                      companion?.chatChapterId ?? '',
+                    ),
+                    streaming: _chatController.streaming,
+                    busy: _chatController.busy,
+                    onSend: companion?.onChatSend ?? (_) {},
+                    onClose: _toggleChat,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// One line about the page being read, cached per chapter so that paging
+  /// inside a chapter does not re-ask the model.
+  ///
+  /// The cached line is keyed by the voice as well: switching from 温柔 to 思辨
+  /// must not hand the reader a line written in the other temper.
+  Future<String?> _companionGreeting(Chapter chapter, String pageText) async {
+    await ref.read(personaModeProvider.notifier).ensureRestored();
+    final persona = ref.read(personaModeProvider);
+    return _greetings.putIfAbsent('${chapter.id}#${persona.id}', () {
+      final offset =
+          (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+          chapter.startOffset;
+      return ref.read(companionGreeterProvider)(
+        CompanionGreetingRequest(
+          bookId: widget.bookId,
+          chapterIndex: chapter.index,
+          chapterTitle: chapter.title,
+          chapterText: chapter.contentText,
+          pageText: pageText,
+          readerOffset: offset < 0 ? 0 : offset,
+          bookTitle: _cachedData?.book?.title ?? '',
+          author: _cachedData?.book?.author ?? '',
+        ),
+      );
+    });
   }
 
   Widget _buildComic(ReaderData data, String title) {
@@ -2537,4 +2718,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       ),
     );
   }
+}
+
+/// What the reader page hands to the companion overlay: how to fetch a line,
+/// how to route a chat message, and where that chat lives.
+class _CompanionWiring {
+  const _CompanionWiring({
+    this.greetingLoader,
+    this.onSpeak,
+    this.onSpokenLine,
+    this.onChatSend,
+    this.chatChapterId,
+    this.chatTitle,
+  });
+
+  final Future<String?> Function()? greetingLoader;
+  final Future<String?> Function()? onSpeak;
+  final ValueChanged<String>? onSpokenLine;
+  final ValueChanged<String>? onChatSend;
+  final String? chatChapterId;
+  final String? chatTitle;
 }

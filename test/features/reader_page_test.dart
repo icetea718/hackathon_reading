@@ -18,6 +18,8 @@ import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:hackathon_reading/features/companion/companion_avatar.dart';
+import 'package:hackathon_reading/features/companion/companion_clip.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
@@ -2312,6 +2314,83 @@ void main() {
       expect(find.byKey(const Key('reader-rail-pinned')), findsNothing);
       expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
       expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+  });
+
+  group('companion avatar', () {
+    testWidgets('hugs the right margin when the window is wide', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await pumpReader(tester, 'b1');
+
+      final page = tester.getRect(find.byKey(const Key('reader-page')));
+      final avatar = tester.getRect(find.byKey(const Key('companion-avatar')));
+      final columnRight = page.center.dx + 360; // 720-wide column, centred
+      expect(avatar.left, greaterThanOrEqualTo(columnRight));
+      expect(avatar.right, lessThanOrEqualTo(page.right));
+      expect(avatar.bottom, lessThanOrEqualTo(page.bottom));
+      expect(avatar.width / avatar.height, closeTo(0.75, 0.01));
+      await disposeApp(tester);
+    });
+
+    testWidgets('stays on screen and shrinks in a narrow window', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await pumpReader(tester, 'b1');
+
+      final page = tester.getRect(find.byKey(const Key('reader-page')));
+      final avatar = tester.getRect(find.byKey(const Key('companion-avatar')));
+      expect(avatar.height, 120);
+      expect(avatar.right, lessThanOrEqualTo(360));
+      expect(avatar.bottom, lessThanOrEqualTo(page.bottom));
+      await disposeApp(tester);
+    });
+
+    testWidgets('tapping the avatar does not turn the page', (tester) async {
+      await seedLongBook();
+      await pumpReader(tester, 'long');
+
+      String pageText() => tester
+          .widget<SelectableText>(find.byType(SelectableText))
+          .textSpan!
+          .toPlainText();
+      final before = pageText();
+
+      await tester.tap(find.byKey(const Key('companion-avatar')));
+      await tester.pumpAndSettle();
+
+      expect(pageText(), before);
+      await disposeApp(tester);
+    });
+
+    testWidgets('flinches when the reader turns the page', (tester) async {
+      await seedLongBook();
+      await pumpReader(tester, 'long');
+      final stage = tester.state<CompanionClipStageState>(
+        find.byType(CompanionClipStage),
+      );
+      expect(stage.clip, companionIdleClip);
+
+      await tester.tap(find.byKey(const Key('reader-next-zone')));
+      await tester.pump();
+
+      expect(stage.clip, companionSurpriseClip);
+      await disposeApp(tester);
+    });
+
+    testWidgets('wears the pet clips', (tester) async {
+      await pumpReader(tester, 'b1');
+
+      final avatar = tester.widget<CompanionAvatar>(
+        find.byType(CompanionAvatar),
+      );
+      expect(avatar.assetPath, isNull);
+      expect(find.byType(CompanionClipStage), findsOneWidget);
       await disposeApp(tester);
     });
   });

@@ -1,4 +1,5 @@
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 
 class UnconfiguredAssistantService implements AssistantService {
@@ -26,8 +27,9 @@ class UnconfiguredAssistantService implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     return _notConfigured();
   }
 
