@@ -979,6 +979,146 @@ void main() {
     await disposeApp(tester);
   });
 
+  Future<String> seedMarkerProgress() async {
+    await seedLongBook();
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final marker = text.indexOf('第40段');
+    await ProgressRepository(db).save(
+      ReadingProgress(
+        bookId: 'long',
+        anchor: ReadingAnchor(charOffset: marker),
+        percent: marker / text.length,
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
+    return text;
+  }
+
+  int chapterPageCount(WidgetTester tester) {
+    return int.parse(
+      RegExp(r'^第 \d+ / (\d+) 页').firstMatch(footerText(tester))!.group(1)!,
+    );
+  }
+
+  testWidgets('keeps the page start when the font size changes', (
+    tester,
+  ) async {
+    await seedMarkerProgress();
+    await pumpReader(tester, 'long');
+    final anchorText = pageText(tester).substring(0, 10);
+    final before = chapterPageCount(tester);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), contains(anchorText));
+    expect(chapterPageCount(tester), greaterThan(before));
+    await disposeApp(tester);
+  });
+
+  testWidgets('keeps the page start when the window is resized', (
+    tester,
+  ) async {
+    await seedMarkerProgress();
+    await pumpReader(tester, 'long');
+    final anchorText = pageText(tester).substring(0, 10);
+    final before = chapterPageCount(tester);
+
+    addTearDown(tester.view.reset);
+    final view = tester.view;
+    view.physicalSize = Size(
+      view.physicalSize.width,
+      view.physicalSize.height * 1.2,
+    );
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), contains(anchorText));
+    expect(chapterPageCount(tester), lessThan(before));
+    await disposeApp(tester);
+  });
+
+  testWidgets('keeps the page start when the rail is pinned', (tester) async {
+    await seedMarkerProgress();
+    await pumpReader(tester, 'long');
+    final anchorText = pageText(tester).substring(0, 10);
+
+    await tester.tap(find.byTooltip('固定左栏'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+    expect(pageText(tester), startsWith(anchorText));
+    await disposeApp(tester);
+  });
+
+  testWidgets('TOC jumps land on the chapter first page', (tester) async {
+    await seedTwoChapterBook();
+    await pumpReader(tester, 'jb');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第二章'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('跳转测试 · 第二章'), findsOneWidget);
+    expect(footerText(tester), startsWith('第 1 /'));
+    await disposeApp(tester);
+  });
+
+  testWidgets('bookmark jumps land on the page containing the anchor', (
+    tester,
+  ) async {
+    await seedTwoChapterBook();
+    final text0 = (await ChapterRepository(db).getContent('jb', 0))!;
+    final text1 = (await ChapterRepository(db).getContent('jb', 1))!;
+    final marker = text0.length + text1.indexOf('乙第30段');
+    await seedBookmark(
+      id: 'bm-mid',
+      bookId: 'jb',
+      chapterId: 'jb-c1',
+      anchorStart: marker,
+    );
+    await pumpReader(tester, 'jb');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第二章'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('乙第30段'), findsOneWidget);
+    expect(footerText(tester), isNot(startsWith('第 1 /')));
+    await disposeApp(tester);
+  });
+
+  testWidgets('annotation jumps land on the page containing the highlight', (
+    tester,
+  ) async {
+    await seedMarkerProgress();
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final marker = text.indexOf('第40段');
+    await seedHighlight(
+      bookId: 'long',
+      chapterId: 'long-c0',
+      anchorStart: marker,
+      anchorEnd: marker + 4,
+      selectedText: '第40段',
+    );
+    await pumpReader(tester, 'long');
+
+    await tester.tap(find.byTooltip('标注'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第40段'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('第40段'), findsOneWidget);
+    expect(footerText(tester), isNot(startsWith('第 1 /')));
+    await disposeApp(tester);
+  });
+
   group('comic reader', () {
     late Directory temp;
     late BookStorage storage;

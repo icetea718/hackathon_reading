@@ -179,7 +179,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           railPinned == null) {
         return;
       }
+      final chapters = _cachedData?.chapters ?? const <Chapter>[];
+      final anchor = _restored ? _currentPageStartOffset(chapters) : null;
       setState(() {
+        if (anchor != null) _pendingOffset = anchor;
         if (fontSize != null) _fontSize = fontSize.clamp(14.0, 28.0).toDouble();
         if (lineHeight != null) {
           _lineHeight = lineHeight.clamp(1.2, 2.0).toDouble();
@@ -187,8 +190,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         if (background != null) _background = background;
         if (railPinned != null) _railPinned = railPinned == 'true';
       });
-      final anchor = _currentProgress()?.anchor.charOffset;
-      if (_restored && anchor != null) _goToOffset(anchor);
     } catch (_) {
       // Corrupt settings must not block reading.
     }
@@ -227,8 +228,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   void didChangeMetrics() {
     if (!_restored) return;
-    final anchor = _currentProgress()?.anchor.charOffset;
-    if (anchor != null) _goToOffset(anchor);
+    final chapters = _cachedData?.chapters ?? const <Chapter>[];
+    _pendingOffset ??= _currentPageStartOffset(chapters);
   }
 
   void _scheduleProgressSave() {
@@ -415,19 +416,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       : AppTheme.accent;
 
   void _toggleRailPinned() {
-    final anchor = _currentProgress()?.anchor.charOffset;
+    final chapters = _cachedData?.chapters ?? const <Chapter>[];
+    final anchor = _currentPageStartOffset(chapters);
     _hideTimer?.cancel();
     setState(() {
+      if (anchor != null) _pendingOffset = anchor;
       _railPinned = !_railPinned;
       _railVisible = !_railPinned;
     });
     _settingsRepository
         ?.set(_railPinnedKey, _railPinned.toString())
         .catchError((Object _) {});
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || anchor == null) return;
-      _goToOffset(anchor);
-    });
   }
 
   void _showRail() {
@@ -796,15 +795,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               lineHeight: _lineHeight,
               background: _background,
               onChanged: (fontSize, lineHeight, background) {
-                final anchor = _currentProgress()?.anchor.charOffset;
+                final chapters = _cachedData?.chapters ?? const <Chapter>[];
+                final anchor = _currentPageStartOffset(chapters);
                 setState(() {
+                  if (anchor != null) _pendingOffset = anchor;
                   _fontSize = fontSize;
                   _lineHeight = lineHeight;
                   _background = background;
                 });
                 setSheet(() {});
                 _scheduleSaveReadingSettings();
-                if (anchor != null) _goToOffset(anchor);
               },
             );
           },
