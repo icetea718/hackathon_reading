@@ -27,7 +27,7 @@
 - 陪读：阅读页「陪读」按钮打开底部对话面板，上下文 = 全书蒸馏摘要 + 当前章按阅读位置开窗的摘录（首 800 + 锚点前后 2400 + 尾 800 字），并支持一键「总结本章」。
 - 阅读设置持久化：字号、行距、背景色写入本地设置表，重开应用沿用上次选择。
 - 封面：EPUB 内嵌封面提取并本地保存，随书删除；启动后台补齐旧书封面；无封面用书名排版、按格式配色的默认封面。
-- 312 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
+- 313 个自动化测试；Windows 构建与启动、Android debug APK 构建均已验证。
 
 尚未实现：PDF 蒸馏（PDF 不写章节表，入口禁用并提示）、PDF 高亮/笔记（按页书签已支持，用户确认本轮不做 PDF 标注）、标注内容编辑、EPUB 排版还原（CSS/正文图片）、API Key 安全存储（当前随设置明文存于本地库）、划词 AI 入口。扫描版 PDF 不做 OCR。
 
@@ -112,7 +112,7 @@ flutter test
 flutter build apk --debug
 ```
 
-提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 312 个测试全部通过；新增功能后数量会增长，以全绿为准。
+提交前**必须**保证 `flutter analyze` 无问题、`flutter test` 全绿。当前基线是 313 个测试全部通过；新增功能后数量会增长，以全绿为准。
 
 PDF 渲染依赖 pdfrx，首次构建会从 GitHub 下载 PDFium 原生库。GitHub 不可达时构建钩子会失败；先按 README 的说明用镜像预置 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/` 下的原生库再构建。
 

@@ -912,6 +912,68 @@ void main() {
       await disposeApp(tester);
     });
 
+    testWidgets('progress survives leaving and reopening the reader', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            bookStorageProvider.overrideWith((ref) async => storage),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ReaderPage(bookId: 'manga'),
+                      ),
+                    ),
+                    child: const Text('打开漫画'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      Future<void> settleComicIo() async {
+        for (var round = 0; round < 16; round++) {
+          await tester.pump();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+        }
+        await tester.pump();
+      }
+
+      await tester.tap(find.text('打开漫画'));
+      await settleComicIo();
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+
+      await tester.tap(find.text('打开漫画'));
+      await settleComicIo();
+      expect(find.text('测试漫画 · 第 2 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
     testWidgets('paging saves the page progress', (tester) async {
       await pumpComic(tester);
 

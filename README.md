@@ -71,7 +71,7 @@ flutter analyze
 flutter test
 ```
 
-当前状态：`flutter analyze` 无问题；`flutter test` 312 个测试全部通过。
+当前状态：`flutter analyze` 无问题；`flutter test` 313 个测试全部通过。
 
 构建验证（2026-11-03）：
 
