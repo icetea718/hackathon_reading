@@ -11,6 +11,7 @@ class SectionRail extends StatelessWidget {
     this.settingsTooltip = '设置',
     this.companionEnabled = true,
     this.companionTooltip = '陪读',
+    this.leading,
     this.footer,
     this.backgroundColor,
     this.foregroundColor,
@@ -25,6 +26,10 @@ class SectionRail extends StatelessWidget {
   final bool companionEnabled;
   final String companionTooltip;
   final String settingsTooltip;
+
+  /// Replaces the 阅 badge at the top of the rail. The bookshelf shell puts the
+  /// 阅/搜 [ModeSwitch] here; every other rail keeps the plain badge.
+  final Widget? leading;
   final Widget? footer;
   final Color? backgroundColor;
   final Color? foregroundColor;
@@ -41,6 +46,27 @@ class SectionRail extends StatelessWidget {
         selectedBackgroundColor ?? theme.colorScheme.secondaryContainer;
     final selectedForeground =
         selectedForegroundColor ?? theme.colorScheme.primary;
+
+    final badge = Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '阅',
+        style: TextStyle(
+          color: theme.colorScheme.onPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          height: 1,
+          fontFamily: 'Source Han Serif SC',
+          fontFamilyFallback: const ['Noto Serif CJK SC', 'SimSun', 'Georgia'],
+        ),
+      ),
+    );
 
     Widget button({
       required Key key,
@@ -83,30 +109,7 @@ class SectionRail extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 12),
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '阅',
-              style: TextStyle(
-                color: theme.colorScheme.onPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                height: 1,
-                fontFamily: 'Source Han Serif SC',
-                fontFamilyFallback: const [
-                  'Noto Serif CJK SC',
-                  'SimSun',
-                  'Georgia',
-                ],
-              ),
-            ),
-          ),
+          leading ?? badge,
           const SizedBox(height: 10),
           button(
             key: const Key('rail-bookshelf'),
