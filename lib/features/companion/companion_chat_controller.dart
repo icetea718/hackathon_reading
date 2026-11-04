@@ -10,6 +10,9 @@ const companionChatHistoryLimit = 20;
 /// Said in the pet's voice when the model is unreachable.
 const companionChatFailureLine = '我这会儿有点卡，再问我一次？';
 
+/// Said when no model has been configured yet.
+const companionChatOfflineLine = '我还没接上大模型，去设置里填个 key 就能聊了。';
+
 /// Keeps one chat thread per chapter and streams answers into a tail string.
 ///
 /// The reader page owns an instance for the whole page, so closing the bubble
@@ -56,7 +59,7 @@ class CompanionChatController extends ChangeNotifier {
     try {
       final service = await loadService();
       if (!service.isConfigured) {
-        answer = companionChatFailureLine;
+        answer = companionChatOfflineLine;
       } else {
         await for (final chunk in service.chat(
           context,

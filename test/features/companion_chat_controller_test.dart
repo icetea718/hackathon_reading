@@ -114,7 +114,7 @@ void main() {
 
     await controller.ask('c1', _context, '问');
 
-    expect(controller.messagesFor('c1').last.content, companionChatFailureLine);
+    expect(controller.messagesFor('c1').last.content, companionChatOfflineLine);
   });
 
   test('ignores a second request while one is in flight', () async {
