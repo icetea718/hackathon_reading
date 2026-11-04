@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../search/search_config.dart';
+
 /// Rounded input row: web toggle on the left, send (or stop) on the right.
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
@@ -9,9 +11,8 @@ class ChatComposer extends StatefulWidget {
     required this.onStop,
     required this.streaming,
     required this.enabled,
-    required this.webEnabled,
-    required this.onWebChanged,
-    this.webConfigured = true,
+    required this.webSource,
+    required this.onPickWebSource,
     this.bookTitle,
     this.onPickBook,
     this.onClearBook,
@@ -21,11 +22,12 @@ class ChatComposer extends StatefulWidget {
   final VoidCallback onStop;
   final bool streaming;
   final bool enabled;
-  final bool webEnabled;
-  final ValueChanged<bool> onWebChanged;
 
-  /// False means the web provider has no key: tapping the chip explains how.
-  final bool webConfigured;
+  /// The stored search provider id (`'off'` | `'free'` | `'tavily'`).
+  final String webSource;
+
+  /// Opens the source sheet; the chip itself never changes the config.
+  final VoidCallback onPickWebSource;
 
   /// Title of the shelf book the answers should be grounded in.
   final String? bookTitle;
@@ -59,16 +61,6 @@ class _ChatComposerState extends State<ChatComposer> {
         const SnackBar(content: Text('发送失败，请重试')),
       );
     }
-  }
-
-  void _toggleWeb() {
-    if (!widget.webConfigured) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('先在设置里填 Tavily API Key')),
-      );
-      return;
-    }
-    widget.onWebChanged(!widget.webEnabled);
   }
 
   @override
@@ -125,8 +117,8 @@ class _ChatComposerState extends State<ChatComposer> {
             Row(
               children: [
                 _WebChip(
-                  active: widget.webEnabled,
-                  onPressed: widget.enabled ? _toggleWeb : null,
+                  source: widget.webSource,
+                  onPressed: widget.enabled ? widget.onPickWebSource : null,
                 ),
                 const SizedBox(width: 8),
                 _BookControl(
@@ -202,23 +194,26 @@ class _BookControl extends StatelessWidget {
   }
 }
 
+/// The 联网 chip: its label names the active source, a tap opens the sheet.
 class _WebChip extends StatelessWidget {
-  const _WebChip({required this.active, required this.onPressed});
+  const _WebChip({required this.source, required this.onPressed});
 
-  final bool active;
+  /// Provider id stored in [SearchConfig]; anything but `off` counts as on.
+  final String source;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final active = source != SearchConfig.off;
     return Tooltip(
-      message: active ? '联网搜索已开启' : '联网搜索已关闭',
+      message: active ? '联网搜索已开启，点一下换个来源' : '联网搜索已关闭，点一下选来源',
       child: FilterChip(
         key: const Key('chat-web-toggle'),
         avatar: Icon(
           active ? Icons.language : Icons.language_outlined,
           size: 16,
         ),
-        label: const Text('联网'),
+        label: Text(_labelFor(source)),
         selected: active,
         onSelected: onPressed == null ? null : (_) => onPressed!(),
         visualDensity: VisualDensity.compact,
@@ -226,6 +221,13 @@ class _WebChip extends StatelessWidget {
     );
   }
 }
+
+/// `off` 就是「联网」，开启后把来源名缀在后面。
+String _labelFor(String source) => switch (source) {
+      SearchConfig.free => '联网·免费',
+      SearchConfig.tavily => '联网·Tavily',
+      _ => '联网',
+    };
 
 class _SendIntent extends Intent {
   const _SendIntent();
