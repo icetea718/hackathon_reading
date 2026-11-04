@@ -28,6 +28,7 @@ import 'reader_settings_sheet.dart';
 import 'reader_spread.dart';
 import 'reader_top_bar.dart';
 import 'toc_drawer.dart';
+import 'translation_dialog.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({super.key, required this.bookId});
@@ -139,6 +140,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Timer? _hideTimer;
   Timer? _comicSaveTimer;
   ReaderData? _cachedData;
+  String _chapterText = '';
   ProgressRepository? _progressRepository;
   SettingsRepository? _settingsRepository;
   PageController? _comicController;
@@ -830,6 +832,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openTranslation(String title, String sourceText) async {
+    if (sourceText.trim().isEmpty) {
+      _showSnackBar('没有可翻译的内容');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => TranslationDialog(
+        title: title,
+        sourceText: sourceText,
+        service: ref.read(translationServiceProvider),
+      ),
+    );
+  }
+
+  void _translateChapter(Chapter chapter) {
+    _openTranslation('翻译本章：${chapter.title}', _chapterText);
+  }
+
+  void _translateSelection(TextSelection selection, String text) {
+    final start = selection.start.clamp(0, text.length);
+    final end = selection.end.clamp(0, text.length);
+    if (start >= end) return;
+    _openTranslation('翻译选中内容', text.substring(start, end));
+  }
+
+  void _translateFromSelection(TextSelection selection, String text) {
+    final start = selection.start.clamp(0, text.length);
+    if (start >= text.length) return;
+    _openTranslation('从此处开始翻译', text.substring(start));
+  }
+
   Widget _selectionToolbar(
     EditableTextState editableTextState,
     PageSlice page,
@@ -853,6 +887,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onPressed: () {
               editableTextState.hideToolbar();
               _addNote(chapter, page, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '翻译',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _translateSelection(selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '从此段翻译',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _translateFromSelection(selection, text);
             },
           ),
         ],
@@ -949,6 +997,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('章节加载失败：$error')),
           data: (text) {
+            _chapterText = text;
             final baseStyle = TextStyle(
               fontSize: _fontSize,
               height: _lineHeight,
@@ -1227,6 +1276,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             bookmarked: chapterBookmarked,
             onToggleBookmark: () => _toggleBookmark(currentChapter),
             onOpenAnnotations: () => _openAnnotations(chapters),
+            onTranslate: () => _translateChapter(currentChapter),
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
             onOpenCompanion: _openCompanion,
             onOpenReaderSettings: _openSettings,

@@ -7,7 +7,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../assistant/assistant_service.dart';
 import '../assistant/digest_aware_assistant_service.dart';
+import '../assistant/my_memory_translator.dart';
 import '../assistant/openai_assistant_service.dart';
+import '../assistant/translation_router.dart';
 import '../assistant/unconfigured_assistant_service.dart';
 import '../data/db/app_database.dart';
 import '../data/repositories/annotation_repository.dart';
@@ -78,6 +80,20 @@ final assistantServiceProvider = FutureProvider<AssistantService>((ref) async {
       config: () => ref.read(llmConfigSourceProvider).value,
     ),
     source: ref.watch(distillDigestSourceProvider),
+  );
+});
+
+/// Free, key-less translation backend used when no model is configured.
+final offlineTranslatorProvider = Provider<AssistantService>((ref) {
+  return MyMemoryTranslator();
+});
+
+/// Translation always works: the configured model when there is one, the free
+/// public API otherwise.
+final translationServiceProvider = Provider<AssistantService>((ref) {
+  return TranslationRouter(
+    preferred: ref.watch(assistantServiceProvider).value,
+    fallback: ref.watch(offlineTranslatorProvider),
   );
 });
 
