@@ -19,6 +19,7 @@ class CompanionPresence extends StatefulWidget {
     this.autoGreet = true,
     this.greetingLoader,
     this.onSpeak,
+    this.onSpokenLine,
     this.onOpenChat,
     this.pageTurns,
   });
@@ -50,6 +51,12 @@ class CompanionPresence extends StatefulWidget {
   /// The bubble shows [_thinkingLine] right away and swaps in whatever this
   /// resolves to; when it resolves to nothing the thinking line stays.
   final Future<String?> Function()? onSpeak;
+
+  /// Called with a finished line the moment it lands in the bubble.
+  ///
+  /// The host reads it out loud. The thinking line is never passed here, so a
+  /// click does not make the companion clear its throat aloud before it talks.
+  final ValueChanged<String>? onSpokenLine;
 
   /// Ticks every time the reader turns the page; the companion flinches.
   final ValueListenable<int>? pageTurns;
@@ -138,6 +145,9 @@ class _CompanionPresenceState extends State<CompanionPresence>
       _visible = true;
     });
     _bubble.forward();
+    final spoken =
+        line == null || line.isEmpty ? _line ?? widget.greeting : line;
+    if (spoken != _thinkingLine) widget.onSpokenLine?.call(spoken);
     // A little hop, so the line lands with a body language of its own.
     _avatarKey.currentState?.cheer();
     _avatarKey.currentState?.playClip(companionWaveClip);
@@ -190,6 +200,7 @@ class _CompanionPresenceState extends State<CompanionPresence>
     final line = await _resolve(speak);
     if (!mounted || line == null || line.isEmpty) return;
     setState(() => _line = line);
+    widget.onSpokenLine?.call(line);
     // The reader is reading a new line, so give it a fresh six seconds.
     _hideTimer?.cancel();
     _hideTimer = Timer(_lingerFor, _close);

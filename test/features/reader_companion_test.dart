@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +17,10 @@ import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/features/companion/companion_greeting.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:hackathon_reading/tts/tts_config.dart';
+import 'package:hackathon_reading/tts/tts_service.dart';
+
+import '../support/fake_tts.dart';
 
 class _EchoAssistant implements AssistantService {
   final prompts = <String>[];
@@ -200,5 +206,31 @@ void main() {
 
     expect(asked, hasLength(2));
     expect(find.text('这是第 2 句。'), findsOneWidget);
+  });
+
+  testWidgets('reads the bubble line out loud', (tester) async {
+    final voice = FakeTtsClient();
+    final tts = TtsService(
+      client: voice,
+      output: FakeAudioOutput(),
+      config: () => TtsConfig.defaults,
+      tempDirectory: () async => Directory.systemTemp,
+      durationOf: (_) => const Duration(milliseconds: 20),
+    );
+    await pumpReader(
+      tester,
+      overrides: [
+        ttsServiceProvider.overrideWithValue(tts),
+        companionGreeterProvider.overrideWithValue(
+          (request) async => '这一页在讲第一章的内容。',
+        ),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('这一页在讲第一章的内容。'), findsOneWidget);
+    expect(voice.texts.last, '这一页在讲第一章的内容。');
   });
 }

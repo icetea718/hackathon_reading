@@ -1099,6 +1099,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           companion: _CompanionWiring(
             greetingLoader: () => _companionGreeting(currentChapter, _pageText),
             onSpeak: () => _speakLine(currentChapter, _pageText),
+            onSpokenLine: _readBubbleAloud,
             onChatSend: (text) => _chatController.ask(
               currentChapter.id,
               _chatContext(currentChapter),
@@ -1164,6 +1165,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _chatOpen = false;
 
   void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
+
+  /// Reads a bubble line out loud; the voice service honours 朗读 on its own.
+  void _readBubbleAloud(String line) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) return;
+    unawaited(ref.read(ttsServiceProvider).speak(trimmed));
+  }
 
   /// A fresh line for every click; unlike the greeting it is never cached.
   Future<String?> _speakLine(Chapter chapter, String pageText) async {
@@ -1323,6 +1331,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 height: height,
                 greetingLoader: companion?.greetingLoader,
                 onSpeak: companion?.onSpeak,
+                onSpokenLine: companion?.onSpokenLine,
                 onOpenChat: _toggleChat,
                 pageTurns: _pageTurns,
               ),
@@ -1731,6 +1740,7 @@ class _CompanionWiring {
   const _CompanionWiring({
     this.greetingLoader,
     this.onSpeak,
+    this.onSpokenLine,
     this.onChatSend,
     this.chatChapterId,
     this.chatTitle,
@@ -1738,6 +1748,7 @@ class _CompanionWiring {
 
   final Future<String?> Function()? greetingLoader;
   final Future<String?> Function()? onSpeak;
+  final ValueChanged<String>? onSpokenLine;
   final ValueChanged<String>? onChatSend;
   final String? chatChapterId;
   final String? chatTitle;

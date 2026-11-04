@@ -233,10 +233,41 @@ void main() {
     expect(find.text('第 1 句'), findsNothing);
   });
 
+  testWidgets('reads the line the bubble finally shows', (tester) async {
+    final said = <String>[];
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          onSpeak: () async => '你翻到哪儿了？',
+          onSpokenLine: said.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+
+    // The thinking line is never read out; only the finished one is.
+    expect(said, ['你翻到哪儿了？']);
+  });
+
+  testWidgets('reads the greeting once the bubble pops', (tester) async {
+    final said = <String>[];
+    await tester.pumpWidget(
+      _host(CompanionPresence(height: 160, onSpokenLine: said.add)),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    expect(said, ['读到哪儿了？']);
+  });
+
   testWidgets('keeps the thinking line when the loader has nothing', (
     tester,
-  ) async {
-    await tester.pumpWidget(
+  ) async {    await tester.pumpWidget(
       _host(
         CompanionPresence(
           height: 160,
