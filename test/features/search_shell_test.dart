@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
@@ -13,6 +14,7 @@ import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
+import 'package:hackathon_reading/features/search/chat_controller.dart';
 import 'package:hackathon_reading/features/search/search_shell.dart';
 import 'package:hackathon_reading/search/book_context.dart';
 import 'package:hackathon_reading/search/search_config.dart';
@@ -117,6 +119,127 @@ class FakeSearch implements SearchProvider {
     final failure = failWith;
     if (failure != null) throw failure;
     return hits;
+  }
+}
+
+/// Fails after optionally yielding [partial], to exercise the error path.
+class FailingClient implements LlmClient {
+  FailingClient({this.partial = '', this.message = '模型炸了'});
+
+  final String partial;
+  final String message;
+  int calls = 0;
+
+  @override
+  Stream<String> streamChat(
+    List<LlmMessage> messages, {
+    double? temperature,
+    int? maxTokens,
+    CancelToken? cancel,
+  }) async* {
+    calls++;
+    if (partial.isNotEmpty) yield partial;
+    throw LlmException(message);
+  }
+
+  @override
+  Future<String> completeJson(
+    List<LlmMessage> messages, {
+    double? temperature,
+    int? maxTokens,
+    CancelToken? cancel,
+  }) async =>
+      '{}';
+
+  @override
+  void dispose() {}
+}
+
+/// Fails the first request and succeeds on the retry.
+class FlakyClient implements LlmClient {
+  FlakyClient({this.reply = '重试成功'});
+
+  final String reply;
+  final List<List<LlmMessage>> calls = [];
+
+  @override
+  Stream<String> streamChat(
+    List<LlmMessage> messages, {
+    double? temperature,
+    int? maxTokens,
+    CancelToken? cancel,
+  }) async* {
+    calls.add(messages);
+    if (calls.length == 1) {
+      yield '半句';
+      throw LlmException('模型炸了');
+    }
+    yield reply;
+  }
+
+  @override
+  Future<String> completeJson(
+    List<LlmMessage> messages, {
+    double? temperature,
+    int? maxTokens,
+    CancelToken? cancel,
+  }) async =>
+      '{}';
+
+  @override
+  void dispose() {}
+}
+
+/// Stays in flight long enough for the user to press stop, then reports cancel.
+class SlowSearch implements SearchProvider {
+  SlowSearch({this.delay = const Duration(milliseconds: 200)});
+
+  final Duration delay;
+  final List<String> queries = [];
+  bool canceled = false;
+
+  @override
+  String get id => 'slow';
+
+  @override
+  bool get isConfigured => true;
+
+  @override
+  Future<List<SearchHit>> search(
+    String query, {
+    int count = 5,
+    CancelToken? cancel,
+  }) async {
+    queries.add(query);
+    await Future<void>.delayed(delay);
+    canceled = cancel?.isCanceled ?? false;
+    throw SearchException('已取消');
+  }
+}
+
+/// Holds thread creation until [gate] completes, to force overlapping sends.
+class SlowThreadRepository extends ChatThreadRepository {
+  SlowThreadRepository(super.db);
+
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<ChatThreadRow> create({String? title}) async {
+    await gate.future;
+    return super.create(title: title);
+  }
+}
+
+/// Holds the history query until [gate] completes, to force a load/send race.
+class SlowListMessageRepository extends ChatMessageRepository {
+  SlowListMessageRepository(super.db);
+
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<List<ChatMessageRow>> list(String threadId) async {
+    await gate.future;
+    return super.list(threadId);
   }
 }
 
@@ -314,6 +437,12 @@ void main() {
 
     expect(find.text('ok'), findsOneWidget);
     expect(find.byKey(const Key('chat-degraded')), findsOneWidget);
+    expect(find.text('最近的新闻'), findsOneWidget);
+    final beforeThreads = await threadRows(tester);
+    expect(
+      await messagesOf(tester, beforeThreads.single.id),
+      hasLength(2),
+    );
 
     search
       ..failWith = null
@@ -326,6 +455,12 @@ void main() {
     expect(search.queries.length, 2);
     expect(find.byKey(const Key('chat-degraded')), findsNothing);
     expect(find.byKey(const Key('chat-sources')), findsOneWidget);
+    expect(find.text('最近的新闻'), findsOneWidget);
+    final afterThreads = await threadRows(tester);
+    expect(
+      await messagesOf(tester, afterThreads.single.id),
+      hasLength(2),
+    );
     await disposeShell(tester);
   });
 
@@ -412,6 +547,301 @@ void main() {
     // Markdown, not raw markers.
     expect(find.textContaining('小结', findRichText: true), findsOneWidget);
     expect(find.textContaining('##', findRichText: true), findsNothing);
+    await disposeShell(tester);
+  });
+
+  void setWide(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
+  test('a retrieval failure that is not SearchException still finishes',
+      () async {
+    final search = FakeSearch(failWith: Exception('socket closed'));
+    final client = InstantClient('ok');
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        llmClientProvider.overrideWithValue(client),
+        webSearchProvider.overrideWithValue(search),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      chatControllerProvider(ChatController.newThreadKey).notifier,
+    );
+    await controller.send('你好', webSearch: true);
+
+    final state = container.read(
+      chatControllerProvider(ChatController.newThreadKey),
+    );
+    expect(state.streaming, isFalse);
+    expect(state.degraded, isTrue);
+    expect(state.messages.last.content, 'ok');
+
+    final threads = await ChatThreadRepository(db).watchAll().first;
+    final rows = await ChatMessageRepository(db).list(threads.single.id);
+    expect(rows.last.status, 'complete');
+  });
+
+  test('overlapping sends create only one thread', () async {
+    final threads = SlowThreadRepository(db);
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        chatThreadRepositoryProvider.overrideWithValue(threads),
+        llmClientProvider.overrideWithValue(InstantClient('ok')),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(
+      chatControllerProvider(ChatController.newThreadKey).notifier,
+    );
+    final first = controller.send('a');
+    final second = controller.send('b');
+    threads.gate.complete();
+    await Future.wait([first, second]);
+
+    final rows = await threads.watchAll().first;
+    expect(rows, hasLength(1));
+  });
+
+  test('a send waits for the thread history to load', () async {
+    final thread = await ChatThreadRepository(db).create(title: '旧');
+    await ChatMessageRepository(db).append(
+      threadId: thread.id,
+      role: 'user',
+      content: '旧问题',
+    );
+    await ChatMessageRepository(db).append(
+      threadId: thread.id,
+      role: 'assistant',
+      content: '旧回答',
+    );
+
+    final messages = SlowListMessageRepository(db);
+    final client = InstantClient('新回答');
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        chatMessageRepositoryProvider.overrideWithValue(messages),
+        llmClientProvider.overrideWithValue(client),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(chatControllerProvider(thread.id).notifier);
+    final sending = controller.send('新问题');
+    messages.gate.complete();
+    await sending;
+
+    expect(
+      client.calls.single.map((message) => message.content),
+      contains('旧问题'),
+    );
+  });
+
+  testWidgets('an LLM failure shows an error and retries in place',
+      (tester) async {
+    final client = FlakyClient();
+    await pumpShell(tester, client: client);
+
+    await send(tester, '问题');
+
+    expect(find.byKey(const Key('chat-error')), findsOneWidget);
+    expect(find.textContaining('模型炸了'), findsOneWidget);
+    expect(find.text('半句'), findsOneWidget);
+    expect(find.text('生成失败'), findsOneWidget);
+    expect(find.byKey(const Key('chat-stop')), findsNothing);
+
+    final threads = await threadRows(tester);
+    final failedRows = await messagesOf(tester, threads.single.id);
+    expect(failedRows.last.status, 'failed');
+
+    await tester.tap(find.byKey(const Key('chat-error-retry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-error')), findsNothing);
+    expect(find.text('重试成功'), findsOneWidget);
+    expect(find.text('问题'), findsOneWidget);
+
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows, hasLength(2));
+    expect(rows.last.status, 'complete');
+    expect(rows.last.content, '重试成功');
+    await disposeShell(tester);
+  });
+
+  testWidgets('starting a new conversation mid-stream interrupts the old reply',
+      (tester) async {
+    setWide(tester);
+    final client = SlowClient(
+      ['第一段', '第二段'],
+      gap: const Duration(milliseconds: 50),
+    );
+    await pumpShell(tester, client: client);
+
+    await tester.enterText(find.byKey(const Key('chat-input')), '讲个故事');
+    await tester.tap(find.byKey(const Key('chat-send')));
+    await tester.pump(const Duration(milliseconds: 80));
+
+    final live = await threadRows(tester);
+    await tester.tap(find.byKey(Key('sidebar-thread-${live.single.id}')));
+    await tester.pump();
+    expect(find.byKey(const Key('chat-stop')), findsOneWidget);
+    expect(find.byKey(const Key('chat-send')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('sidebar-new')));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.status, 'interrupted');
+    expect(rows.last.content, '第一段');
+    expect(find.text('今天想查点什么？'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('stopping during retrieval does not claim the search failed',
+      (tester) async {
+    final search = SlowSearch();
+    await pumpShell(
+      tester,
+      client: InstantClient('ok'),
+      search: search,
+    );
+
+    await tester.tap(find.byKey(const Key('chat-web-toggle')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('chat-input')), '新闻');
+    await tester.tap(find.byKey(const Key('chat-send')));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byKey(const Key('chat-stop')));
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-degraded')), findsNothing);
+    expect(find.byKey(const Key('chat-stop')), findsNothing);
+
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.status, 'interrupted');
+    await disposeShell(tester);
+  });
+
+  test('touch moves a thread to the top of the history', () async {
+    final repo = ChatThreadRepository(db);
+    final older = await repo.create(title: '旧对话');
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    final newer = await repo.create(title: '较新的对话');
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    await repo.touch(older.id);
+
+    final rows = await repo.watchAll().first;
+    expect(rows.first.id, older.id);
+    expect(rows.first.updatedAt.isAfter(newer.updatedAt), isTrue);
+  });
+
+  test('a sent answer advances the thread timestamp', () async {
+    final thread = await ChatThreadRepository(db).create(title: '旧对话');
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    final container = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        llmClientProvider.overrideWithValue(InstantClient('ok')),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(chatControllerProvider(thread.id).notifier);
+    await controller.send('新问题');
+
+    final rows = await ChatThreadRepository(db).watchAll().first;
+    expect(rows.single.id, thread.id);
+    expect(rows.single.updatedAt.isAfter(thread.updatedAt), isTrue);
+  });
+
+  testWidgets('sources survive reopening a saved thread', (tester) async {
+    setWide(tester);
+    final search = FakeSearch(hits: const [
+      SearchHit(
+        title: '旧来源',
+        snippet: '摘要',
+        source: 'old.test',
+        url: 'https://old.test/a',
+      ),
+    ]);
+    await pumpShell(tester, client: InstantClient('ok'), search: search);
+    await tester.tap(find.byKey(const Key('chat-web-toggle')));
+    await tester.pumpAndSettle();
+    await send(tester, '旧新闻');
+
+    expect(find.byKey(const Key('chat-sources')), findsOneWidget);
+    final threads = await threadRows(tester);
+    final id = threads.single.id;
+
+    await tester.tap(find.byKey(const Key('sidebar-new')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chat-sources')), findsNothing);
+
+    await tester.tap(find.byKey(Key('sidebar-thread-$id')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chat-sources')), findsOneWidget);
+    expect(find.text('旧来源'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('deleting the active thread resets the transcript',
+      (tester) async {
+    setWide(tester);
+    await pumpShell(tester, client: InstantClient('ok'));
+    await send(tester, '要删掉的问题');
+
+    final threads = await threadRows(tester);
+    final id = threads.single.id;
+    expect(find.byKey(Key('sidebar-thread-$id')), findsOneWidget);
+    expect(find.byKey(Key('sidebar-time-$id')), findsOneWidget);
+
+    await tester.tap(find.byTooltip('删除对话'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(Key('sidebar-thread-$id')), findsNothing);
+    expect(find.text('今天想查点什么？'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('a suggestion fills the composer without sending',
+      (tester) async {
+    await pumpShell(tester, client: InstantClient('ok'));
+    const suggestion = '解释一下什么是向量数据库';
+
+    await tester.tap(find.text(suggestion));
+    await tester.pump();
+
+    final input = tester.widget<TextField>(
+      find.byKey(const Key('chat-input')),
+    );
+    expect(input.controller?.text, suggestion);
+    expect(await threadRows(tester), isEmpty);
+    await disposeShell(tester);
+  });
+
+  testWidgets('Enter sends the message', (tester) async {
+    final client = InstantClient('ok');
+    await pumpShell(tester, client: client);
+
+    await tester.enterText(find.byKey(const Key('chat-input')), '回车发送');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('回车发送'), findsOneWidget);
+    expect(await threadRows(tester), hasLength(1));
+    expect(client.calls, hasLength(1));
     await disposeShell(tester);
   });
 }

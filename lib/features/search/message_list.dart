@@ -13,6 +13,7 @@ class MessageList extends StatelessWidget {
     required this.searching,
     required this.hits,
     required this.degraded,
+    this.error,
     this.onRetry,
   });
 
@@ -21,6 +22,7 @@ class MessageList extends StatelessWidget {
   final bool searching;
   final List<SearchHit> hits;
   final bool degraded;
+  final String? error;
   final VoidCallback? onRetry;
 
   @override
@@ -67,7 +69,9 @@ class MessageList extends StatelessWidget {
               ],
             ),
           ),
-        if (degraded && !streaming)
+        if (error != null && !streaming)
+          _ErrorBar(message: error!, onRetry: onRetry)
+        else if (degraded && !streaming)
           _DegradedBar(onRetry: onRetry)
         else if (hits.isNotEmpty && !streaming)
           _SourceBar(hits: hits),
@@ -113,21 +117,69 @@ class _AssistantBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final interrupted = row.status == 'interrupted';
+    final failed = row.status == 'failed';
     return Padding(
       padding: const EdgeInsets.only(top: 16, right: 48),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           MarkdownMessage(data: row.content),
-          if (interrupted)
+          if (interrupted || failed)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                '已停止',
+                failed ? '生成失败' : '已停止',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: failed
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorBar extends StatelessWidget {
+  const _ErrorBar({required this.message, this.onRetry});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      key: const Key('chat-error'),
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 16,
+            color: theme.colorScheme.onErrorContainer,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              key: const Key('chat-error-retry'),
+              onPressed: onRetry,
+              child: const Text('重试'),
             ),
         ],
       ),

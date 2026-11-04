@@ -10,7 +10,6 @@ import '../../distill/llm/llm_client.dart';
 import '../../search/book_context.dart';
 import '../../search/search_book.dart';
 import '../../search/search_hit.dart';
-import '../../search/search_provider.dart';
 
 /// Everything the 搜 shell needs to paint one conversation.
 class ChatState {
@@ -80,143 +79,314 @@ class ChatController extends Notifier<ChatState> {
 
   CancelToken? _cancel;
   bool _disposed = false;
+  bool _starting = false;
+  Future<void>? _loadFuture;
 
   @override
   ChatState build() {
     ref.onDispose(() => _disposed = true);
     if (threadKey == newThreadKey) return const ChatState();
-    unawaited(_load(threadKey));
+    _loadFuture = _load(threadKey);
     return ChatState(threadId: threadKey);
   }
 
   Future<void> _load(String threadId) async {
     final rows = await ref.read(chatMessageRepositoryProvider).list(threadId);
     if (_disposed) return;
-    state = state.copyWith(messages: rows);
+
+    // The last answer's sources are all the transcript needs; earlier answers
+    // keep their own hidden `sourcesJson` for a future per-message view.
+    var hits = const <SearchHit>[];
+    for (final row in rows.reversed) {
+      if (row.role != 'assistant') continue;
+      if (row.sourcesJson != null && row.sourcesJson!.trim().isNotEmpty) {
+        try {
+          hits = SearchHit.listFromJson(row.sourcesJson);
+        } on Object {
+          // Corrupt cached sources should not keep the history from opening.
+        }
+      }
+      break;
+    }
+    state = state.copyWith(messages: rows, hits: hits);
   }
 
   Future<void> send(String text, {bool webSearch = false}) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty || state.streaming) return;
+    if (trimmed.isEmpty || state.streaming || _starting) return;
 
-    final messageRepo = ref.read(chatMessageRepositoryProvider);
-    final threadRepo = ref.read(chatThreadRepositoryProvider);
-
-    var threadId = state.threadId;
-    if (threadId == null) {
-      final thread = await threadRepo.create(
-        title: ChatThreadRepository.deriveTitle(trimmed),
-      );
-      threadId = thread.id;
-    }
-    if (_disposed) return;
-
-    final before = state.messages;
-    final userRow = await messageRepo.append(
-      threadId: threadId,
-      role: 'user',
-      content: trimmed,
-    );
-    final assistantRow = await messageRepo.append(
-      threadId: threadId,
-      role: 'assistant',
-      content: '',
-      status: 'streaming',
-    );
-    if (_disposed) return;
-
-    final history = [
-      for (final row in before)
-        if (row.content.trim().isNotEmpty)
-          LlmMessage(
-            row.role == 'assistant' ? LlmRole.assistant : LlmRole.user,
-            row.content,
-          ),
-    ];
-
-    final cancel = CancelToken();
-    _cancel = cancel;
-    final bookId = ref.read(searchBookProvider);
-    state = state.copyWith(
-      threadId: threadId,
-      messages: [...before, userRow, assistantRow],
-      streaming: true,
-      searching: webSearch || bookId != null,
-      clearError: true,
-      hits: const [],
-      degraded: false,
-    );
-
-    BookContext? bookContext;
-    if (bookId != null) {
-      bookContext = await ref
-          .read(bookContextBuilderProvider)
-          .build(bookId, question: trimmed);
-      if (_disposed) return;
-    }
-
-    var hits = const <SearchHit>[];
-    var degraded = false;
-    if (webSearch) {
-      try {
-        hits = await ref.read(webSearchProvider).search(trimmed, cancel: cancel);
-        degraded = hits.isEmpty;
-      } on SearchException {
-        degraded = true;
-      }
-      if (_disposed) return;
-      state = state.copyWith(
-        searching: false,
-        hits: hits,
-        degraded: degraded,
-      );
-    }
-
-    final buffer = StringBuffer();
-    var lastFlushAt = DateTime.now();
-    var lastFlushed = 0;
-
-    Future<void> flush(String status) {
-      lastFlushAt = DateTime.now();
-      lastFlushed = buffer.length;
-      return messageRepo.updateContent(
-        assistantRow.id,
-        buffer.toString(),
-        status: status,
-      );
-    }
-
-    var failed = false;
+    _starting = true;
     try {
-      final agent = ref.read(agentServiceProvider);
-      await for (final chunk in agent.send(
-        history: history,
+      await _loadFuture;
+      if (_disposed) return;
+
+      final messageRepo = ref.read(chatMessageRepositoryProvider);
+      final threadRepo = ref.read(chatThreadRepositoryProvider);
+      final bookId = ref.read(searchBookProvider);
+
+      var threadId = state.threadId;
+      var created = false;
+      if (threadId == null) {
+        final thread = await threadRepo.create(
+          title: ChatThreadRepository.deriveTitle(trimmed),
+        );
+        threadId = thread.id;
+        created = true;
+      }
+      if (_disposed) {
+        if (created) await threadRepo.delete(threadId);
+        return;
+      }
+
+      final before = state.messages;
+      final userRow = await messageRepo.append(
+        threadId: threadId,
+        role: 'user',
+        content: trimmed,
+      );
+      final assistantRow = await messageRepo.append(
+        threadId: threadId,
+        role: 'assistant',
+        content: '',
+        status: 'streaming',
+      );
+      if (_disposed) {
+        await messageRepo.updateContent(
+          assistantRow.id,
+          '',
+          status: 'interrupted',
+        );
+        return;
+      }
+
+      final cancel = CancelToken();
+      _cancel = cancel;
+      state = state.copyWith(
+        threadId: threadId,
+        messages: [...before, userRow, assistantRow],
+        streaming: true,
+        searching: webSearch || bookId != null,
+        clearError: true,
+        hits: const [],
+        degraded: false,
+      );
+
+      await _stream(
+        threadId: threadId,
         userText: trimmed,
-        hits: hits,
-        book: bookContext,
+        assistantId: assistantRow.id,
+        history: _history(before),
+        webSearch: webSearch,
+        bookId: bookId,
         cancel: cancel,
-      )) {
-        if (cancel.isCanceled || _disposed) break;
-        buffer.write(chunk);
-        _patchAssistant(assistantRow.id, buffer.toString());
-        final due = DateTime.now().difference(lastFlushAt) >= flushInterval;
-        if (due || buffer.length - lastFlushed >= flushBytes) {
-          await flush('streaming');
-          if (_disposed) return;
+      );
+    } catch (error) {
+      if (!_disposed) {
+        _cancel?.cancel();
+        _cancel = null;
+        state = state.copyWith(
+          streaming: false,
+          searching: false,
+          error: _describe(error),
+        );
+      }
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// Re-runs the last question without adding a second user turn.
+  Future<void> retry({bool webSearch = false}) async {
+    if (state.streaming || _starting) return;
+
+    _starting = true;
+    try {
+      await _loadFuture;
+      if (_disposed) return;
+
+      final rows = state.messages;
+      final userIndex = rows.lastIndexWhere((row) => row.role == 'user');
+      if (userIndex < 0) return;
+
+      final userRow = rows[userIndex];
+      var assistantIndex = -1;
+      for (var i = userIndex + 1; i < rows.length; i++) {
+        if (rows[i].role == 'assistant') {
+          assistantIndex = i;
+          break;
         }
       }
-    } catch (error) {
-      failed = true;
-      if (!_disposed) {
-        state = state.copyWith(error: _describe(error));
+      if (assistantIndex < 0) {
+        _starting = false;
+        await send(userRow.content, webSearch: webSearch);
+        return;
+      }
+
+      final messageRepo = ref.read(chatMessageRepositoryProvider);
+      final assistantRow = rows[assistantIndex];
+      final bookId = ref.read(searchBookProvider);
+      final cancel = CancelToken();
+      _cancel = cancel;
+
+      try {
+        await messageRepo.updateContent(
+          assistantRow.id,
+          '',
+          status: 'streaming',
+          clearSources: true,
+        );
+      } catch (error) {
+        if (!_disposed) {
+          _cancel = null;
+          state = state.copyWith(
+            streaming: false,
+            searching: false,
+            error: _describe(error),
+          );
+        }
+        return;
+      }
+      if (_disposed) {
+        await messageRepo.updateContent(
+          assistantRow.id,
+          '',
+          status: 'interrupted',
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        streaming: true,
+        searching: webSearch || bookId != null,
+        clearError: true,
+        hits: const [],
+        degraded: false,
+        messages: [
+          for (final row in rows)
+            if (row.id == assistantRow.id)
+              row.copyWith(
+                content: '',
+                status: 'streaming',
+                sourcesJson: const Value<String?>(null),
+              )
+            else
+              row,
+        ],
+      );
+
+      await _stream(
+        threadId: userRow.threadId,
+        userText: userRow.content,
+        assistantId: assistantRow.id,
+        history: _history(rows.sublist(0, userIndex)),
+        webSearch: webSearch,
+        bookId: bookId,
+        cancel: cancel,
+      );
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _stream({
+    required String threadId,
+    required String userText,
+    required String assistantId,
+    required List<LlmMessage> history,
+    required bool webSearch,
+    required String? bookId,
+    required CancelToken cancel,
+  }) async {
+    final messageRepo = ref.read(chatMessageRepositoryProvider);
+    final threadRepo = ref.read(chatThreadRepositoryProvider);
+    final buffer = StringBuffer();
+    var hits = const <SearchHit>[];
+    var degraded = false;
+    var failed = false;
+    String? errorText;
+    BookContext? bookContext;
+
+    if (!cancel.isCanceled && !_disposed && bookId != null) {
+      try {
+        bookContext = await ref
+            .read(bookContextBuilderProvider)
+            .build(bookId, question: userText);
+      } on Object {
+        // A missing/broken book should not stop a model-only answer.
+        bookContext = null;
       }
     }
 
-    final status = cancel.isCanceled || failed ? 'interrupted' : 'complete';
+    if (!cancel.isCanceled && !_disposed && webSearch) {
+      try {
+        hits = await ref.read(webSearchProvider).search(userText, cancel: cancel);
+        degraded = hits.isEmpty;
+      } on Object {
+        // Retrieval is best-effort: any provider failure degrades to the model,
+        // but a user stop is not a failure and must not show the retry bar.
+        if (!cancel.isCanceled && !_disposed) degraded = true;
+      }
+      if (!_disposed && !cancel.isCanceled) {
+        state = state.copyWith(
+          searching: false,
+          hits: hits,
+          degraded: degraded,
+        );
+      }
+    } else if (!_disposed && !cancel.isCanceled) {
+      state = state.copyWith(searching: false);
+    }
+
+    if (!cancel.isCanceled && !_disposed) {
+      var lastFlushAt = DateTime.now();
+      var lastFlushed = 0;
+
+      Future<void> flush(String status) {
+        lastFlushAt = DateTime.now();
+        lastFlushed = buffer.length;
+        return messageRepo.updateContent(
+          assistantId,
+          buffer.toString(),
+          status: status,
+        );
+      }
+
+      try {
+        final agent = ref.read(agentServiceProvider);
+        await for (final chunk in agent.send(
+          history: history,
+          userText: userText,
+          hits: hits,
+          book: bookContext,
+          cancel: cancel,
+        )) {
+          if (cancel.isCanceled || _disposed) break;
+          buffer.write(chunk);
+          _patchAssistant(assistantId, buffer.toString());
+          final due = DateTime.now().difference(lastFlushAt) >= flushInterval;
+          if (due || buffer.length - lastFlushed >= flushBytes) {
+            await flush('streaming');
+            if (_disposed) break;
+          }
+        }
+      } catch (error) {
+        if (!cancel.isCanceled && !_disposed) {
+          failed = true;
+          errorText = _describe(error);
+        }
+      }
+    }
+
+    final status = (cancel.isCanceled || _disposed)
+        ? 'interrupted'
+        : failed
+            ? 'failed'
+            : 'complete';
     final sourcesJson = hits.isEmpty ? null : SearchHit.listToJson(hits);
+
     try {
       await messageRepo.updateContent(
-        assistantRow.id,
+        assistantId,
         buffer.toString(),
         status: status,
         sourcesJson: sourcesJson,
@@ -224,17 +394,27 @@ class ChatController extends Notifier<ChatState> {
     } on Object {
       // The row can only vanish if the thread was deleted mid-answer.
     }
+    try {
+      await threadRepo.touch(threadId);
+    } on Object {
+      // The thread can only vanish with the row.
+    }
     if (_disposed) return;
 
     _cancel = null;
     state = state.copyWith(
       streaming: false,
       searching: false,
+      error: errorText,
+      clearError: errorText == null,
       messages: [
         for (final row in state.messages)
-          if (row.id == assistantRow.id)
-            row.copyWith(content: buffer.toString(), status: status,
-                sourcesJson: Value(sourcesJson))
+          if (row.id == assistantId)
+            row.copyWith(
+              content: buffer.toString(),
+              status: status,
+              sourcesJson: Value(sourcesJson),
+            )
           else
             row,
       ],
@@ -254,6 +434,15 @@ class ChatController extends Notifier<ChatState> {
       ],
     );
   }
+
+  static List<LlmMessage> _history(List<ChatMessageRow> rows) => [
+        for (final row in rows)
+          if (row.content.trim().isNotEmpty)
+            LlmMessage(
+              row.role == 'assistant' ? LlmRole.assistant : LlmRole.user,
+              row.content,
+            ),
+      ];
 
   static String _describe(Object error) {
     if (error is LlmException) return error.message;

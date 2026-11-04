@@ -25,6 +25,7 @@ class SearchShell extends ConsumerStatefulWidget {
 }
 
 class _SearchShellState extends ConsumerState<SearchShell> {
+  final _composerKey = GlobalKey<ChatComposerState>();
   String _threadKey = ChatController.newThreadKey;
   bool _webSearch = false;
 
@@ -40,11 +41,27 @@ class _SearchShellState extends ConsumerState<SearchShell> {
 
   void _openThread(String id) {
     Navigator.maybePop(context);
+    // The 'new' controller may already own this row once its first question
+    // created it. Re-keying would start a second controller for the same
+    // thread and hide the live stream.
+    final current = ref.read(chatControllerProvider(_threadKey));
+    if (current.threadId == id) return;
     setState(() => _threadKey = id);
   }
 
   void _newThread() {
     Navigator.maybePop(context);
+    ref.read(chatControllerProvider(_threadKey).notifier).stop();
+    ref.invalidate(chatControllerProvider(ChatController.newThreadKey));
+    setState(() => _threadKey = ChatController.newThreadKey);
+  }
+
+  void _threadDeleted(String id) {
+    final key = _threadKey;
+    final current = ref.read(chatControllerProvider(key));
+    if (current.threadId != id) return;
+    ref.read(chatControllerProvider(key).notifier).stop();
+    ref.invalidate(chatControllerProvider(key));
     ref.invalidate(chatControllerProvider(ChatController.newThreadKey));
     setState(() => _threadKey = ChatController.newThreadKey);
   }
@@ -86,6 +103,7 @@ class _SearchShellState extends ConsumerState<SearchShell> {
           activeThreadId: chat.threadId,
           onPick: _openThread,
           onNew: _newThread,
+          onDeleted: _threadDeleted,
         );
 
         final chatColumn = Column(
@@ -101,17 +119,22 @@ class _SearchShellState extends ConsumerState<SearchShell> {
               child: !configured
                   ? _Unconfigured(onSettings: _openSettings)
                   : chat.messages.isEmpty
-                      ? const _EmptyState()
+                      ? _EmptyState(
+                          onSuggestion: (text) =>
+                              _composerKey.currentState?.fill(text),
+                        )
                       : MessageList(
                           messages: chat.messages,
                           streaming: chat.streaming,
                           searching: chat.searching,
                           hits: chat.hits,
                           degraded: chat.degraded,
-                          onRetry: () => _retry(controller, chat),
+                          error: chat.error,
+                          onRetry: () => _retry(controller),
                         ),
             ),
             ChatComposer(
+              key: _composerKey,
               enabled: configured,
               streaming: chat.streaming,
               webEnabled: _webSearch,
@@ -145,13 +168,8 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     );
   }
 
-  void _retry(ChatController controller, ChatState chat) {
-    for (final row in chat.messages.reversed) {
-      if (row.role == 'user') {
-        controller.send(row.content, webSearch: _webSearch);
-        return;
-      }
-    }
+  void _retry(ChatController controller) {
+    controller.retry(webSearch: _webSearch);
   }
 }
 
@@ -239,7 +257,9 @@ class _Unconfigured extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onSuggestion});
+
+  final ValueChanged<String> onSuggestion;
 
   static const _suggestions = [
     '最近 AI 领域有什么值得关注的事？',
@@ -277,7 +297,10 @@ class _EmptyState extends StatelessWidget {
               alignment: WrapAlignment.center,
               children: [
                 for (final text in _suggestions)
-                  ActionChip(label: Text(text), onPressed: () {}),
+                  ActionChip(
+                    label: Text(text),
+                    onPressed: () => onSuggestion(text),
+                  ),
               ],
             ),
           ],

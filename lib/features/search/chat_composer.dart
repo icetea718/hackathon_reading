@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Rounded input row: web toggle on the left, send (or stop) on the right.
 class ChatComposer extends StatefulWidget {
@@ -32,12 +33,19 @@ class ChatComposer extends StatefulWidget {
   final VoidCallback? onClearBook;
 
   @override
-  State<ChatComposer> createState() => _ChatComposerState();
+  State<ChatComposer> createState() => ChatComposerState();
 }
 
-class _ChatComposerState extends State<ChatComposer> {
+class ChatComposerState extends State<ChatComposer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
+
+  /// Fills the input from a suggestion chip without sending it.
+  void fill(String text) {
+    _controller.text = text;
+    _controller.selection = TextSelection.collapsed(offset: text.length);
+    _focus.requestFocus();
+  }
 
   @override
   void dispose() {
@@ -50,7 +58,14 @@ class _ChatComposerState extends State<ChatComposer> {
     final text = _controller.text.trim();
     if (text.isEmpty || widget.streaming || !widget.enabled) return;
     _controller.clear();
-    await widget.onSend(text);
+    try {
+      await widget.onSend(text);
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('发送失败，请重试')),
+      );
+    }
   }
 
   void _toggleWeb() {
@@ -80,20 +95,38 @@ class _ChatComposerState extends State<ChatComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              key: const Key('chat-input'),
-              controller: _controller,
-              focusNode: _focus,
-              enabled: widget.enabled,
-              minLines: 1,
-              maxLines: 6,
-              textInputAction: TextInputAction.newline,
-              onSubmitted: (_) => _submit(),
-              decoration: const InputDecoration(
-                hintText: '问点什么…',
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            Shortcuts(
+              shortcuts: const {
+                SingleActivator(LogicalKeyboardKey.enter): _SendIntent(),
+              },
+              child: Actions(
+                actions: <Type, Action<Intent>>{
+                  _SendIntent: CallbackAction<_SendIntent>(
+                    onInvoke: (_) {
+                      _submit();
+                      return null;
+                    },
+                  ),
+                },
+                child: TextField(
+                  key: const Key('chat-input'),
+                  controller: _controller,
+                  focusNode: _focus,
+                  enabled: widget.enabled,
+                  minLines: 1,
+                  maxLines: 6,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _submit(),
+                  decoration: const InputDecoration(
+                    hintText: '问点什么…',
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
               ),
             ),
             Row(
@@ -199,4 +232,8 @@ class _WebChip extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SendIntent extends Intent {
+  const _SendIntent();
 }
