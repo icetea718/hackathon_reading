@@ -586,7 +586,8 @@ void main() {
 
     await tester.tap(find.byKey(const Key('companion-tab-history')));
     await _settle(tester);
-    expect(find.text('新对话'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '新对话'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, '新对话'), findsOneWidget);
     expect(find.textContaining('共 0 条'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('companion-tab-chat')));

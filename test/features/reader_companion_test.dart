@@ -224,6 +224,8 @@ void main() {
     expect(find.byType(BottomSheet), findsNothing);
     await tester.tap(find.byTooltip('陪读'));
     await tester.pumpAndSettle();
+    await flush(tester);
     expect(find.textContaining('陪读 · 第二章'), findsOneWidget);
+    expect(find.text('旧回答'), findsOneWidget);
   });
 }

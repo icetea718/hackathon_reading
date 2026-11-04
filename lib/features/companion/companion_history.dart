@@ -115,7 +115,7 @@ class _CompanionHistoryViewState extends State<CompanionHistoryView> {
                   key: const Key('companion-new-thread'),
                   onPressed: widget.onNewThread,
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新建'),
+                  label: const Text('新对话'),
                 ),
               ],
             ),
