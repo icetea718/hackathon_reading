@@ -59,10 +59,13 @@ int bookPageAt({
 
 String readingFooterText({
   required int pageIndex,
+  int? pageEndIndex,
   required int? chapterPageCount,
   int? bookPageIndex,
   int? bookPageTotal,
 }) {
-  return '第 ${pageIndex + 1} / ${chapterPageCount ?? '…'} 页 · '
-      '全书 ${bookPageIndex ?? '…'} / ${bookPageTotal ?? '…'} 页';
+  final chapter = pageEndIndex != null && pageEndIndex > pageIndex
+      ? '第 ${pageIndex + 1}–${pageEndIndex + 1} / ${chapterPageCount ?? '…'} 页'
+      : '第 ${pageIndex + 1} / ${chapterPageCount ?? '…'} 页';
+  return '$chapter · 全书 ${bookPageIndex ?? '…'} / ${bookPageTotal ?? '…'} 页';
 }
