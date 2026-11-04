@@ -32,6 +32,9 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../search/search_config.dart';
+import '../search/search_provider.dart';
+import '../search/tavily_search_provider.dart';
 import '../tts/audio_output.dart';
 import '../tts/tts_client.dart';
 import '../tts/tts_config.dart';
@@ -128,6 +131,46 @@ typedef LlmClientFactory = LlmClient Function(LlmConfig config);
 
 final llmClientFactoryProvider = Provider<LlmClientFactory>((ref) {
   return (config) => OpenAiLlmClient(config: () => config);
+});
+
+final searchConfigStoreProvider = Provider<SearchConfigStore>((ref) {
+  return SearchConfigStore(ref.watch(settingsRepositoryProvider));
+});
+
+final searchConfigProvider = FutureProvider<SearchConfig>((ref) {
+  return ref.watch(searchConfigStoreProvider).load();
+});
+
+/// Synchronous snapshot of [searchConfigProvider] for the search provider's
+/// config callback, mirroring [LlmConfigSource].
+class SearchConfigSource {
+  SearchConfig value = const SearchConfig();
+}
+
+final searchConfigSourceProvider = Provider<SearchConfigSource>((ref) {
+  final source = SearchConfigSource();
+  ref.listen<AsyncValue<SearchConfig>>(
+    searchConfigProvider,
+    (previous, next) {
+      if (next is AsyncData<SearchConfig>) source.value = next.value;
+    },
+    fireImmediately: true,
+  );
+  return source;
+});
+
+/// The retrieval implementation behind the 搜 shell.
+final webSearchProvider = Provider<SearchProvider>((ref) {
+  final source = ref.watch(searchConfigSourceProvider);
+  return TavilySearchProvider(config: () => source.value);
+});
+
+/// Builds a throwaway provider from explicit settings, for the "test search"
+/// button (the stored snapshot lags behind the form).
+typedef SearchProviderFactory = SearchProvider Function(SearchConfig config);
+
+final searchProviderFactoryProvider = Provider<SearchProviderFactory>((ref) {
+  return (config) => TavilySearchProvider(config: () => config);
 });
 
 final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {

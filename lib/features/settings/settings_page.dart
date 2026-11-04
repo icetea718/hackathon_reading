@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../distill/llm/llm_config.dart';
+import '../../search/search_config.dart';
 import '../../tts/tts_client.dart';
 import '../../tts/tts_config.dart';
 
@@ -28,9 +29,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _ttsEnabled = TtsConfig.defaults.enabled;
   bool _ttsAutoSpeak = TtsConfig.defaults.autoSpeak;
 
+  final _searchKey = TextEditingController();
+  String _searchProvider = SearchConfig.off;
+
   bool _loaded = false;
   bool _testing = false;
   bool _testingVoice = false;
+  bool _testingSearch = false;
 
   @override
   void initState() {
@@ -49,12 +54,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _ttsVoice.dispose();
     _ttsSpeed.dispose();
     _ttsVolume.dispose();
+    _searchKey.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     final config = await ref.read(llmConfigStoreProvider).load();
     final voice = await ref.read(ttsConfigStoreProvider).load();
+    final search = await ref.read(searchConfigStoreProvider).load();
     if (!mounted) return;
     setState(() {
       _baseUrl.text = config.baseUrl;
@@ -68,6 +75,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _ttsVolume.text = '${voice.volume}';
       _ttsEnabled = voice.enabled;
       _ttsAutoSpeak = voice.autoSpeak;
+      _searchProvider = search.provider;
+      _searchKey.text = search.apiKey;
       _loaded = true;
     });
   }
@@ -89,9 +98,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.invalidate(llmConfigProvider);
     await ref.read(ttsConfigStoreProvider).save(_voiceFromForm());
     ref.invalidate(ttsConfigProvider);
+    await ref.read(searchConfigStoreProvider).save(_searchFromForm());
+    ref.invalidate(searchConfigProvider);
     if (!mounted || !announce) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('已保存')));
+  }
+
+  SearchConfig _searchFromForm() {
+    return SearchConfig(
+      provider: _searchProvider,
+      apiKey: _searchKey.text.trim(),
+    );
   }
 
   TtsConfig _voiceFromForm() {
@@ -154,6 +172,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _testSearch() async {
+    if (_testingSearch) return;
+    setState(() => _testingSearch = true);
+    final config = _searchFromForm();
+    await _save(announce: false);
+    final provider = ref.read(searchProviderFactoryProvider)(config);
+    String message;
+    try {
+      final hits = await provider.search('ping', count: 1);
+      message = '搜索成功：${hits.length} 条';
+    } catch (error) {
+      message = '搜索失败：$error';
+    }
+    if (!mounted) return;
+    setState(() => _testingSearch = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,6 +245,42 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     helperText: '2000–20000，默认 6000',
                   ),
                   keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  '联网搜索（搜模式）',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  key: const Key('search-provider'),
+                  initialValue: _searchProvider,
+                  decoration: const InputDecoration(labelText: '搜索服务'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: SearchConfig.off,
+                      child: Text('关闭（不联网）'),
+                    ),
+                    DropdownMenuItem(
+                      value: SearchConfig.tavily,
+                      child: Text('Tavily'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(
+                    () => _searchProvider = value ?? SearchConfig.off,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('search-api-key'),
+                  controller: _searchKey,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tavily API Key',
+                    helperText: '没填就只靠模型自己回答，不联网检索',
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const Divider(),
@@ -298,7 +371,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   onChanged: (value) => setState(() => _ttsAutoSpeak = value),
                 ),
                 const SizedBox(height: 24),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     FilledButton(
                       onPressed: () => _save(),
@@ -326,6 +402,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('测试语音'),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      key: const Key('search-test'),
+                      onPressed: _testingSearch ? null : _testSearch,
+                      child: _testingSearch
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('测试搜索'),
                     ),
                   ],
                 ),
