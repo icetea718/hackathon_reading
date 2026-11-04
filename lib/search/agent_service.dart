@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../distill/llm/llm_client.dart';
 import 'book_context.dart';
+import 'book_memory.dart';
 import 'search_hit.dart';
 
 /// Persona for the 搜 shell: a general assistant that may or may not have web
@@ -24,6 +25,11 @@ const String searchBookRules = '''
 引用写成 Markdown 引用块（> 开头），并在后面标注「（第 N 章）」。
 蒸馏内容和片段都不足以回答时，就直说这本书里没有写到，不要编造原文、页码或章节号。''';
 
+/// The reader's own annotations are interests, not the text of the book.
+const String searchMemoryRules = '''
+以上是读者自己保存的书签、高亮、笔记和陪读对话。它们代表读者关心的地方，不是原文；
+回答时可以据此调整重点，但不要把标注内容当成原文引用。''';
+
 /// Builds the message list for the 搜 shell and streams the answer.
 class SearchAgentService {
   SearchAgentService({
@@ -44,6 +50,7 @@ class SearchAgentService {
     required String userText,
     List<SearchHit> hits = const [],
     BookContext? book,
+    BookMemory? memory,
     required CancelToken cancel,
   }) {
     if (cancel.isCanceled) return const Stream<String>.empty();
@@ -53,6 +60,7 @@ class SearchAgentService {
       userText: userText,
       hits: hits,
       book: book,
+      memory: memory,
     );
     return client.streamChat(
       messages,
@@ -68,6 +76,7 @@ class SearchAgentService {
     required String userText,
     List<SearchHit> hits = const [],
     BookContext? book,
+    BookMemory? memory,
   }) {
     final system = StringBuffer(searchSystemPrompt);
     if (book != null) {
@@ -78,6 +87,13 @@ class SearchAgentService {
         ..write(_formatBook(book))
         ..write('\n\n')
         ..write(searchBookRules);
+    }
+    if (memory != null && !memory.isEmpty) {
+      system
+        ..write('\n\n')
+        ..write(memory.promptBlock())
+        ..write('\n\n')
+        ..write(searchMemoryRules);
     }
     if (hits.isNotEmpty) {
       system

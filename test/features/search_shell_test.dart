@@ -9,14 +9,17 @@ import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chat_repository.dart';
+import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
 import 'package:hackathon_reading/distill/distill_digest.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
+import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/search/chat_controller.dart';
 import 'package:hackathon_reading/features/search/search_shell.dart';
 import 'package:hackathon_reading/search/book_context.dart';
+import 'package:hackathon_reading/search/companion_selection.dart';
 import 'package:hackathon_reading/search/search_config.dart';
 import 'package:hackathon_reading/search/search_hit.dart';
 import 'package:hackathon_reading/search/search_provider.dart';
@@ -601,6 +604,56 @@ void main() {
     await pickBook(tester, 'b1');
 
     expect(find.byKey(const Key('search-book-memory')), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('unchecked companion threads stay out of the prompt',
+      (tester) async {
+    final client = InstantClient('ok');
+    final seeded = await tester.runAsync(() async {
+      await BookRepository(db).upsert(shelfBook('b1', '瓦尔登湖'));
+      final chats = CompanionChatRepository(db);
+      final kept = await chats.createThread(
+        bookId: 'b1',
+        chapterIndex: 0,
+        chapterTitle: '经济',
+        title: '保留',
+      );
+      await chats.appendMessage(
+        threadId: kept.id,
+        role: CompanionRole.user,
+        content: '保留的那句话',
+      );
+      final dropped = await chats.createThread(
+        bookId: 'b1',
+        chapterIndex: 1,
+        chapterTitle: '湖',
+        title: '去掉',
+      );
+      await chats.appendMessage(
+        threadId: dropped.id,
+        role: CompanionRole.user,
+        content: '不该出现的那句话',
+      );
+      return (kept: kept.id, dropped: dropped.id);
+    });
+
+    await pumpShell(tester, client: client);
+    await pickBook(tester, 'b1');
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SearchShell)),
+    );
+    container
+        .read(companionSelectionProvider('b1').notifier)
+        .setSelection({seeded!.kept});
+
+    await send(tester, '冰层多厚');
+
+    expect(client.calls, isNotEmpty);
+    final system = client.calls.single.first.content;
+    expect(system, contains('保留的那句话'));
+    expect(system, isNot(contains('不该出现的那句话')));
     await disposeShell(tester);
   });
 

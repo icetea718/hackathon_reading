@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/search/agent_service.dart';
 import 'package:hackathon_reading/search/book_context.dart';
+import 'package:hackathon_reading/search/book_memory.dart';
 import 'package:hackathon_reading/search/search_hit.dart';
 
 import '../support/fake_llm_client.dart';
@@ -122,6 +124,72 @@ void main() {
     expect(system, contains('冰层有二十二英寸厚。'));
     // The model is told to cite the chapter rather than invent quotes.
     expect(system, contains('不要编造原文'));
+  });
+
+  test('the reader notes and companion digest join the system prompt',
+      () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+
+    await service.send(
+      history: const [],
+      userText: '我划线的地方在讲什么',
+      memory: const BookMemory(
+        bookTitle: '瓦尔登湖',
+        bookmarks: [
+          BookAnnotationEntry(label: '第 2 章 冬天的湖', text: ''),
+        ],
+        highlights: [
+          BookAnnotationEntry(label: '第 1 章 经济', text: '一个人住'),
+        ],
+        notes: [
+          BookAnnotationEntry(label: '第 3 章 湖', text: '这里很安静'),
+        ],
+        companionThreads: [],
+        companionDigest: CompanionDigest(
+          text: '【经济】读者：为什么住湖边？ 助手：想试试。',
+          threadIds: {'t1'},
+        ),
+      ),
+      cancel: CancelToken(),
+    ).toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains('【读者的标注与陪读记录】'));
+    expect(system, contains('书签：'));
+    expect(system, contains('第 2 章 冬天的湖'));
+    expect(system, contains('高亮：'));
+    expect(system, contains('一个人住'));
+    expect(system, contains('笔记：'));
+    expect(system, contains('这里很安静'));
+    expect(system, contains('【陪读对话摘要】'));
+    expect(system, contains('想试试'));
+    // The model must not mistake the reader's own notes for the book's text.
+    expect(system, contains('不是原文'));
+  });
+
+  test('an empty memory adds nothing to the prompt', () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+
+    await service.send(
+      history: const [],
+      userText: '你好',
+      memory: const BookMemory(
+        bookTitle: '瓦尔登湖',
+        bookmarks: [],
+        highlights: [],
+        notes: [],
+        companionThreads: [],
+        companionDigest: CompanionDigest.empty,
+      ),
+      cancel: CancelToken(),
+    ).toList();
+
+    expect(
+      client.lastMessages.first.content,
+      isNot(contains('【读者的标注与陪读记录】')),
+    );
   });
 
   test('a pre-cancelled request never reaches the client', () async {

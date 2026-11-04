@@ -8,6 +8,8 @@ import '../../data/db/app_database.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../search/book_context.dart';
+import '../../search/book_memory.dart';
+import '../../search/companion_selection.dart';
 import '../../search/search_book.dart';
 import '../../search/search_hit.dart';
 
@@ -318,6 +320,19 @@ class ChatController extends Notifier<ChatState> {
       }
     }
 
+    BookMemory? memory;
+    if (!cancel.isCanceled && !_disposed && bookId != null) {
+      try {
+        final selection = ref.read(companionSelectionProvider(bookId));
+        memory = await ref
+            .read(bookMemoryBuilderProvider)
+            .build(bookId, threadIds: selection);
+      } on Object {
+        // The reader's notes are a bonus; never fail the answer over them.
+        memory = null;
+      }
+    }
+
     if (!cancel.isCanceled && !_disposed && webSearch) {
       try {
         hits = await ref.read(webSearchProvider).search(userText, cancel: cancel);
@@ -359,6 +374,7 @@ class ChatController extends Notifier<ChatState> {
           userText: userText,
           hits: hits,
           book: bookContext,
+          memory: memory,
           cancel: cancel,
         )) {
           if (cancel.isCanceled || _disposed) break;
