@@ -6,7 +6,11 @@ import 'package:uuid/uuid.dart';
 
 import '../../data/repositories/annotation_repository.dart';
 import '../../data/repositories/book_repository.dart';
+import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/chapter_repository.dart';
+import '../../data/repositories/distill_artifact_repository.dart';
+import '../../data/repositories/distill_job_repository.dart';
+import '../../data/repositories/distill_unit_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../data/storage/book_storage.dart';
 import '../models/book.dart';
@@ -48,6 +52,10 @@ class BookService {
     required this.progress,
     required this.annotations,
     required this.storage,
+    this.distillJobs,
+    this.distillUnits,
+    this.distillArtifacts,
+    this.categories,
     String Function()? newId,
   }) : _newId = newId ?? const Uuid().v4;
 
@@ -56,6 +64,10 @@ class BookService {
   final ProgressRepository progress;
   final AnnotationRepository annotations;
   final BookStorage storage;
+  final DistillJobRepository? distillJobs;
+  final DistillUnitRepository? distillUnits;
+  final DistillArtifactRepository? distillArtifacts;
+  final CategoryRepository? categories;
   final String Function() _newId;
 
   Future<Book> importFile(String sourcePath) async {
@@ -134,6 +146,10 @@ class BookService {
     await chapters.replaceForBook(book.id, const []);
     await progress.delete(book.id);
     await annotations.deleteForBook(book.id);
+    await distillUnits?.deleteForBook(book.id);
+    await distillArtifacts?.deleteForBook(book.id);
+    await distillJobs?.deleteForBook(book.id);
+    await categories?.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteFile(book.sourcePath);
   }

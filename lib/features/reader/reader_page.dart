@@ -1,20 +1,26 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/progress_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
+import '../companion/companion_panel.dart';
+import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
+import 'reader_rail.dart';
 import 'reader_settings_sheet.dart';
+import 'reader_top_bar.dart';
 import 'toc_drawer.dart';
 import 'translation_dialog.dart';
 
@@ -75,10 +81,7 @@ class _NoteDialogState extends State<_NoteDialog> {
             autofocus: true,
             maxLines: 4,
             minLines: 2,
-            decoration: InputDecoration(
-              hintText: '写下你的想法',
-              errorText: _error,
-            ),
+            decoration: InputDecoration(hintText: '写下你的想法', errorText: _error),
           ),
         ],
       ),
@@ -95,35 +98,123 @@ class _NoteDialogState extends State<_NoteDialog> {
 
 class _ReaderPageState extends ConsumerState<ReaderPage>
     with WidgetsBindingObserver {
+  static const _fontSizeKey = 'reader.fontSize';
+  static const _lineHeightKey = 'reader.lineHeight';
+  static const _backgroundKey = 'reader.background';
+  static const _railPinnedKey = 'reader.railPinned';
+
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   int _chapterIndex = 0;
   double _fontSize = 18;
-  double _lineHeight = 1.6;
+  double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
+  double _percent = 0;
+  double _lastFraction = 0;
+  bool _railPinned = false;
+  bool _railVisible = false;
+  bool _suppressHotzone = false;
   bool _restoreScheduled = false;
   bool _restored = false;
   bool _restoreInFlight = false;
+  bool _settingsDirty = false;
   ResumeLocation? _pendingRestore;
   Timer? _saveTimer;
+  Timer? _settingsSaveTimer;
+  Timer? _percentTimer;
+  Timer? _hideTimer;
   ReaderData? _cachedData;
   String _chapterText = '';
   ProgressRepository? _progressRepository;
+  SettingsRepository? _settingsRepository;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
+    _settingsRepository = ref.read(settingsRepositoryProvider);
+    _loadReadingSettings();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
+    _settingsSaveTimer?.cancel();
+    _percentTimer?.cancel();
+    _hideTimer?.cancel();
     _persistProgress();
+    _persistReadingSettings();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadReadingSettings() async {
+    final repository = _settingsRepository;
+    if (repository == null) return;
+    try {
+      final values = await Future.wait([
+        repository.get(_fontSizeKey),
+        repository.get(_lineHeightKey),
+        repository.get(_backgroundKey),
+        repository.get(_railPinnedKey),
+      ]);
+      if (!mounted) return;
+      final fontSize = double.tryParse(values[0] ?? '');
+      final lineHeight = double.tryParse(values[1] ?? '');
+      final background = _backgroundFromName(values[2]);
+      final railPinned = values[3];
+      if (fontSize == null &&
+          lineHeight == null &&
+          background == null &&
+          railPinned == null) {
+        return;
+      }
+      setState(() {
+        if (fontSize != null) _fontSize = fontSize.clamp(14.0, 28.0).toDouble();
+        if (lineHeight != null) {
+          _lineHeight = lineHeight.clamp(1.2, 2.0).toDouble();
+        }
+        if (background != null) _background = background;
+        if (railPinned != null) _railPinned = railPinned == 'true';
+      });
+      final anchor = _currentProgress()?.anchor.charOffset;
+      if (_restored && anchor != null) _reanchorAfterLayout(anchor);
+    } catch (_) {
+      // Corrupt settings must not block reading.
+    }
+  }
+
+  ReaderBackground? _backgroundFromName(String? name) {
+    for (final value in ReaderBackground.values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+
+  void _scheduleSaveReadingSettings() {
+    _settingsDirty = true;
+    _settingsSaveTimer?.cancel();
+    _settingsSaveTimer = Timer(
+      const Duration(milliseconds: 300),
+      _persistReadingSettings,
+    );
+  }
+
+  void _persistReadingSettings() {
+    if (!_settingsDirty) return;
+    final repository = _settingsRepository;
+    if (repository == null) return;
+    _settingsDirty = false;
+    repository
+        .set(_fontSizeKey, _fontSize.toString())
+        .catchError((Object _) {});
+    repository
+        .set(_lineHeightKey, _lineHeight.toString())
+        .catchError((Object _) {});
+    repository.set(_backgroundKey, _background.name).catchError((Object _) {});
   }
 
   @override
@@ -134,8 +225,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   }
 
   void _onScroll() {
+    if (_scrollController.hasClients) {
+      final max = _scrollController.position.maxScrollExtent;
+      _lastFraction = max <= 0
+          ? 0
+          : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    }
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 500), _persistProgress);
+    _percentTimer?.cancel();
+    _percentTimer = Timer(const Duration(milliseconds: 250), _syncPercent);
+  }
+
+  void _syncPercent() {
+    if (!mounted) return;
+    final next = _currentProgress()?.percent ?? 0;
+    if ((next - _percent).abs() > 0.001) {
+      setState(() => _percent = next);
+    }
   }
 
   void _persistProgress() {
@@ -155,19 +262,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final index = _chapterIndex < 0
         ? 0
         : (_chapterIndex >= chapters.length
-            ? chapters.length - 1
-            : _chapterIndex);
+              ? chapters.length - 1
+              : _chapterIndex);
     final chapter = chapters[index];
-    final max = _scrollController.hasClients
-        ? _scrollController.position.maxScrollExtent
-        : 0.0;
-    final fraction = max <= 0
-        ? 0.0
-        : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    final double fraction;
+    if (_scrollController.hasClients) {
+      final max = _scrollController.position.maxScrollExtent;
+      fraction = max <= 0
+          ? 0.0
+          : (_scrollController.offset / max).clamp(0.0, 1.0).toDouble();
+    } else {
+      fraction = _lastFraction;
+    }
     final charOffset = anchorOffsetForFraction(chapter, fraction);
     final total = chapters.last.endOffset;
-    final percent =
-        total <= 0 ? 0.0 : (charOffset / total).clamp(0.0, 1.0).toDouble();
+    final percent = total <= 0
+        ? 0.0
+        : (charOffset / total).clamp(0.0, 1.0).toDouble();
 
     return ReadingProgress(
       bookId: widget.bookId,
@@ -224,6 +335,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       final max = _scrollController.position.maxScrollExtent;
       _scrollController.jumpTo(max * pending.fraction);
       _restored = true;
+      _syncPercent();
     });
   }
 
@@ -247,6 +359,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         _scrollController.jumpTo(0);
       }
       _restored = true;
+      _syncPercent();
       _persistProgress();
     });
   }
@@ -254,18 +367,70 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   (Color, Color) get _colors {
     return switch (_background) {
       ReaderBackground.light => (
-          const Color(0xFFFAFAF7),
-          const Color(0xFF1B1B1B),
-        ),
+        const Color(0xFFFCFCFD),
+        const Color(0xFF3B4048),
+      ),
       ReaderBackground.sepia => (
-          const Color(0xFFF4ECD8),
-          const Color(0xFF3B2F1E),
-        ),
+        const Color(0xFFF4ECD8),
+        const Color(0xFF3B2F1E),
+      ),
       ReaderBackground.dark => (
-          const Color(0xFF15161A),
-          const Color(0xFFE4E4E4),
-        ),
+        const Color(0xFF1A1B1F),
+        const Color(0xFFC6CAD1),
+      ),
     };
+  }
+
+  Color get _accent => _background == ReaderBackground.dark
+      ? const Color(0xFF7FA3FF)
+      : const Color(0xFF3D6AE0);
+
+  void _toggleRailPinned() {
+    final anchor = _currentProgress()?.anchor.charOffset;
+    _hideTimer?.cancel();
+    setState(() {
+      _railPinned = !_railPinned;
+      _railVisible = !_railPinned;
+    });
+    _settingsRepository
+        ?.set(_railPinnedKey, _railPinned.toString())
+        .catchError((Object _) {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || anchor == null) return;
+      _reanchorAfterLayout(anchor);
+    });
+    if (!_railPinned) {
+      _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
+    }
+  }
+
+  void _showRail() {
+    _hideTimer?.cancel();
+    if (_railPinned || _railVisible || _suppressHotzone) return;
+    setState(() => _railVisible = true);
+  }
+
+  void _scheduleHideRail() {
+    if (_railPinned) return;
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 200), _hideRailNow);
+  }
+
+  void _hideRailNow({bool suppressHotzone = false}) {
+    _hideTimer?.cancel();
+    if (suppressHotzone) _suppressHotzone = true;
+    if (!mounted || !_railVisible || _railPinned) return;
+    setState(() => _railVisible = false);
+  }
+
+  void _backToLibrary() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) navigator.pop();
+  }
+
+  void _openAppSettings() {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
 
   Future<void> _toggleBookmark(Chapter chapter) async {
@@ -274,9 +439,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       final existing = (await repository.getForBook(
         widget.bookId,
         type: AnnotationType.bookmark,
-      ))
-          .where((bookmark) => bookmark.chapterId == chapter.id)
-          .toList();
+      )).where((bookmark) => bookmark.chapterId == chapter.id).toList();
 
       if (existing.isNotEmpty) {
         for (final bookmark in existing) {
@@ -290,15 +453,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       final now = DateTime.now();
       final anchorStart =
           _currentProgress()?.anchor.charOffset ?? chapter.startOffset;
-      await repository.upsert(Annotation(
-        id: const Uuid().v4(),
-        bookId: widget.bookId,
-        chapterId: chapter.id,
-        type: AnnotationType.bookmark,
-        anchorStart: anchorStart,
-        createdAt: now,
-        updatedAt: now,
-      ));
+      await repository.upsert(
+        Annotation(
+          id: const Uuid().v4(),
+          bookId: widget.bookId,
+          chapterId: chapter.id,
+          type: AnnotationType.bookmark,
+          anchorStart: anchorStart,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
       _refreshBookmarks();
       _showSnackBar('已添加书签');
     } catch (_) {
@@ -337,15 +502,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       chapter,
       selection,
       text,
-      (anchorStart, anchorEnd, selectedText) =>
-          ref.read(annotationServiceProvider).addHighlight(
-                bookId: widget.bookId,
-                chapterId: chapter.id,
-                anchorStart: anchorStart,
-                anchorEnd: anchorEnd,
-                selectedText: selectedText,
-                color: color,
-              ),
+      (anchorStart, anchorEnd, selectedText) => ref
+          .read(annotationServiceProvider)
+          .addHighlight(
+            bookId: widget.bookId,
+            chapterId: chapter.id,
+            anchorStart: anchorStart,
+            anchorEnd: anchorEnd,
+            selectedText: selectedText,
+            color: color,
+          ),
       successMessage: '已添加高亮',
     );
   }
@@ -365,15 +531,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       chapter,
       selection,
       text,
-      (anchorStart, anchorEnd, text) =>
-          ref.read(annotationServiceProvider).addNote(
-                bookId: widget.bookId,
-                chapterId: chapter.id,
-                anchorStart: anchorStart,
-                anchorEnd: anchorEnd,
-                selectedText: text,
-                noteText: noteText,
-              ),
+      (anchorStart, anchorEnd, text) => ref
+          .read(annotationServiceProvider)
+          .addNote(
+            bookId: widget.bookId,
+            chapterId: chapter.id,
+            anchorStart: anchorStart,
+            anchorEnd: anchorEnd,
+            selectedText: text,
+            noteText: noteText,
+          ),
       successMessage: '已添加笔记',
     );
   }
@@ -383,7 +550,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     TextSelection selection,
     String text,
     Future<void> Function(int anchorStart, int anchorEnd, String selectedText)
-        save, {
+    save, {
     required String successMessage,
   }) async {
     if (!selection.isValid || selection.isCollapsed) return;
@@ -409,15 +576,40 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Future<void> _openAnnotations(List<Chapter> chapters) async {
     final anchor = await Navigator.of(context).push<int>(
       MaterialPageRoute<int>(
-        builder: (_) => AnnotationsPage(
-          bookId: widget.bookId,
-          chapters: chapters,
-        ),
+        builder: (_) =>
+            AnnotationsPage(bookId: widget.bookId, chapters: chapters),
       ),
     );
     if (anchor == null || !mounted) return;
     _refreshAnnotations();
     _reanchorAfterLayout(anchor);
+  }
+
+  Future<void> _openCompanion() async {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return;
+    final index = _chapterIndex.clamp(0, data.chapters.length - 1);
+    final chapter = data.chapters[index];
+    final text = await ref.read(
+      chapterContentProvider((bookId: widget.bookId, index: index)).future,
+    );
+    if (!mounted) return;
+    final offset =
+        (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+        chapter.startOffset;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => CompanionPanel(
+        bookId: widget.bookId,
+        chapterIndex: index,
+        chapterTitle: chapter.title,
+        chapterText: text,
+        chapterCharOffset: offset < 0 ? 0 : offset,
+        bookTitle: data.book?.title ?? '',
+        author: data.book?.author ?? '',
+      ),
+    );
   }
 
   Future<String?> _pickHighlightColor() {
@@ -428,10 +620,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('选择高亮颜色'),
-              ),
+              const Padding(padding: EdgeInsets.all(16), child: Text('选择高亮颜色')),
               for (final entry in highlightColorLabels.entries)
                 ListTile(
                   leading: CircleAvatar(
@@ -465,7 +654,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       builder: (_) => TranslationDialog(
         title: title,
         sourceText: sourceText,
-        service: ref.read(assistantServiceProvider),
+        service: ref.read(translationServiceProvider),
       ),
     );
   }
@@ -549,6 +738,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   _background = background;
                 });
                 setSheet(() {});
+                _scheduleSaveReadingSettings();
                 if (anchor != null) _reanchorAfterLayout(anchor);
               },
             );
@@ -586,31 +776,166 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final index = _chapterIndex < 0
             ? 0
             : (_chapterIndex >= chapters.length
-                ? chapters.length - 1
-                : _chapterIndex);
+                  ? chapters.length - 1
+                  : _chapterIndex);
         final content = ref.watch(
           chapterContentProvider((bookId: widget.bookId, index: index)),
         );
         final bookmarks =
             ref.watch(bookmarkListProvider(widget.bookId)).value ??
-                const <Annotation>[];
+            const <Annotation>[];
         final annotations =
             ref.watch(readerAnnotationListProvider(widget.bookId)).value ??
-                const <Annotation>[];
+            const <Annotation>[];
         final currentChapter = chapters[index];
-        final chapterBookmarked =
-            bookmarks.any((bookmark) => bookmark.chapterId == currentChapter.id);
+        final chapterBookmarked = bookmarks.any(
+          (bookmark) => bookmark.chapterId == currentChapter.id,
+        );
         final chapterAnnotations = annotations
             .where((annotation) => annotation.chapterId == currentChapter.id)
             .toList();
 
-        return _scaffold(
-          title: title,
-          bookmarked: chapterBookmarked,
-          onToggleBookmark: () => _toggleBookmark(currentChapter),
-          onOpenAnnotations: () => _openAnnotations(chapters),
-          onTranslateChapter: () => _translateChapter(currentChapter),
-          drawer: TocDrawer(
+        final contentBody = content.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Center(child: Text('章节加载失败：$error')),
+          data: (text) {
+            _chapterText = text;
+            _schedulePendingRestore();
+            final baseStyle = TextStyle(
+              fontSize: _fontSize,
+              height: _lineHeight,
+              color: _colors.$2,
+              fontFamily: 'Source Han Serif SC',
+              fontFamilyFallback: const [
+                'Noto Serif CJK SC',
+                'SimSun',
+                'Georgia',
+              ],
+            );
+            final spans = buildAnnotationSpans(
+              text: text,
+              chapterStart: currentChapter.startOffset,
+              annotations: chapterAnnotations,
+              baseStyle: baseStyle,
+            );
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  child: SelectableText.rich(
+                    TextSpan(children: spans),
+                    contextMenuBuilder: (context, editableTextState) =>
+                        _selectionToolbar(
+                          editableTextState,
+                          text,
+                          currentChapter,
+                        ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+
+        Widget body;
+        if (_railPinned) {
+          body = AnimatedSize(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                ReaderRail(
+                  key: const Key('reader-rail-pinned'),
+                  pinned: true,
+                  onTogglePinned: _toggleRailPinned,
+                  onBackToLibrary: _backToLibrary,
+                  onOpenCompanion: _openCompanion,
+                  onOpenSettings: _openAppSettings,
+                  background: _colors.$1,
+                  foreground: _colors.$2,
+                  accent: _accent,
+                ),
+                Expanded(child: contentBody),
+              ],
+            ),
+          );
+        } else {
+          body = Stack(
+            fit: StackFit.expand,
+            children: [
+              contentBody,
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: MouseRegion(
+                  key: const Key('reader-rail-hotzone'),
+                  onEnter: (_) => _showRail(),
+                  onExit: (_) => _suppressHotzone = false,
+                  child: const SizedBox(width: 12),
+                ),
+              ),
+              if (_railVisible)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _hideRailNow,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              if (_railVisible)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: MouseRegion(
+                    key: const Key('reader-rail-overlay'),
+                    onEnter: (_) => _showRail(),
+                    onExit: (_) => _scheduleHideRail(),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOut,
+                      builder: (context, value, child) =>
+                          Opacity(opacity: value, child: child),
+                      child: ReaderRail(
+                        pinned: false,
+                        onTogglePinned: _toggleRailPinned,
+                        onBackToLibrary: _backToLibrary,
+                        onOpenCompanion: _openCompanion,
+                        onOpenSettings: _openAppSettings,
+                        background: _colors.$1,
+                        foreground: _colors.$2,
+                        accent: _accent,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }
+
+        return Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: _colors.$1,
+          appBar: ReaderTopBar(
+            title: '$title · ${currentChapter.title}',
+            background: _colors.$1,
+            foreground: _colors.$2,
+            pinned: _railPinned,
+            onTogglePinned: _toggleRailPinned,
+            bookmarked: chapterBookmarked,
+            onToggleBookmark: () => _toggleBookmark(currentChapter),
+            onOpenAnnotations: () => _openAnnotations(chapters),
+            onTranslate: () => _translateChapter(currentChapter),
+            onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
+            onOpenCompanion: _openCompanion,
+            onOpenReaderSettings: _openSettings,
+          ),
+          endDrawer: TocDrawer(
             chapters: chapters,
             currentIndex: index,
             currentChapterId: currentChapter.id,
@@ -619,37 +944,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onSelectBookmark: _reanchorAfterLayout,
             onDeleteBookmark: _deleteBookmark,
           ),
-          body: content.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(child: Text('章节加载失败：$error')),
-            data: (text) {
-              _chapterText = text;
-              _schedulePendingRestore();
-              final baseStyle = TextStyle(
-                fontSize: _fontSize,
-                height: _lineHeight,
-                color: _colors.$2,
-              );
-              final spans = buildAnnotationSpans(
-                text: text,
-                chapterStart: currentChapter.startOffset,
-                annotations: chapterAnnotations,
-                baseStyle: baseStyle,
-              );
-              return SingleChildScrollView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                child: SelectableText.rich(
-                  TextSpan(children: spans),
-                  contextMenuBuilder: (context, editableTextState) =>
-                      _selectionToolbar(
-                    editableTextState,
-                    text,
-                    currentChapter,
-                  ),
-                ),
-              );
+          body: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  _hideRailNow(suppressHotzone: true),
             },
+            child: Focus(autofocus: true, child: body),
           ),
           bottomNavigationBar: _navigationBar(index, chapters),
         );
@@ -660,12 +960,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Widget _scaffold({
     required String title,
     Widget? body,
-    Widget? drawer,
+    Widget? endDrawer,
     Widget? bottomNavigationBar,
     bool? bookmarked,
     VoidCallback? onToggleBookmark,
     VoidCallback? onOpenAnnotations,
-    VoidCallback? onTranslateChapter,
   }) {
     final (background, foreground) = _colors;
     return Scaffold(
@@ -680,9 +979,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           if (bookmarked != null && onToggleBookmark != null)
             IconButton(
               tooltip: '书签',
-              icon: Icon(
-                bookmarked ? Icons.bookmark : Icons.bookmark_border,
-              ),
+              icon: Icon(bookmarked ? Icons.bookmark : Icons.bookmark_border),
               onPressed: onToggleBookmark,
             ),
           if (onOpenAnnotations != null)
@@ -691,20 +988,19 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               icon: const Icon(Icons.format_list_bulleted),
               onPressed: onOpenAnnotations,
             ),
-          if (onTranslateChapter != null)
-            IconButton(
-              tooltip: '翻译本章',
-              icon: const Icon(Icons.translate),
-              onPressed: onTranslateChapter,
-            ),
-          if (drawer != null)
+          if (endDrawer != null)
             Builder(
               builder: (context) => IconButton(
                 tooltip: '目录',
                 icon: const Icon(Icons.menu),
-                onPressed: () => Scaffold.of(context).openDrawer(),
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
               ),
             ),
+          IconButton(
+            tooltip: '陪读',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: _openCompanion,
+          ),
           IconButton(
             tooltip: '设置',
             icon: const Icon(Icons.text_fields),
@@ -712,7 +1008,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           ),
         ],
       ),
-      drawer: drawer,
+      endDrawer: endDrawer,
       body: body,
       bottomNavigationBar: bottomNavigationBar,
     );
@@ -720,35 +1016,50 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _navigationBar(int index, List<Chapter> chapters) {
     final (background, foreground) = _colors;
+    final percent = _percent.clamp(0.0, 1.0).toDouble();
     return Container(
       color: background,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton.icon(
-              onPressed: index > 0
-                  ? () => _goToChapter(index - 1, chapters)
-                  : null,
-              icon: const Icon(Icons.chevron_left),
-              label: const Text('上一章'),
-              style: TextButton.styleFrom(foregroundColor: foreground),
+            LinearProgressIndicator(
+              value: percent,
+              minHeight: 3,
+              backgroundColor: foreground.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(_accent),
             ),
-            Expanded(
-              child: Text(
-                '${index + 1} / ${chapters.length}',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: foreground),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  TextButton.icon(
+                    onPressed: index > 0
+                        ? () => _goToChapter(index - 1, chapters)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                    label: const Text('上一章'),
+                    style: TextButton.styleFrom(foregroundColor: foreground),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '第 ${index + 1} / ${chapters.length} 章 · '
+                      '${(percent * 100).round()}%',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: foreground),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: index < chapters.length - 1
+                        ? () => _goToChapter(index + 1, chapters)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                    label: const Text('下一章'),
+                    style: TextButton.styleFrom(foregroundColor: foreground),
+                  ),
+                ],
               ),
-            ),
-            TextButton.icon(
-              onPressed: index < chapters.length - 1
-                  ? () => _goToChapter(index + 1, chapters)
-                  : null,
-              icon: const Icon(Icons.chevron_right),
-              label: const Text('下一章'),
-              style: TextButton.styleFrom(foregroundColor: foreground),
             ),
           ],
         ),

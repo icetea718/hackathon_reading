@@ -50,7 +50,7 @@ void main() {
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
-          assistantServiceProvider.overrideWithValue(service),
+          translationServiceProvider.overrideWithValue(service),
         ],
         child: const MaterialApp(home: ReaderPage(bookId: 'tb')),
       ),

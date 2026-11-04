@@ -2283,6 +2283,2354 @@ class SettingsCompanion extends UpdateCompanion<SettingRecord> {
   }
 }
 
+class $DistillJobsTable extends DistillJobs
+    with TableInfo<$DistillJobsTable, DistillJobRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DistillJobsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentHashMeta = const VerificationMeta(
+    'contentHash',
+  );
+  @override
+  late final GeneratedColumn<String> contentHash = GeneratedColumn<String>(
+    'content_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stageMeta = const VerificationMeta('stage');
+  @override
+  late final GeneratedColumn<String> stage = GeneratedColumn<String>(
+    'stage',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pipelineVersionMeta = const VerificationMeta(
+    'pipelineVersion',
+  );
+  @override
+  late final GeneratedColumn<int> pipelineVersion = GeneratedColumn<int>(
+    'pipeline_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _totalUnitsMeta = const VerificationMeta(
+    'totalUnits',
+  );
+  @override
+  late final GeneratedColumn<int> totalUnits = GeneratedColumn<int>(
+    'total_units',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _doneUnitsMeta = const VerificationMeta(
+    'doneUnits',
+  );
+  @override
+  late final GeneratedColumn<int> doneUnits = GeneratedColumn<int>(
+    'done_units',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _errorTextMeta = const VerificationMeta(
+    'errorText',
+  );
+  @override
+  late final GeneratedColumn<String> errorText = GeneratedColumn<String>(
+    'error_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    contentHash,
+    status,
+    stage,
+    pipelineVersion,
+    totalUnits,
+    doneUnits,
+    errorText,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'distill_jobs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DistillJobRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('content_hash')) {
+      context.handle(
+        _contentHashMeta,
+        contentHash.isAcceptableOrUnknown(
+          data['content_hash']!,
+          _contentHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentHashMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('stage')) {
+      context.handle(
+        _stageMeta,
+        stage.isAcceptableOrUnknown(data['stage']!, _stageMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stageMeta);
+    }
+    if (data.containsKey('pipeline_version')) {
+      context.handle(
+        _pipelineVersionMeta,
+        pipelineVersion.isAcceptableOrUnknown(
+          data['pipeline_version']!,
+          _pipelineVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_pipelineVersionMeta);
+    }
+    if (data.containsKey('total_units')) {
+      context.handle(
+        _totalUnitsMeta,
+        totalUnits.isAcceptableOrUnknown(data['total_units']!, _totalUnitsMeta),
+      );
+    }
+    if (data.containsKey('done_units')) {
+      context.handle(
+        _doneUnitsMeta,
+        doneUnits.isAcceptableOrUnknown(data['done_units']!, _doneUnitsMeta),
+      );
+    }
+    if (data.containsKey('error_text')) {
+      context.handle(
+        _errorTextMeta,
+        errorText.isAcceptableOrUnknown(data['error_text']!, _errorTextMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DistillJobRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DistillJobRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      contentHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_hash'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      stage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stage'],
+      )!,
+      pipelineVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pipeline_version'],
+      )!,
+      totalUnits: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_units'],
+      )!,
+      doneUnits: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}done_units'],
+      )!,
+      errorText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_text'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DistillJobsTable createAlias(String alias) {
+    return $DistillJobsTable(attachedDatabase, alias);
+  }
+}
+
+class DistillJobRow extends DataClass implements Insertable<DistillJobRow> {
+  final String id;
+  final String bookId;
+  final String contentHash;
+  final String status;
+  final String stage;
+  final int pipelineVersion;
+  final int totalUnits;
+  final int doneUnits;
+  final String? errorText;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const DistillJobRow({
+    required this.id,
+    required this.bookId,
+    required this.contentHash,
+    required this.status,
+    required this.stage,
+    required this.pipelineVersion,
+    required this.totalUnits,
+    required this.doneUnits,
+    this.errorText,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['content_hash'] = Variable<String>(contentHash);
+    map['status'] = Variable<String>(status);
+    map['stage'] = Variable<String>(stage);
+    map['pipeline_version'] = Variable<int>(pipelineVersion);
+    map['total_units'] = Variable<int>(totalUnits);
+    map['done_units'] = Variable<int>(doneUnits);
+    if (!nullToAbsent || errorText != null) {
+      map['error_text'] = Variable<String>(errorText);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  DistillJobsCompanion toCompanion(bool nullToAbsent) {
+    return DistillJobsCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      contentHash: Value(contentHash),
+      status: Value(status),
+      stage: Value(stage),
+      pipelineVersion: Value(pipelineVersion),
+      totalUnits: Value(totalUnits),
+      doneUnits: Value(doneUnits),
+      errorText: errorText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorText),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DistillJobRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DistillJobRow(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      contentHash: serializer.fromJson<String>(json['contentHash']),
+      status: serializer.fromJson<String>(json['status']),
+      stage: serializer.fromJson<String>(json['stage']),
+      pipelineVersion: serializer.fromJson<int>(json['pipelineVersion']),
+      totalUnits: serializer.fromJson<int>(json['totalUnits']),
+      doneUnits: serializer.fromJson<int>(json['doneUnits']),
+      errorText: serializer.fromJson<String?>(json['errorText']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'contentHash': serializer.toJson<String>(contentHash),
+      'status': serializer.toJson<String>(status),
+      'stage': serializer.toJson<String>(stage),
+      'pipelineVersion': serializer.toJson<int>(pipelineVersion),
+      'totalUnits': serializer.toJson<int>(totalUnits),
+      'doneUnits': serializer.toJson<int>(doneUnits),
+      'errorText': serializer.toJson<String?>(errorText),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  DistillJobRow copyWith({
+    String? id,
+    String? bookId,
+    String? contentHash,
+    String? status,
+    String? stage,
+    int? pipelineVersion,
+    int? totalUnits,
+    int? doneUnits,
+    Value<String?> errorText = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => DistillJobRow(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    contentHash: contentHash ?? this.contentHash,
+    status: status ?? this.status,
+    stage: stage ?? this.stage,
+    pipelineVersion: pipelineVersion ?? this.pipelineVersion,
+    totalUnits: totalUnits ?? this.totalUnits,
+    doneUnits: doneUnits ?? this.doneUnits,
+    errorText: errorText.present ? errorText.value : this.errorText,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DistillJobRow copyWithCompanion(DistillJobsCompanion data) {
+    return DistillJobRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      contentHash: data.contentHash.present
+          ? data.contentHash.value
+          : this.contentHash,
+      status: data.status.present ? data.status.value : this.status,
+      stage: data.stage.present ? data.stage.value : this.stage,
+      pipelineVersion: data.pipelineVersion.present
+          ? data.pipelineVersion.value
+          : this.pipelineVersion,
+      totalUnits: data.totalUnits.present
+          ? data.totalUnits.value
+          : this.totalUnits,
+      doneUnits: data.doneUnits.present ? data.doneUnits.value : this.doneUnits,
+      errorText: data.errorText.present ? data.errorText.value : this.errorText,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillJobRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('status: $status, ')
+          ..write('stage: $stage, ')
+          ..write('pipelineVersion: $pipelineVersion, ')
+          ..write('totalUnits: $totalUnits, ')
+          ..write('doneUnits: $doneUnits, ')
+          ..write('errorText: $errorText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bookId,
+    contentHash,
+    status,
+    stage,
+    pipelineVersion,
+    totalUnits,
+    doneUnits,
+    errorText,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DistillJobRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.contentHash == this.contentHash &&
+          other.status == this.status &&
+          other.stage == this.stage &&
+          other.pipelineVersion == this.pipelineVersion &&
+          other.totalUnits == this.totalUnits &&
+          other.doneUnits == this.doneUnits &&
+          other.errorText == this.errorText &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DistillJobsCompanion extends UpdateCompanion<DistillJobRow> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<String> contentHash;
+  final Value<String> status;
+  final Value<String> stage;
+  final Value<int> pipelineVersion;
+  final Value<int> totalUnits;
+  final Value<int> doneUnits;
+  final Value<String?> errorText;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const DistillJobsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.contentHash = const Value.absent(),
+    this.status = const Value.absent(),
+    this.stage = const Value.absent(),
+    this.pipelineVersion = const Value.absent(),
+    this.totalUnits = const Value.absent(),
+    this.doneUnits = const Value.absent(),
+    this.errorText = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DistillJobsCompanion.insert({
+    required String id,
+    required String bookId,
+    required String contentHash,
+    required String status,
+    required String stage,
+    required int pipelineVersion,
+    this.totalUnits = const Value.absent(),
+    this.doneUnits = const Value.absent(),
+    this.errorText = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bookId = Value(bookId),
+       contentHash = Value(contentHash),
+       status = Value(status),
+       stage = Value(stage),
+       pipelineVersion = Value(pipelineVersion),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<DistillJobRow> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<String>? contentHash,
+    Expression<String>? status,
+    Expression<String>? stage,
+    Expression<int>? pipelineVersion,
+    Expression<int>? totalUnits,
+    Expression<int>? doneUnits,
+    Expression<String>? errorText,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (contentHash != null) 'content_hash': contentHash,
+      if (status != null) 'status': status,
+      if (stage != null) 'stage': stage,
+      if (pipelineVersion != null) 'pipeline_version': pipelineVersion,
+      if (totalUnits != null) 'total_units': totalUnits,
+      if (doneUnits != null) 'done_units': doneUnits,
+      if (errorText != null) 'error_text': errorText,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DistillJobsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bookId,
+    Value<String>? contentHash,
+    Value<String>? status,
+    Value<String>? stage,
+    Value<int>? pipelineVersion,
+    Value<int>? totalUnits,
+    Value<int>? doneUnits,
+    Value<String?>? errorText,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DistillJobsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      contentHash: contentHash ?? this.contentHash,
+      status: status ?? this.status,
+      stage: stage ?? this.stage,
+      pipelineVersion: pipelineVersion ?? this.pipelineVersion,
+      totalUnits: totalUnits ?? this.totalUnits,
+      doneUnits: doneUnits ?? this.doneUnits,
+      errorText: errorText ?? this.errorText,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (contentHash.present) {
+      map['content_hash'] = Variable<String>(contentHash.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (stage.present) {
+      map['stage'] = Variable<String>(stage.value);
+    }
+    if (pipelineVersion.present) {
+      map['pipeline_version'] = Variable<int>(pipelineVersion.value);
+    }
+    if (totalUnits.present) {
+      map['total_units'] = Variable<int>(totalUnits.value);
+    }
+    if (doneUnits.present) {
+      map['done_units'] = Variable<int>(doneUnits.value);
+    }
+    if (errorText.present) {
+      map['error_text'] = Variable<String>(errorText.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillJobsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('contentHash: $contentHash, ')
+          ..write('status: $status, ')
+          ..write('stage: $stage, ')
+          ..write('pipelineVersion: $pipelineVersion, ')
+          ..write('totalUnits: $totalUnits, ')
+          ..write('doneUnits: $doneUnits, ')
+          ..write('errorText: $errorText, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DistillUnitsTable extends DistillUnits
+    with TableInfo<$DistillUnitsTable, DistillUnitRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DistillUnitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _jobIdMeta = const VerificationMeta('jobId');
+  @override
+  late final GeneratedColumn<String> jobId = GeneratedColumn<String>(
+    'job_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitKeyMeta = const VerificationMeta(
+    'unitKey',
+  );
+  @override
+  late final GeneratedColumn<String> unitKey = GeneratedColumn<String>(
+    'unit_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resultJsonMeta = const VerificationMeta(
+    'resultJson',
+  );
+  @override
+  late final GeneratedColumn<String> resultJson = GeneratedColumn<String>(
+    'result_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attemptsMeta = const VerificationMeta(
+    'attempts',
+  );
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+    'attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    jobId,
+    unitKey,
+    kind,
+    status,
+    resultJson,
+    attempts,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'distill_units';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DistillUnitRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('job_id')) {
+      context.handle(
+        _jobIdMeta,
+        jobId.isAcceptableOrUnknown(data['job_id']!, _jobIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_jobIdMeta);
+    }
+    if (data.containsKey('unit_key')) {
+      context.handle(
+        _unitKeyMeta,
+        unitKey.isAcceptableOrUnknown(data['unit_key']!, _unitKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitKeyMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('result_json')) {
+      context.handle(
+        _resultJsonMeta,
+        resultJson.isAcceptableOrUnknown(data['result_json']!, _resultJsonMeta),
+      );
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(
+        _attemptsMeta,
+        attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DistillUnitRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DistillUnitRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      jobId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}job_id'],
+      )!,
+      unitKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit_key'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      resultJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_json'],
+      ),
+      attempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempts'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DistillUnitsTable createAlias(String alias) {
+    return $DistillUnitsTable(attachedDatabase, alias);
+  }
+}
+
+class DistillUnitRow extends DataClass implements Insertable<DistillUnitRow> {
+  final String id;
+  final String jobId;
+  final String unitKey;
+  final String kind;
+  final String status;
+  final String? resultJson;
+  final int attempts;
+  final DateTime updatedAt;
+  const DistillUnitRow({
+    required this.id,
+    required this.jobId,
+    required this.unitKey,
+    required this.kind,
+    required this.status,
+    this.resultJson,
+    required this.attempts,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['job_id'] = Variable<String>(jobId);
+    map['unit_key'] = Variable<String>(unitKey);
+    map['kind'] = Variable<String>(kind);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || resultJson != null) {
+      map['result_json'] = Variable<String>(resultJson);
+    }
+    map['attempts'] = Variable<int>(attempts);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  DistillUnitsCompanion toCompanion(bool nullToAbsent) {
+    return DistillUnitsCompanion(
+      id: Value(id),
+      jobId: Value(jobId),
+      unitKey: Value(unitKey),
+      kind: Value(kind),
+      status: Value(status),
+      resultJson: resultJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultJson),
+      attempts: Value(attempts),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory DistillUnitRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DistillUnitRow(
+      id: serializer.fromJson<String>(json['id']),
+      jobId: serializer.fromJson<String>(json['jobId']),
+      unitKey: serializer.fromJson<String>(json['unitKey']),
+      kind: serializer.fromJson<String>(json['kind']),
+      status: serializer.fromJson<String>(json['status']),
+      resultJson: serializer.fromJson<String?>(json['resultJson']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'jobId': serializer.toJson<String>(jobId),
+      'unitKey': serializer.toJson<String>(unitKey),
+      'kind': serializer.toJson<String>(kind),
+      'status': serializer.toJson<String>(status),
+      'resultJson': serializer.toJson<String?>(resultJson),
+      'attempts': serializer.toJson<int>(attempts),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  DistillUnitRow copyWith({
+    String? id,
+    String? jobId,
+    String? unitKey,
+    String? kind,
+    String? status,
+    Value<String?> resultJson = const Value.absent(),
+    int? attempts,
+    DateTime? updatedAt,
+  }) => DistillUnitRow(
+    id: id ?? this.id,
+    jobId: jobId ?? this.jobId,
+    unitKey: unitKey ?? this.unitKey,
+    kind: kind ?? this.kind,
+    status: status ?? this.status,
+    resultJson: resultJson.present ? resultJson.value : this.resultJson,
+    attempts: attempts ?? this.attempts,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  DistillUnitRow copyWithCompanion(DistillUnitsCompanion data) {
+    return DistillUnitRow(
+      id: data.id.present ? data.id.value : this.id,
+      jobId: data.jobId.present ? data.jobId.value : this.jobId,
+      unitKey: data.unitKey.present ? data.unitKey.value : this.unitKey,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      status: data.status.present ? data.status.value : this.status,
+      resultJson: data.resultJson.present
+          ? data.resultJson.value
+          : this.resultJson,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillUnitRow(')
+          ..write('id: $id, ')
+          ..write('jobId: $jobId, ')
+          ..write('unitKey: $unitKey, ')
+          ..write('kind: $kind, ')
+          ..write('status: $status, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('attempts: $attempts, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    jobId,
+    unitKey,
+    kind,
+    status,
+    resultJson,
+    attempts,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DistillUnitRow &&
+          other.id == this.id &&
+          other.jobId == this.jobId &&
+          other.unitKey == this.unitKey &&
+          other.kind == this.kind &&
+          other.status == this.status &&
+          other.resultJson == this.resultJson &&
+          other.attempts == this.attempts &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DistillUnitsCompanion extends UpdateCompanion<DistillUnitRow> {
+  final Value<String> id;
+  final Value<String> jobId;
+  final Value<String> unitKey;
+  final Value<String> kind;
+  final Value<String> status;
+  final Value<String?> resultJson;
+  final Value<int> attempts;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const DistillUnitsCompanion({
+    this.id = const Value.absent(),
+    this.jobId = const Value.absent(),
+    this.unitKey = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.status = const Value.absent(),
+    this.resultJson = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DistillUnitsCompanion.insert({
+    required String id,
+    required String jobId,
+    required String unitKey,
+    required String kind,
+    required String status,
+    this.resultJson = const Value.absent(),
+    this.attempts = const Value.absent(),
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       jobId = Value(jobId),
+       unitKey = Value(unitKey),
+       kind = Value(kind),
+       status = Value(status),
+       updatedAt = Value(updatedAt);
+  static Insertable<DistillUnitRow> custom({
+    Expression<String>? id,
+    Expression<String>? jobId,
+    Expression<String>? unitKey,
+    Expression<String>? kind,
+    Expression<String>? status,
+    Expression<String>? resultJson,
+    Expression<int>? attempts,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (jobId != null) 'job_id': jobId,
+      if (unitKey != null) 'unit_key': unitKey,
+      if (kind != null) 'kind': kind,
+      if (status != null) 'status': status,
+      if (resultJson != null) 'result_json': resultJson,
+      if (attempts != null) 'attempts': attempts,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DistillUnitsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? jobId,
+    Value<String>? unitKey,
+    Value<String>? kind,
+    Value<String>? status,
+    Value<String?>? resultJson,
+    Value<int>? attempts,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DistillUnitsCompanion(
+      id: id ?? this.id,
+      jobId: jobId ?? this.jobId,
+      unitKey: unitKey ?? this.unitKey,
+      kind: kind ?? this.kind,
+      status: status ?? this.status,
+      resultJson: resultJson ?? this.resultJson,
+      attempts: attempts ?? this.attempts,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (jobId.present) {
+      map['job_id'] = Variable<String>(jobId.value);
+    }
+    if (unitKey.present) {
+      map['unit_key'] = Variable<String>(unitKey.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (resultJson.present) {
+      map['result_json'] = Variable<String>(resultJson.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillUnitsCompanion(')
+          ..write('id: $id, ')
+          ..write('jobId: $jobId, ')
+          ..write('unitKey: $unitKey, ')
+          ..write('kind: $kind, ')
+          ..write('status: $status, ')
+          ..write('resultJson: $resultJson, ')
+          ..write('attempts: $attempts, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DistillArtifactsTable extends DistillArtifacts
+    with TableInfo<$DistillArtifactsTable, DistillArtifactRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DistillArtifactsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitKeyMeta = const VerificationMeta(
+    'unitKey',
+  );
+  @override
+  late final GeneratedColumn<String> unitKey = GeneratedColumn<String>(
+    'unit_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _dataJsonMeta = const VerificationMeta(
+    'dataJson',
+  );
+  @override
+  late final GeneratedColumn<String> dataJson = GeneratedColumn<String>(
+    'data_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _chapterStartMeta = const VerificationMeta(
+    'chapterStart',
+  );
+  @override
+  late final GeneratedColumn<int> chapterStart = GeneratedColumn<int>(
+    'chapter_start',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _chapterEndMeta = const VerificationMeta(
+    'chapterEnd',
+  );
+  @override
+  late final GeneratedColumn<int> chapterEnd = GeneratedColumn<int>(
+    'chapter_end',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _staleMeta = const VerificationMeta('stale');
+  @override
+  late final GeneratedColumn<bool> stale = GeneratedColumn<bool>(
+    'stale',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("stale" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bookId,
+    kind,
+    unitKey,
+    title,
+    body,
+    dataJson,
+    chapterStart,
+    chapterEnd,
+    stale,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'distill_artifacts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DistillArtifactRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('unit_key')) {
+      context.handle(
+        _unitKeyMeta,
+        unitKey.isAcceptableOrUnknown(data['unit_key']!, _unitKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_unitKeyMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('data_json')) {
+      context.handle(
+        _dataJsonMeta,
+        dataJson.isAcceptableOrUnknown(data['data_json']!, _dataJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dataJsonMeta);
+    }
+    if (data.containsKey('chapter_start')) {
+      context.handle(
+        _chapterStartMeta,
+        chapterStart.isAcceptableOrUnknown(
+          data['chapter_start']!,
+          _chapterStartMeta,
+        ),
+      );
+    }
+    if (data.containsKey('chapter_end')) {
+      context.handle(
+        _chapterEndMeta,
+        chapterEnd.isAcceptableOrUnknown(data['chapter_end']!, _chapterEndMeta),
+      );
+    }
+    if (data.containsKey('stale')) {
+      context.handle(
+        _staleMeta,
+        stale.isAcceptableOrUnknown(data['stale']!, _staleMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DistillArtifactRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DistillArtifactRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      unitKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit_key'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      dataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}data_json'],
+      )!,
+      chapterStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chapter_start'],
+      ),
+      chapterEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chapter_end'],
+      ),
+      stale: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}stale'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DistillArtifactsTable createAlias(String alias) {
+    return $DistillArtifactsTable(attachedDatabase, alias);
+  }
+}
+
+class DistillArtifactRow extends DataClass
+    implements Insertable<DistillArtifactRow> {
+  final String id;
+  final String bookId;
+  final String kind;
+  final String unitKey;
+  final String title;
+  final String body;
+  final String dataJson;
+  final int? chapterStart;
+  final int? chapterEnd;
+  final bool stale;
+  final DateTime createdAt;
+  const DistillArtifactRow({
+    required this.id,
+    required this.bookId,
+    required this.kind,
+    required this.unitKey,
+    required this.title,
+    required this.body,
+    required this.dataJson,
+    this.chapterStart,
+    this.chapterEnd,
+    required this.stale,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['book_id'] = Variable<String>(bookId);
+    map['kind'] = Variable<String>(kind);
+    map['unit_key'] = Variable<String>(unitKey);
+    map['title'] = Variable<String>(title);
+    map['body'] = Variable<String>(body);
+    map['data_json'] = Variable<String>(dataJson);
+    if (!nullToAbsent || chapterStart != null) {
+      map['chapter_start'] = Variable<int>(chapterStart);
+    }
+    if (!nullToAbsent || chapterEnd != null) {
+      map['chapter_end'] = Variable<int>(chapterEnd);
+    }
+    map['stale'] = Variable<bool>(stale);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  DistillArtifactsCompanion toCompanion(bool nullToAbsent) {
+    return DistillArtifactsCompanion(
+      id: Value(id),
+      bookId: Value(bookId),
+      kind: Value(kind),
+      unitKey: Value(unitKey),
+      title: Value(title),
+      body: Value(body),
+      dataJson: Value(dataJson),
+      chapterStart: chapterStart == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chapterStart),
+      chapterEnd: chapterEnd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(chapterEnd),
+      stale: Value(stale),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DistillArtifactRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DistillArtifactRow(
+      id: serializer.fromJson<String>(json['id']),
+      bookId: serializer.fromJson<String>(json['bookId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      unitKey: serializer.fromJson<String>(json['unitKey']),
+      title: serializer.fromJson<String>(json['title']),
+      body: serializer.fromJson<String>(json['body']),
+      dataJson: serializer.fromJson<String>(json['dataJson']),
+      chapterStart: serializer.fromJson<int?>(json['chapterStart']),
+      chapterEnd: serializer.fromJson<int?>(json['chapterEnd']),
+      stale: serializer.fromJson<bool>(json['stale']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bookId': serializer.toJson<String>(bookId),
+      'kind': serializer.toJson<String>(kind),
+      'unitKey': serializer.toJson<String>(unitKey),
+      'title': serializer.toJson<String>(title),
+      'body': serializer.toJson<String>(body),
+      'dataJson': serializer.toJson<String>(dataJson),
+      'chapterStart': serializer.toJson<int?>(chapterStart),
+      'chapterEnd': serializer.toJson<int?>(chapterEnd),
+      'stale': serializer.toJson<bool>(stale),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  DistillArtifactRow copyWith({
+    String? id,
+    String? bookId,
+    String? kind,
+    String? unitKey,
+    String? title,
+    String? body,
+    String? dataJson,
+    Value<int?> chapterStart = const Value.absent(),
+    Value<int?> chapterEnd = const Value.absent(),
+    bool? stale,
+    DateTime? createdAt,
+  }) => DistillArtifactRow(
+    id: id ?? this.id,
+    bookId: bookId ?? this.bookId,
+    kind: kind ?? this.kind,
+    unitKey: unitKey ?? this.unitKey,
+    title: title ?? this.title,
+    body: body ?? this.body,
+    dataJson: dataJson ?? this.dataJson,
+    chapterStart: chapterStart.present ? chapterStart.value : this.chapterStart,
+    chapterEnd: chapterEnd.present ? chapterEnd.value : this.chapterEnd,
+    stale: stale ?? this.stale,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DistillArtifactRow copyWithCompanion(DistillArtifactsCompanion data) {
+    return DistillArtifactRow(
+      id: data.id.present ? data.id.value : this.id,
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      unitKey: data.unitKey.present ? data.unitKey.value : this.unitKey,
+      title: data.title.present ? data.title.value : this.title,
+      body: data.body.present ? data.body.value : this.body,
+      dataJson: data.dataJson.present ? data.dataJson.value : this.dataJson,
+      chapterStart: data.chapterStart.present
+          ? data.chapterStart.value
+          : this.chapterStart,
+      chapterEnd: data.chapterEnd.present
+          ? data.chapterEnd.value
+          : this.chapterEnd,
+      stale: data.stale.present ? data.stale.value : this.stale,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillArtifactRow(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('kind: $kind, ')
+          ..write('unitKey: $unitKey, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('chapterStart: $chapterStart, ')
+          ..write('chapterEnd: $chapterEnd, ')
+          ..write('stale: $stale, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bookId,
+    kind,
+    unitKey,
+    title,
+    body,
+    dataJson,
+    chapterStart,
+    chapterEnd,
+    stale,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DistillArtifactRow &&
+          other.id == this.id &&
+          other.bookId == this.bookId &&
+          other.kind == this.kind &&
+          other.unitKey == this.unitKey &&
+          other.title == this.title &&
+          other.body == this.body &&
+          other.dataJson == this.dataJson &&
+          other.chapterStart == this.chapterStart &&
+          other.chapterEnd == this.chapterEnd &&
+          other.stale == this.stale &&
+          other.createdAt == this.createdAt);
+}
+
+class DistillArtifactsCompanion extends UpdateCompanion<DistillArtifactRow> {
+  final Value<String> id;
+  final Value<String> bookId;
+  final Value<String> kind;
+  final Value<String> unitKey;
+  final Value<String> title;
+  final Value<String> body;
+  final Value<String> dataJson;
+  final Value<int?> chapterStart;
+  final Value<int?> chapterEnd;
+  final Value<bool> stale;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const DistillArtifactsCompanion({
+    this.id = const Value.absent(),
+    this.bookId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.unitKey = const Value.absent(),
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.dataJson = const Value.absent(),
+    this.chapterStart = const Value.absent(),
+    this.chapterEnd = const Value.absent(),
+    this.stale = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DistillArtifactsCompanion.insert({
+    required String id,
+    required String bookId,
+    required String kind,
+    required String unitKey,
+    required String title,
+    required String body,
+    required String dataJson,
+    this.chapterStart = const Value.absent(),
+    this.chapterEnd = const Value.absent(),
+    this.stale = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bookId = Value(bookId),
+       kind = Value(kind),
+       unitKey = Value(unitKey),
+       title = Value(title),
+       body = Value(body),
+       dataJson = Value(dataJson),
+       createdAt = Value(createdAt);
+  static Insertable<DistillArtifactRow> custom({
+    Expression<String>? id,
+    Expression<String>? bookId,
+    Expression<String>? kind,
+    Expression<String>? unitKey,
+    Expression<String>? title,
+    Expression<String>? body,
+    Expression<String>? dataJson,
+    Expression<int>? chapterStart,
+    Expression<int>? chapterEnd,
+    Expression<bool>? stale,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bookId != null) 'book_id': bookId,
+      if (kind != null) 'kind': kind,
+      if (unitKey != null) 'unit_key': unitKey,
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+      if (dataJson != null) 'data_json': dataJson,
+      if (chapterStart != null) 'chapter_start': chapterStart,
+      if (chapterEnd != null) 'chapter_end': chapterEnd,
+      if (stale != null) 'stale': stale,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DistillArtifactsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bookId,
+    Value<String>? kind,
+    Value<String>? unitKey,
+    Value<String>? title,
+    Value<String>? body,
+    Value<String>? dataJson,
+    Value<int?>? chapterStart,
+    Value<int?>? chapterEnd,
+    Value<bool>? stale,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return DistillArtifactsCompanion(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      kind: kind ?? this.kind,
+      unitKey: unitKey ?? this.unitKey,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      dataJson: dataJson ?? this.dataJson,
+      chapterStart: chapterStart ?? this.chapterStart,
+      chapterEnd: chapterEnd ?? this.chapterEnd,
+      stale: stale ?? this.stale,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (unitKey.present) {
+      map['unit_key'] = Variable<String>(unitKey.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (dataJson.present) {
+      map['data_json'] = Variable<String>(dataJson.value);
+    }
+    if (chapterStart.present) {
+      map['chapter_start'] = Variable<int>(chapterStart.value);
+    }
+    if (chapterEnd.present) {
+      map['chapter_end'] = Variable<int>(chapterEnd.value);
+    }
+    if (stale.present) {
+      map['stale'] = Variable<bool>(stale.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DistillArtifactsCompanion(')
+          ..write('id: $id, ')
+          ..write('bookId: $bookId, ')
+          ..write('kind: $kind, ')
+          ..write('unitKey: $unitKey, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('dataJson: $dataJson, ')
+          ..write('chapterStart: $chapterStart, ')
+          ..write('chapterEnd: $chapterEnd, ')
+          ..write('stale: $stale, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CategoriesTable extends Categories
+    with TableInfo<$CategoriesTable, CategoryRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, sortOrder, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'categories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CategoryRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CategoryRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CategoryRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CategoriesTable createAlias(String alias) {
+    return $CategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class CategoryRecord extends DataClass implements Insertable<CategoryRecord> {
+  final String id;
+  final String name;
+  final int sortOrder;
+  final DateTime createdAt;
+  const CategoryRecord({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  CategoriesCompanion toCompanion(bool nullToAbsent) {
+    return CategoriesCompanion(
+      id: Value(id),
+      name: Value(name),
+      sortOrder: Value(sortOrder),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory CategoryRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CategoryRecord(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  CategoryRecord copyWith({
+    String? id,
+    String? name,
+    int? sortOrder,
+    DateTime? createdAt,
+  }) => CategoryRecord(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    sortOrder: sortOrder ?? this.sortOrder,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  CategoryRecord copyWithCompanion(CategoriesCompanion data) {
+    return CategoryRecord(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CategoryRecord(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, sortOrder, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CategoryRecord &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.sortOrder == this.sortOrder &&
+          other.createdAt == this.createdAt);
+}
+
+class CategoriesCompanion extends UpdateCompanion<CategoryRecord> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> sortOrder;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const CategoriesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CategoriesCompanion.insert({
+    required String id,
+    required String name,
+    this.sortOrder = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt);
+  static Insertable<CategoryRecord> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CategoriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? sortOrder,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return CategoriesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CategoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BookCategoriesTable extends BookCategories
+    with TableInfo<$BookCategoriesTable, BookCategoryRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BookCategoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _bookIdMeta = const VerificationMeta('bookId');
+  @override
+  late final GeneratedColumn<String> bookId = GeneratedColumn<String>(
+    'book_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [bookId, categoryId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'book_categories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BookCategoryRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('book_id')) {
+      context.handle(
+        _bookIdMeta,
+        bookId.isAcceptableOrUnknown(data['book_id']!, _bookIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bookIdMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {bookId, categoryId};
+  @override
+  BookCategoryRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BookCategoryRecord(
+      bookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}book_id'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      )!,
+    );
+  }
+
+  @override
+  $BookCategoriesTable createAlias(String alias) {
+    return $BookCategoriesTable(attachedDatabase, alias);
+  }
+}
+
+class BookCategoryRecord extends DataClass
+    implements Insertable<BookCategoryRecord> {
+  final String bookId;
+  final String categoryId;
+  const BookCategoryRecord({required this.bookId, required this.categoryId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['book_id'] = Variable<String>(bookId);
+    map['category_id'] = Variable<String>(categoryId);
+    return map;
+  }
+
+  BookCategoriesCompanion toCompanion(bool nullToAbsent) {
+    return BookCategoriesCompanion(
+      bookId: Value(bookId),
+      categoryId: Value(categoryId),
+    );
+  }
+
+  factory BookCategoryRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BookCategoryRecord(
+      bookId: serializer.fromJson<String>(json['bookId']),
+      categoryId: serializer.fromJson<String>(json['categoryId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'bookId': serializer.toJson<String>(bookId),
+      'categoryId': serializer.toJson<String>(categoryId),
+    };
+  }
+
+  BookCategoryRecord copyWith({String? bookId, String? categoryId}) =>
+      BookCategoryRecord(
+        bookId: bookId ?? this.bookId,
+        categoryId: categoryId ?? this.categoryId,
+      );
+  BookCategoryRecord copyWithCompanion(BookCategoriesCompanion data) {
+    return BookCategoryRecord(
+      bookId: data.bookId.present ? data.bookId.value : this.bookId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookCategoryRecord(')
+          ..write('bookId: $bookId, ')
+          ..write('categoryId: $categoryId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(bookId, categoryId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BookCategoryRecord &&
+          other.bookId == this.bookId &&
+          other.categoryId == this.categoryId);
+}
+
+class BookCategoriesCompanion extends UpdateCompanion<BookCategoryRecord> {
+  final Value<String> bookId;
+  final Value<String> categoryId;
+  final Value<int> rowid;
+  const BookCategoriesCompanion({
+    this.bookId = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BookCategoriesCompanion.insert({
+    required String bookId,
+    required String categoryId,
+    this.rowid = const Value.absent(),
+  }) : bookId = Value(bookId),
+       categoryId = Value(categoryId);
+  static Insertable<BookCategoryRecord> custom({
+    Expression<String>? bookId,
+    Expression<String>? categoryId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (bookId != null) 'book_id': bookId,
+      if (categoryId != null) 'category_id': categoryId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BookCategoriesCompanion copyWith({
+    Value<String>? bookId,
+    Value<String>? categoryId,
+    Value<int>? rowid,
+  }) {
+    return BookCategoriesCompanion(
+      bookId: bookId ?? this.bookId,
+      categoryId: categoryId ?? this.categoryId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (bookId.present) {
+      map['book_id'] = Variable<String>(bookId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BookCategoriesCompanion(')
+          ..write('bookId: $bookId, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2292,6 +4640,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ReadingProgressEntriesTable(this);
   late final $AnnotationsTable annotations = $AnnotationsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $DistillJobsTable distillJobs = $DistillJobsTable(this);
+  late final $DistillUnitsTable distillUnits = $DistillUnitsTable(this);
+  late final $DistillArtifactsTable distillArtifacts = $DistillArtifactsTable(
+    this,
+  );
+  late final $CategoriesTable categories = $CategoriesTable(this);
+  late final $BookCategoriesTable bookCategories = $BookCategoriesTable(this);
   late final Index booksContentHash = Index(
     'books_content_hash',
     'CREATE INDEX books_content_hash ON books (content_hash)',
@@ -2304,6 +4659,26 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'annotations_book_id',
     'CREATE INDEX annotations_book_id ON annotations (book_id)',
   );
+  late final Index distillJobsBook = Index(
+    'distill_jobs_book',
+    'CREATE INDEX distill_jobs_book ON distill_jobs (book_id)',
+  );
+  late final Index distillUnitsJobKey = Index(
+    'distill_units_job_key',
+    'CREATE UNIQUE INDEX distill_units_job_key ON distill_units (job_id, unit_key)',
+  );
+  late final Index distillArtifactsBookKind = Index(
+    'distill_artifacts_book_kind',
+    'CREATE INDEX distill_artifacts_book_kind ON distill_artifacts (book_id, kind)',
+  );
+  late final Index categoriesName = Index(
+    'categories_name',
+    'CREATE UNIQUE INDEX categories_name ON categories (name)',
+  );
+  late final Index bookCategoriesCategory = Index(
+    'book_categories_category',
+    'CREATE INDEX book_categories_category ON book_categories (category_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2314,9 +4689,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     readingProgressEntries,
     annotations,
     settings,
+    distillJobs,
+    distillUnits,
+    distillArtifacts,
+    categories,
+    bookCategories,
     booksContentHash,
     chaptersBookIndex,
     annotationsBookId,
+    distillJobsBook,
+    distillUnitsJobKey,
+    distillArtifactsBookKind,
+    categoriesName,
+    bookCategoriesCategory,
   ];
 }
 
@@ -3552,6 +5937,1290 @@ typedef $$SettingsTableProcessedTableManager =
       SettingRecord,
       PrefetchHooks Function()
     >;
+typedef $$DistillJobsTableCreateCompanionBuilder =
+    DistillJobsCompanion Function({
+      required String id,
+      required String bookId,
+      required String contentHash,
+      required String status,
+      required String stage,
+      required int pipelineVersion,
+      Value<int> totalUnits,
+      Value<int> doneUnits,
+      Value<String?> errorText,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DistillJobsTableUpdateCompanionBuilder =
+    DistillJobsCompanion Function({
+      Value<String> id,
+      Value<String> bookId,
+      Value<String> contentHash,
+      Value<String> status,
+      Value<String> stage,
+      Value<int> pipelineVersion,
+      Value<int> totalUnits,
+      Value<int> doneUnits,
+      Value<String?> errorText,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DistillJobsTableFilterComposer
+    extends Composer<_$AppDatabase, $DistillJobsTable> {
+  $$DistillJobsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stage => $composableBuilder(
+    column: $table.stage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pipelineVersion => $composableBuilder(
+    column: $table.pipelineVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalUnits => $composableBuilder(
+    column: $table.totalUnits,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get doneUnits => $composableBuilder(
+    column: $table.doneUnits,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorText => $composableBuilder(
+    column: $table.errorText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DistillJobsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DistillJobsTable> {
+  $$DistillJobsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stage => $composableBuilder(
+    column: $table.stage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pipelineVersion => $composableBuilder(
+    column: $table.pipelineVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalUnits => $composableBuilder(
+    column: $table.totalUnits,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get doneUnits => $composableBuilder(
+    column: $table.doneUnits,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorText => $composableBuilder(
+    column: $table.errorText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DistillJobsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DistillJobsTable> {
+  $$DistillJobsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get contentHash => $composableBuilder(
+    column: $table.contentHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get stage =>
+      $composableBuilder(column: $table.stage, builder: (column) => column);
+
+  GeneratedColumn<int> get pipelineVersion => $composableBuilder(
+    column: $table.pipelineVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalUnits => $composableBuilder(
+    column: $table.totalUnits,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get doneUnits =>
+      $composableBuilder(column: $table.doneUnits, builder: (column) => column);
+
+  GeneratedColumn<String> get errorText =>
+      $composableBuilder(column: $table.errorText, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DistillJobsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DistillJobsTable,
+          DistillJobRow,
+          $$DistillJobsTableFilterComposer,
+          $$DistillJobsTableOrderingComposer,
+          $$DistillJobsTableAnnotationComposer,
+          $$DistillJobsTableCreateCompanionBuilder,
+          $$DistillJobsTableUpdateCompanionBuilder,
+          (
+            DistillJobRow,
+            BaseReferences<_$AppDatabase, $DistillJobsTable, DistillJobRow>,
+          ),
+          DistillJobRow,
+          PrefetchHooks Function()
+        > {
+  $$DistillJobsTableTableManager(_$AppDatabase db, $DistillJobsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DistillJobsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DistillJobsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DistillJobsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<String> contentHash = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> stage = const Value.absent(),
+                Value<int> pipelineVersion = const Value.absent(),
+                Value<int> totalUnits = const Value.absent(),
+                Value<int> doneUnits = const Value.absent(),
+                Value<String?> errorText = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DistillJobsCompanion(
+                id: id,
+                bookId: bookId,
+                contentHash: contentHash,
+                status: status,
+                stage: stage,
+                pipelineVersion: pipelineVersion,
+                totalUnits: totalUnits,
+                doneUnits: doneUnits,
+                errorText: errorText,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bookId,
+                required String contentHash,
+                required String status,
+                required String stage,
+                required int pipelineVersion,
+                Value<int> totalUnits = const Value.absent(),
+                Value<int> doneUnits = const Value.absent(),
+                Value<String?> errorText = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DistillJobsCompanion.insert(
+                id: id,
+                bookId: bookId,
+                contentHash: contentHash,
+                status: status,
+                stage: stage,
+                pipelineVersion: pipelineVersion,
+                totalUnits: totalUnits,
+                doneUnits: doneUnits,
+                errorText: errorText,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DistillJobsTable, DistillJobRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DistillJobsTable,
+                    DistillJobRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DistillJobsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DistillJobsTable,
+      DistillJobRow,
+      $$DistillJobsTableFilterComposer,
+      $$DistillJobsTableOrderingComposer,
+      $$DistillJobsTableAnnotationComposer,
+      $$DistillJobsTableCreateCompanionBuilder,
+      $$DistillJobsTableUpdateCompanionBuilder,
+      (
+        DistillJobRow,
+        BaseReferences<_$AppDatabase, $DistillJobsTable, DistillJobRow>,
+      ),
+      DistillJobRow,
+      PrefetchHooks Function()
+    >;
+typedef $$DistillUnitsTableCreateCompanionBuilder =
+    DistillUnitsCompanion Function({
+      required String id,
+      required String jobId,
+      required String unitKey,
+      required String kind,
+      required String status,
+      Value<String?> resultJson,
+      Value<int> attempts,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DistillUnitsTableUpdateCompanionBuilder =
+    DistillUnitsCompanion Function({
+      Value<String> id,
+      Value<String> jobId,
+      Value<String> unitKey,
+      Value<String> kind,
+      Value<String> status,
+      Value<String?> resultJson,
+      Value<int> attempts,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DistillUnitsTableFilterComposer
+    extends Composer<_$AppDatabase, $DistillUnitsTable> {
+  $$DistillUnitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unitKey => $composableBuilder(
+    column: $table.unitKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DistillUnitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DistillUnitsTable> {
+  $$DistillUnitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get jobId => $composableBuilder(
+    column: $table.jobId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unitKey => $composableBuilder(
+    column: $table.unitKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+    column: $table.attempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DistillUnitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DistillUnitsTable> {
+  $$DistillUnitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get jobId =>
+      $composableBuilder(column: $table.jobId, builder: (column) => column);
+
+  GeneratedColumn<String> get unitKey =>
+      $composableBuilder(column: $table.unitKey, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get resultJson => $composableBuilder(
+    column: $table.resultJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DistillUnitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DistillUnitsTable,
+          DistillUnitRow,
+          $$DistillUnitsTableFilterComposer,
+          $$DistillUnitsTableOrderingComposer,
+          $$DistillUnitsTableAnnotationComposer,
+          $$DistillUnitsTableCreateCompanionBuilder,
+          $$DistillUnitsTableUpdateCompanionBuilder,
+          (
+            DistillUnitRow,
+            BaseReferences<_$AppDatabase, $DistillUnitsTable, DistillUnitRow>,
+          ),
+          DistillUnitRow,
+          PrefetchHooks Function()
+        > {
+  $$DistillUnitsTableTableManager(_$AppDatabase db, $DistillUnitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DistillUnitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DistillUnitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DistillUnitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> jobId = const Value.absent(),
+                Value<String> unitKey = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> resultJson = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DistillUnitsCompanion(
+                id: id,
+                jobId: jobId,
+                unitKey: unitKey,
+                kind: kind,
+                status: status,
+                resultJson: resultJson,
+                attempts: attempts,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String jobId,
+                required String unitKey,
+                required String kind,
+                required String status,
+                Value<String?> resultJson = const Value.absent(),
+                Value<int> attempts = const Value.absent(),
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DistillUnitsCompanion.insert(
+                id: id,
+                jobId: jobId,
+                unitKey: unitKey,
+                kind: kind,
+                status: status,
+                resultJson: resultJson,
+                attempts: attempts,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DistillUnitsTable, DistillUnitRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DistillUnitsTable,
+                    DistillUnitRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DistillUnitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DistillUnitsTable,
+      DistillUnitRow,
+      $$DistillUnitsTableFilterComposer,
+      $$DistillUnitsTableOrderingComposer,
+      $$DistillUnitsTableAnnotationComposer,
+      $$DistillUnitsTableCreateCompanionBuilder,
+      $$DistillUnitsTableUpdateCompanionBuilder,
+      (
+        DistillUnitRow,
+        BaseReferences<_$AppDatabase, $DistillUnitsTable, DistillUnitRow>,
+      ),
+      DistillUnitRow,
+      PrefetchHooks Function()
+    >;
+typedef $$DistillArtifactsTableCreateCompanionBuilder =
+    DistillArtifactsCompanion Function({
+      required String id,
+      required String bookId,
+      required String kind,
+      required String unitKey,
+      required String title,
+      required String body,
+      required String dataJson,
+      Value<int?> chapterStart,
+      Value<int?> chapterEnd,
+      Value<bool> stale,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$DistillArtifactsTableUpdateCompanionBuilder =
+    DistillArtifactsCompanion Function({
+      Value<String> id,
+      Value<String> bookId,
+      Value<String> kind,
+      Value<String> unitKey,
+      Value<String> title,
+      Value<String> body,
+      Value<String> dataJson,
+      Value<int?> chapterStart,
+      Value<int?> chapterEnd,
+      Value<bool> stale,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$DistillArtifactsTableFilterComposer
+    extends Composer<_$AppDatabase, $DistillArtifactsTable> {
+  $$DistillArtifactsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unitKey => $composableBuilder(
+    column: $table.unitKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chapterStart => $composableBuilder(
+    column: $table.chapterStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chapterEnd => $composableBuilder(
+    column: $table.chapterEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get stale => $composableBuilder(
+    column: $table.stale,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DistillArtifactsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DistillArtifactsTable> {
+  $$DistillArtifactsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unitKey => $composableBuilder(
+    column: $table.unitKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dataJson => $composableBuilder(
+    column: $table.dataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chapterStart => $composableBuilder(
+    column: $table.chapterStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chapterEnd => $composableBuilder(
+    column: $table.chapterEnd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get stale => $composableBuilder(
+    column: $table.stale,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DistillArtifactsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DistillArtifactsTable> {
+  $$DistillArtifactsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get unitKey =>
+      $composableBuilder(column: $table.unitKey, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get dataJson =>
+      $composableBuilder(column: $table.dataJson, builder: (column) => column);
+
+  GeneratedColumn<int> get chapterStart => $composableBuilder(
+    column: $table.chapterStart,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get chapterEnd => $composableBuilder(
+    column: $table.chapterEnd,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get stale =>
+      $composableBuilder(column: $table.stale, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$DistillArtifactsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DistillArtifactsTable,
+          DistillArtifactRow,
+          $$DistillArtifactsTableFilterComposer,
+          $$DistillArtifactsTableOrderingComposer,
+          $$DistillArtifactsTableAnnotationComposer,
+          $$DistillArtifactsTableCreateCompanionBuilder,
+          $$DistillArtifactsTableUpdateCompanionBuilder,
+          (
+            DistillArtifactRow,
+            BaseReferences<
+              _$AppDatabase,
+              $DistillArtifactsTable,
+              DistillArtifactRow
+            >,
+          ),
+          DistillArtifactRow,
+          PrefetchHooks Function()
+        > {
+  $$DistillArtifactsTableTableManager(
+    _$AppDatabase db,
+    $DistillArtifactsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DistillArtifactsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DistillArtifactsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DistillArtifactsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bookId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> unitKey = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<String> dataJson = const Value.absent(),
+                Value<int?> chapterStart = const Value.absent(),
+                Value<int?> chapterEnd = const Value.absent(),
+                Value<bool> stale = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DistillArtifactsCompanion(
+                id: id,
+                bookId: bookId,
+                kind: kind,
+                unitKey: unitKey,
+                title: title,
+                body: body,
+                dataJson: dataJson,
+                chapterStart: chapterStart,
+                chapterEnd: chapterEnd,
+                stale: stale,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bookId,
+                required String kind,
+                required String unitKey,
+                required String title,
+                required String body,
+                required String dataJson,
+                Value<int?> chapterStart = const Value.absent(),
+                Value<int?> chapterEnd = const Value.absent(),
+                Value<bool> stale = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DistillArtifactsCompanion.insert(
+                id: id,
+                bookId: bookId,
+                kind: kind,
+                unitKey: unitKey,
+                title: title,
+                body: body,
+                dataJson: dataJson,
+                chapterStart: chapterStart,
+                chapterEnd: chapterEnd,
+                stale: stale,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DistillArtifactsTable, DistillArtifactRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DistillArtifactsTable,
+                    DistillArtifactRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DistillArtifactsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DistillArtifactsTable,
+      DistillArtifactRow,
+      $$DistillArtifactsTableFilterComposer,
+      $$DistillArtifactsTableOrderingComposer,
+      $$DistillArtifactsTableAnnotationComposer,
+      $$DistillArtifactsTableCreateCompanionBuilder,
+      $$DistillArtifactsTableUpdateCompanionBuilder,
+      (
+        DistillArtifactRow,
+        BaseReferences<
+          _$AppDatabase,
+          $DistillArtifactsTable,
+          DistillArtifactRow
+        >,
+      ),
+      DistillArtifactRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  required String id,
+  required String name,
+  Value<int> sortOrder,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<int> sortOrder,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
+
+class $$CategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CategoriesTable> {
+  $$CategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$CategoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CategoriesTable,
+          CategoryRecord,
+          $$CategoriesTableFilterComposer,
+          $$CategoriesTableOrderingComposer,
+          $$CategoriesTableAnnotationComposer,
+          $$CategoriesTableCreateCompanionBuilder,
+          $$CategoriesTableUpdateCompanionBuilder,
+          (
+            CategoryRecord,
+            BaseReferences<_$AppDatabase, $CategoriesTable, CategoryRecord>,
+          ),
+          CategoryRecord,
+          PrefetchHooks Function()
+        > {
+  $$CategoriesTableTableManager(_$AppDatabase db, $CategoriesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CategoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CategoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CategoriesCompanion(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<int> sortOrder = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CategoriesCompanion.insert(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CategoriesTable, CategoryRecord>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CategoriesTable,
+                    CategoryRecord
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CategoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CategoriesTable,
+      CategoryRecord,
+      $$CategoriesTableFilterComposer,
+      $$CategoriesTableOrderingComposer,
+      $$CategoriesTableAnnotationComposer,
+      $$CategoriesTableCreateCompanionBuilder,
+      $$CategoriesTableUpdateCompanionBuilder,
+      (
+        CategoryRecord,
+        BaseReferences<_$AppDatabase, $CategoriesTable, CategoryRecord>,
+      ),
+      CategoryRecord,
+      PrefetchHooks Function()
+    >;
+typedef $$BookCategoriesTableCreateCompanionBuilder =
+    BookCategoriesCompanion Function({
+      required String bookId,
+      required String categoryId,
+      Value<int> rowid,
+    });
+typedef $$BookCategoriesTableUpdateCompanionBuilder =
+    BookCategoriesCompanion Function({
+      Value<String> bookId,
+      Value<String> categoryId,
+      Value<int> rowid,
+    });
+
+class $$BookCategoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $BookCategoriesTable> {
+  $$BookCategoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BookCategoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $BookCategoriesTable> {
+  $$BookCategoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get bookId => $composableBuilder(
+    column: $table.bookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BookCategoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BookCategoriesTable> {
+  $$BookCategoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get bookId =>
+      $composableBuilder(column: $table.bookId, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+}
+
+class $$BookCategoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BookCategoriesTable,
+          BookCategoryRecord,
+          $$BookCategoriesTableFilterComposer,
+          $$BookCategoriesTableOrderingComposer,
+          $$BookCategoriesTableAnnotationComposer,
+          $$BookCategoriesTableCreateCompanionBuilder,
+          $$BookCategoriesTableUpdateCompanionBuilder,
+          (
+            BookCategoryRecord,
+            BaseReferences<
+              _$AppDatabase,
+              $BookCategoriesTable,
+              BookCategoryRecord
+            >,
+          ),
+          BookCategoryRecord,
+          PrefetchHooks Function()
+        > {
+  $$BookCategoriesTableTableManager(
+    _$AppDatabase db,
+    $BookCategoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BookCategoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BookCategoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BookCategoriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> bookId = const Value.absent(),
+                Value<String> categoryId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BookCategoriesCompanion(
+                bookId: bookId,
+                categoryId: categoryId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String bookId,
+                required String categoryId,
+                Value<int> rowid = const Value.absent(),
+              }) => BookCategoriesCompanion.insert(
+                bookId: bookId,
+                categoryId: categoryId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BookCategoriesTable, BookCategoryRecord>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $BookCategoriesTable,
+                    BookCategoryRecord
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BookCategoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BookCategoriesTable,
+      BookCategoryRecord,
+      $$BookCategoriesTableFilterComposer,
+      $$BookCategoriesTableOrderingComposer,
+      $$BookCategoriesTableAnnotationComposer,
+      $$BookCategoriesTableCreateCompanionBuilder,
+      $$BookCategoriesTableUpdateCompanionBuilder,
+      (
+        BookCategoryRecord,
+        BaseReferences<_$AppDatabase, $BookCategoriesTable, BookCategoryRecord>,
+      ),
+      BookCategoryRecord,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3569,4 +7238,14 @@ class $AppDatabaseManager {
       $$AnnotationsTableTableManager(_db, _db.annotations);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$DistillJobsTableTableManager get distillJobs =>
+      $$DistillJobsTableTableManager(_db, _db.distillJobs);
+  $$DistillUnitsTableTableManager get distillUnits =>
+      $$DistillUnitsTableTableManager(_db, _db.distillUnits);
+  $$DistillArtifactsTableTableManager get distillArtifacts =>
+      $$DistillArtifactsTableTableManager(_db, _db.distillArtifacts);
+  $$CategoriesTableTableManager get categories =>
+      $$CategoriesTableTableManager(_db, _db.categories);
+  $$BookCategoriesTableTableManager get bookCategories =>
+      $$BookCategoriesTableTableManager(_db, _db.bookCategories);
 }

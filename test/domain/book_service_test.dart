@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
+import 'package:hackathon_reading/data/repositories/category_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
@@ -139,5 +140,31 @@ void main() {
 
     await service.deleteBook(book);
     expect(await annotations.getForBook(book.id), isEmpty);
+  });
+
+  test('deleting a book removes its category memberships', () async {
+    final categories = CategoryRepository(db);
+    final category = await categories.create('科幻');
+    await repo.upsert(Book(
+      id: 'b1',
+      title: '书',
+      author: '',
+      format: BookFormat.txt,
+      sourcePath: 'C:/books/b1.txt',
+      addedAt: DateTime(2026, 1, 1),
+    ));
+    await categories.addBook('b1', category.id);
+    final service = BookService(
+      books: repo,
+      chapters: ChapterRepository(db),
+      progress: ProgressRepository(db),
+      annotations: AnnotationRepository(db),
+      storage: BookStorage(Directory('${temp.path}/books')),
+      categories: categories,
+    );
+
+    await service.deleteBook((await repo.getById('b1'))!);
+
+    expect(await categories.watchMemberships().first, isEmpty);
   });
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../features/library/library_page.dart';
+import '../features/home/app_shell.dart';
 import 'theme/app_theme.dart';
 
 class BookApp extends StatelessWidget {
@@ -12,7 +12,7 @@ class BookApp extends StatelessWidget {
       title: 'AI 阅读器',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      home: const LibraryPage(),
+      home: const AppShell(),
     );
   }
 }
