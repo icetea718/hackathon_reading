@@ -39,6 +39,7 @@ import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
 import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
+import '../search/book_context.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
 import '../search/tavily_search_provider.dart';
@@ -366,6 +367,18 @@ final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>(
 /// The 搜 agent: free-form chat, optionally grounded in web results.
 final agentServiceProvider = Provider<SearchAgentService>(
   (ref) => SearchAgentService(client: ref.watch(llmClientProvider)),
+);
+
+/// Builds the prompt-sized knowledge card for a book the reader picked.
+final bookContextBuilderProvider = Provider<BookContextBuilder>(
+  (ref) => BookContextBuilder(
+    loadBook: (id) => ref.read(bookRepositoryProvider).getById(id),
+    loadChapters: (id) =>
+        ref.read(chapterRepositoryProvider).getSummariesForBook(id),
+    loadChapterText: (id, index) =>
+        ref.read(chapterRepositoryProvider).getContent(id, index),
+    digests: ref.read(distillDigestSourceProvider),
+  ),
 );
 
 /// One controller per conversation key (a thread id, or

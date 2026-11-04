@@ -7,6 +7,8 @@ import '../../app/providers.dart';
 import '../../data/db/app_database.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../distill/llm/llm_client.dart';
+import '../../search/book_context.dart';
+import '../../search/search_book.dart';
 import '../../search/search_hit.dart';
 import '../../search/search_provider.dart';
 
@@ -134,15 +136,24 @@ class ChatController extends Notifier<ChatState> {
 
     final cancel = CancelToken();
     _cancel = cancel;
+    final bookId = ref.read(searchBookProvider);
     state = state.copyWith(
       threadId: threadId,
       messages: [...before, userRow, assistantRow],
       streaming: true,
-      searching: webSearch,
+      searching: webSearch || bookId != null,
       clearError: true,
       hits: const [],
       degraded: false,
     );
+
+    BookContext? bookContext;
+    if (bookId != null) {
+      bookContext = await ref
+          .read(bookContextBuilderProvider)
+          .build(bookId, question: trimmed);
+      if (_disposed) return;
+    }
 
     var hits = const <SearchHit>[];
     var degraded = false;
@@ -182,6 +193,7 @@ class ChatController extends Notifier<ChatState> {
         history: history,
         userText: trimmed,
         hits: hits,
+        book: bookContext,
         cancel: cancel,
       )) {
         if (cancel.isCanceled || _disposed) break;

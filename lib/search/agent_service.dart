@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../distill/llm/llm_client.dart';
+import 'book_context.dart';
 import 'search_hit.dart';
 
 /// Persona for the 搜 shell: a general assistant that may or may not have web
@@ -13,6 +14,15 @@ const String searchSystemPrompt = '''
 
 /// Candidates are only appended when retrieval actually returned something.
 const String searchHitsHeader = '【检索结果】';
+
+/// Appended when the reader picked a book on the shelf.
+const String searchBookHeader = '【正在读的书】';
+
+/// Rules for answering out of the book rather than out of the model's memory.
+const String searchBookRules = '''
+读者在书架里选中了这本书。先根据上面的蒸馏内容判断答案落在哪一章，再依据【原文片段】引用原文：
+引用写成 Markdown 引用块（> 开头），并在后面标注「（第 N 章）」。
+蒸馏内容和片段都不足以回答时，就直说这本书里没有写到，不要编造原文、页码或章节号。''';
 
 /// Builds the message list for the 搜 shell and streams the answer.
 class SearchAgentService {
@@ -33,6 +43,7 @@ class SearchAgentService {
     required List<LlmMessage> history,
     required String userText,
     List<SearchHit> hits = const [],
+    BookContext? book,
     required CancelToken cancel,
   }) {
     if (cancel.isCanceled) return const Stream<String>.empty();
@@ -41,6 +52,7 @@ class SearchAgentService {
       history: history,
       userText: userText,
       hits: hits,
+      book: book,
     );
     return client.streamChat(
       messages,
@@ -55,8 +67,18 @@ class SearchAgentService {
     required List<LlmMessage> history,
     required String userText,
     List<SearchHit> hits = const [],
+    BookContext? book,
   }) {
     final system = StringBuffer(searchSystemPrompt);
+    if (book != null) {
+      system
+        ..write('\n\n')
+        ..write(searchBookHeader)
+        ..write('\n')
+        ..write(_formatBook(book))
+        ..write('\n\n')
+        ..write(searchBookRules);
+    }
     if (hits.isNotEmpty) {
       system
         ..write('\n\n')
@@ -71,6 +93,21 @@ class SearchAgentService {
       ..._trimHistory(history),
       LlmMessage(LlmRole.user, userText),
     ];
+  }
+
+  static String _formatBook(BookContext book) {
+    final buffer = StringBuffer('${book.displayTitle}\n');
+    buffer.writeln(book.brief);
+    if (book.excerpts.isNotEmpty) {
+      buffer.writeln('\n【原文片段】');
+      for (final excerpt in book.excerpts) {
+        buffer
+          ..writeln(excerpt.label)
+          ..writeln('> ${excerpt.text.replaceAll('\n', '\n> ')}')
+          ..writeln();
+      }
+    }
+    return buffer.toString();
   }
 
   static String _formatHits(List<SearchHit> hits) {

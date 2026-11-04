@@ -6,10 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chat_repository.dart';
+import 'package:hackathon_reading/distill/distill_digest.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/distill/llm/llm_config.dart';
+import 'package:hackathon_reading/domain/models/book.dart';
+import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/features/search/search_shell.dart';
+import 'package:hackathon_reading/search/book_context.dart';
 import 'package:hackathon_reading/search/search_config.dart';
 import 'package:hackathon_reading/search/search_hit.dart';
 import 'package:hackathon_reading/search/search_provider.dart';
@@ -129,6 +134,7 @@ void main() {
       apiKey: 'sk-test',
     ),
     SearchProvider? search,
+    BookContextBuilder? book,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -140,6 +146,7 @@ void main() {
             (ref) => const SearchConfig(provider: 'tavily', apiKey: 'tv-key'),
           ),
           if (search != null) webSearchProvider.overrideWithValue(search),
+          if (book != null) bookContextBuilderProvider.overrideWithValue(book),
         ],
         child: const MaterialApp(home: SearchShell()),
       ),
@@ -335,4 +342,85 @@ void main() {
     expect(find.byKey(const Key('chat-sidebar')), findsOneWidget);
     await disposeShell(tester);
   });
+
+  testWidgets('the picked book grounds the prompt and the reply is markdown',
+      (tester) async {
+    final book = Book(
+      id: 'b1',
+      title: '瓦尔登湖',
+      author: '梭罗',
+      format: BookFormat.epub,
+      sourcePath: '/books/walden.epub',
+      addedAt: DateTime(2026, 1, 1),
+    );
+    final client = InstantClient('## 小结\n\n> 冰层有二十二英寸厚。\n\n（第 2 章）');
+
+    await pumpShell(
+      tester,
+      client: client,
+      book: BookContextBuilder(
+        loadBook: (id) async => id == book.id ? book : null,
+        loadChapters: (id) async => const [
+          Chapter(
+            id: 'c0',
+            bookId: 'b1',
+            index: 0,
+            title: '经济',
+            startOffset: 0,
+            endOffset: 0,
+            contentText: '',
+          ),
+          Chapter(
+            id: 'c1',
+            bookId: 'b1',
+            index: 1,
+            title: '冬天的湖',
+            startOffset: 0,
+            endOffset: 0,
+            contentText: '',
+          ),
+        ],
+        loadChapterText: (id, index) async =>
+            index == 1 ? '冬天的湖结了二十二英寸厚的冰。' : null,
+        digests: _DigestSource(
+          const DistillDigest(
+            oneLiner: '一个人在林子里住两年。',
+            gists: {1: '湖边冬天的冰层厚度。'},
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() => BookRepository(db).upsert(book));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-book')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('chat-book')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('book-option-b1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('chat-book-chip')), findsOneWidget);
+
+    await send(tester, '冰层多厚');
+
+    final system = client.calls.single.first.content;
+    expect(system, contains('【正在读的书】'));
+    expect(system, contains('一个人在林子里住两年。'));
+    expect(system, contains('冬天的湖结了二十二英寸厚的冰。'));
+    expect(system, contains('不要编造原文'));
+
+    // Markdown, not raw markers.
+    expect(find.textContaining('小结', findRichText: true), findsOneWidget);
+    expect(find.textContaining('##', findRichText: true), findsNothing);
+    await disposeShell(tester);
+  });
+}
+
+class _DigestSource implements DistillDigestSource {
+  _DigestSource(this.digest);
+
+  final DistillDigest? digest;
+
+  @override
+  Future<DistillDigest?> load(String bookId) async => digest;
 }

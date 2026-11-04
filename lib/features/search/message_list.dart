@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/db/app_database.dart';
 import '../../search/search_hit.dart';
+import 'markdown_message.dart';
 
 /// Scrolling transcript for the 搜 shell.
 class MessageList extends StatelessWidget {
@@ -117,10 +118,7 @@ class _AssistantBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SelectableText(
-            row.content,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-          ),
+          MarkdownMessage(data: row.content),
           if (interrupted)
             Padding(
               padding: const EdgeInsets.only(top: 6),
