@@ -1,7 +1,16 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+
+import 'companion_idle_sprite.dart';
 
 /// The bundled sprite the reader shows next to the page.
 const companionSprite = 'assets/companion/chibi.png';
+
+/// `flutter test` sets this variable; the baked idle loop must stay still
+/// there, otherwise every `pumpAndSettle()` in the reader tests would wait on
+/// an animation that never ends.
+bool get _runningInTests => Platform.environment['FLUTTER_TEST'] == 'true';
 
 /// A small 2D character that sits beside the page while the reader is reading.
 ///
@@ -65,6 +74,8 @@ class _CompanionAvatarState extends State<CompanionAvatar>
         height: size.height,
         child: widget.assetPath == null
             ? _placeholder(context)
+            : widget.assetPath == companionSprite
+            ? CompanionIdleSprite(animate: !_runningInTests)
             : Image.asset(
                 widget.assetPath!,
                 fit: BoxFit.contain,

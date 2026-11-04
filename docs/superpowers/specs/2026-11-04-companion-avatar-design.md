@@ -98,3 +98,19 @@
 - 占位形象的具体画法（只要不丑到出戏）。
 - 动画曲线与时长微调。
 - 气泡文案（先写一句"读到哪儿了？"）。
+
+## Slice 2 - sprite, grounded line, doorway to the chat
+- The avatar wears the bundled Q-version sprite (assets/companion/chibi.png, 314x313 transparent, cut from the user's 474x474 card). companionSprite lives in companion_avatar.dart so the call site never names a path.
+- The bubble line comes from companionGreeterProvider: one assistant call per chapter, prompt built from book title, chapter title and the first 400 chars of the current page, answer condensed to a single sentence (<=48 chars, quotes stripped). Unconfigured or failing calls return null and the bubble falls back to '读到哪儿了？'.
+- CompanionPresence waits at most 3s for that line, then pops with whatever it has.
+- Tapping the character or the bubble hands control to onOpenChat (the existing CompanionPanel); without a handler the old toggle behaviour stays, which is what the widget tests exercise.
+
+## Slice 3 - the character actually moves now
+
+- 用户给的是 Cubism 2.1 模型（`加藤惠live2d.zip`，`.moc` + 2048 贴图 + 16 个 mtn），只有 Web 运行时能加载，而 Windows 上跑 WebView 要加原生插件——本机没开开发者模式，构建直接卡在 symlink 上。所以没有做实时运行，改成**离线烘焙**：用真 Live2D 运行时（pixi-live2d-display cubism2 + live2d.min.js）在 Edge headless 里把 `katou_01` 的 idle 动作逐帧渲染成 PNG，导成一张 spritesheet 交给 Flutter 播放。
+- 烘焙参数（脚本都在 `.superpowers/spikes/live2d/`，可重跑）：80 帧 @20fps，挑出首尾最接近的一段做循环，最终锁 **frames 8..69（62 帧）**、接缝差分 0.0645；并集 alpha bbox `(256,387,508,960)` 缩放成 **169x384/格**，8 列 × 8 行 → `assets/companion/chibi_idle.png`（1352x3072，约 1.1MB）。
+- 播放器 `CompanionIdleSprite({animate = true})`：`Ticker` 按 `fps` 取模选帧，`rootBundle.load` + `instantiateImageCodec` 解码整张，`drawImageRect` 做 contain + 底部居中；`companionIdleFrameCount/Columns/FrameSize/Fps` 四个常量跟 spritesheet 一起改。
+- `CompanionAvatar` 的换装点还是 `assetPath`：等于 `companionSprite` 时走 idle 播放器，其它路径仍是静态图，占位画师逻辑不变。
+- 测试里必须静止：`FLUTTER_TEST=true` 时 `animate: false`（`Platform.environment` 判断），否则阅读页那批 `pumpAndSettle()` 永远等不到 settle。
+- 构建环境的坑：加了插件依赖后 `flutter build windows` 要求 symlink 权限（本机非管理员、开发者模式未开）。绕法是先 `mklink /J` 把 `windows/flutter/ephemeral/.plugin_symlinks/*` 建成 junction，Flutter 认路径一致就直接复用，构建通过。
+- Tapping the character or the bubble hands control to onOpenChat (the existing CompanionPanel); without a handler the old toggle behaviour stays, which is what the widget tests exercise.
