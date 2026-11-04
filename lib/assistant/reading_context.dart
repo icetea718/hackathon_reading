@@ -18,6 +18,7 @@ class ReadingContext {
     this.chapterIndex = 0,
     this.chapterCharOffset,
     this.bookBrief = '',
+    this.companionMemory = '',
   });
 
   final String bookTitle;
@@ -38,6 +39,9 @@ class ReadingContext {
   /// Distilled whole-book preamble assembled before the request.
   final String bookBrief;
 
+  /// Digest of conversations from chapters before [chapterIndex].
+  final String companionMemory;
+
   ReadingContext copyWith({
     String? bookTitle,
     String? author,
@@ -48,6 +52,7 @@ class ReadingContext {
     int? chapterIndex,
     int? chapterCharOffset,
     String? bookBrief,
+    String? companionMemory,
   }) {
     return ReadingContext(
       bookTitle: bookTitle ?? this.bookTitle,
@@ -59,6 +64,7 @@ class ReadingContext {
       chapterIndex: chapterIndex ?? this.chapterIndex,
       chapterCharOffset: chapterCharOffset ?? this.chapterCharOffset,
       bookBrief: bookBrief ?? this.bookBrief,
+      companionMemory: companionMemory ?? this.companionMemory,
     );
   }
 }

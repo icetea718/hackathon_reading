@@ -8,6 +8,7 @@ import '../../data/repositories/annotation_repository.dart';
 import '../../data/repositories/book_repository.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/repositories/chapter_repository.dart';
+import '../../data/repositories/companion_chat_repository.dart';
 import '../../data/repositories/distill_artifact_repository.dart';
 import '../../data/repositories/distill_job_repository.dart';
 import '../../data/repositories/distill_unit_repository.dart';
@@ -56,6 +57,7 @@ class BookService {
     this.distillUnits,
     this.distillArtifacts,
     this.categories,
+    this.companionChats,
     String Function()? newId,
   }) : _newId = newId ?? const Uuid().v4;
 
@@ -68,6 +70,7 @@ class BookService {
   final DistillUnitRepository? distillUnits;
   final DistillArtifactRepository? distillArtifacts;
   final CategoryRepository? categories;
+  final CompanionChatRepository? companionChats;
   final String Function() _newId;
 
   Future<Book> importFile(String sourcePath) async {
@@ -254,6 +257,7 @@ class BookService {
     await distillArtifacts?.deleteForBook(book.id);
     await distillJobs?.deleteForBook(book.id);
     await categories?.deleteForBook(book.id);
+    await companionChats?.deleteForBook(book.id);
     await books.delete(book.id);
     await storage.deleteComicPages(book.id);
     await storage.deleteFile(book.sourcePath);

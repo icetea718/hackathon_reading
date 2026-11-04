@@ -132,4 +132,20 @@ void main() {
 
     expect(client.streamed.single, isTrue);
   });
+
+  test('chat folds the prior-chapter memory into the system prompt', () async {
+    final client = FakeLlmClient(reply: '后来家道中落。');
+    final service = OpenAiAssistantService(client: client, config: configured);
+    const withMemory = ReadingContext(
+      bookTitle: '活着',
+      chapterTitle: '第三章',
+      chapterText: '现在的正文。',
+      companionMemory: '【第一章】读者：福贵是谁？ 助手：地主家的少爷。',
+    );
+
+    await service.chat(withMemory, const [], '后来呢？').toList();
+
+    expect(client.lastMessages.first.content, contains('【此前章节的对话纪要】'));
+    expect(client.lastMessages.first.content, contains('地主家的少爷'));
+  });
 }

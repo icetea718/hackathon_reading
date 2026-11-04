@@ -7,10 +7,12 @@ import 'package:hackathon_reading/data/repositories/annotation_repository.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/category_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
+import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
 import 'package:hackathon_reading/data/repositories/progress_repository.dart';
 import 'package:hackathon_reading/data/storage/book_storage.dart';
 import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
+import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/domain/services/book_service.dart';
 
 void main() {
@@ -31,6 +33,7 @@ void main() {
       progress: ProgressRepository(db),
       annotations: AnnotationRepository(db),
       storage: BookStorage(Directory('${temp.path}/books')),
+      companionChats: CompanionChatRepository(db),
       newId: () => 'id-${nextId++}',
     );
   });
@@ -166,5 +169,27 @@ void main() {
     await service.deleteBook((await repo.getById('b1'))!);
 
     expect(await categories.watchMemberships().first, isEmpty);
+  });
+
+  test('deleting a book removes its companion conversations', () async {
+    final source = File('${temp.path}/chat.txt')
+      ..writeAsStringSync('第一章 开始\n内容');
+    final book = await service.importFile(source.path);
+    final chats = CompanionChatRepository(db);
+    final thread = await chats.createThread(
+      bookId: book.id,
+      chapterIndex: 0,
+      chapterTitle: '第一章',
+    );
+    await chats.appendMessage(
+      threadId: thread.id,
+      role: CompanionRole.user,
+      content: '福贵是谁？',
+    );
+
+    await service.deleteBook(book);
+
+    expect(await chats.threadsForBook(book.id), isEmpty);
+    expect(await chats.messagesForThread(thread.id), isEmpty);
   });
 }

@@ -91,6 +91,9 @@ class OpenAiAssistantService implements AssistantService {
     if (context.bookBrief.isNotEmpty) {
       lines.add('【全书蒸馏】\n${context.bookBrief}');
     }
+    if (context.companionMemory.isNotEmpty) {
+      lines.add('【此前章节的对话纪要】\n${context.companionMemory}');
+    }
     if (context.chapterText.isNotEmpty) {
       lines.add('【当前章节内容】\n${context.chapterText}');
     }

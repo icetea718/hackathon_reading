@@ -17,6 +17,7 @@ import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/chapter_repository.dart';
+import '../data/repositories/companion_chat_repository.dart';
 import '../data/repositories/distill_artifact_repository.dart';
 import '../data/repositories/distill_job_repository.dart';
 import '../data/repositories/distill_unit_repository.dart';
@@ -60,6 +61,11 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
 
 final annotationRepositoryProvider = Provider<AnnotationRepository>((ref) {
   return AnnotationRepository(ref.watch(appDatabaseProvider));
+});
+
+final companionChatRepositoryProvider =
+    Provider<CompanionChatRepository>((ref) {
+  return CompanionChatRepository(ref.watch(appDatabaseProvider));
 });
 
 final annotationServiceProvider = Provider<AnnotationService>((ref) {
@@ -263,6 +269,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     distillUnits: ref.watch(distillUnitRepositoryProvider),
     distillArtifacts: ref.watch(distillArtifactRepositoryProvider),
     categories: ref.watch(categoryRepositoryProvider),
+    companionChats: ref.watch(companionChatRepositoryProvider),
   );
   await service.backfillContentHashes();
   unawaited(service.backfillCovers());
