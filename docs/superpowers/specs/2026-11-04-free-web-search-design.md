@@ -69,8 +69,7 @@
 
 ### 8.2 Provider 契约
 
-- `SearchProvider` 增加 `bool get needsApiKey;`：Tavily `true`，免费源 `false`
-- `TavilySearchProvider` 只加这一行，行为不动
+`SearchProvider` 接口不改（不在接口上加 `needsApiKey`，避免波及既有 fake）。是否需要 Key 由配置层表达：`SearchConfig.requiresApiKey`。
 
 ### 8.3 免费源实现 `lib/search/free_web_search_provider.dart`
 
