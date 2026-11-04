@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme/app_theme.dart';
+import '../../assistant/reading_context.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
@@ -16,6 +17,8 @@ import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
+import '../companion/companion_chat.dart';
+import '../companion/companion_chat_controller.dart';
 import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
 import '../companion/companion_presence.dart';
@@ -150,6 +153,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _settingsRepository = ref.read(settingsRepositoryProvider);
+    _chatController = CompanionChatController(
+      loadService: () => ref.read(assistantServiceProvider.future),
+      loadPersona: () => ref.read(personaModeProvider),
+    );
     _loadReadingSettings();
   }
 
@@ -164,6 +171,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     _persistComicProgress();
     _persistReadingSettings();
     _comicController?.dispose();
+    _chatController.dispose();
     _pageTurns.dispose();
     super.dispose();
   }
@@ -1085,8 +1093,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
         final body = _decorateBody(
           contentBody,
-          greetingLoader: () => _companionGreeting(currentChapter, _pageText),
-          onOpenChat: () => unawaited(_openCompanion()),
+          companion: _CompanionWiring(
+            greetingLoader: () => _companionGreeting(currentChapter, _pageText),
+            onSpeak: () => _speakLine(currentChapter, _pageText),
+            onChatSend: (text) => _chatController.ask(
+              currentChapter.id,
+              _chatContext(currentChapter),
+              text,
+            ),
+            chatChapterId: currentChapter.id,
+            chatTitle: '陪读 · ${currentChapter.title}',
+          ),
         );
 
         return Scaffold(
@@ -1138,6 +1155,41 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   /// Greeting lines already requested, keyed by chapter id.
   final Map<String, Future<String?>> _greetings = {};
 
+  /// One thread per chapter; closing the panel must not lose the talk.
+  late final CompanionChatController _chatController;
+
+  bool _chatOpen = false;
+
+  void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
+
+  /// A fresh line for every click; unlike the greeting it is never cached.
+  Future<String?> _speakLine(Chapter chapter, String pageText) {
+    final offset =
+        (_currentProgress()?.anchor.charOffset ?? chapter.startOffset) -
+        chapter.startOffset;
+    return ref.read(companionGreeterProvider)(
+      CompanionGreetingRequest(
+        bookId: widget.bookId,
+        chapterIndex: chapter.index,
+        chapterTitle: chapter.title,
+        chapterText: chapter.contentText,
+        pageText: pageText,
+        readerOffset: offset < 0 ? 0 : offset,
+        bookTitle: _cachedData?.book?.title ?? '',
+        author: _cachedData?.book?.author ?? '',
+      ),
+    );
+  }
+
+  ReadingContext _chatContext(Chapter chapter) => ReadingContext(
+    bookTitle: _cachedData?.book?.title ?? '',
+    author: _cachedData?.book?.author ?? '',
+    chapterTitle: chapter.title,
+    chapterText: chapter.contentText,
+    bookId: widget.bookId,
+    chapterIndex: chapter.index,
+  );
+
   /// Text of the page currently on screen, used to ground the companion line.
   String _pageText = '';
 
@@ -1145,8 +1197,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     Widget contentBody, {
     bool companionEnabled = true,
     String companionTooltip = '陪读',
-    Future<String?> Function()? greetingLoader,
-    VoidCallback? onOpenChat,
+    _CompanionWiring? companion,
   }) {
     if (_railPinned) {
       return AnimatedSize(
@@ -1170,11 +1221,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             ),
             Expanded(
               child: companionEnabled
-                  ? _withAvatar(
-                      contentBody,
-                      greetingLoader: greetingLoader,
-                      onOpenChat: onOpenChat,
-                    )
+                  ? _withAvatar(contentBody, companion: companion)
                   : contentBody,
             ),
           ],
@@ -1186,11 +1233,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       fit: StackFit.expand,
       children: [
         companionEnabled
-            ? _withAvatar(
-                contentBody,
-                greetingLoader: greetingLoader,
-                onOpenChat: onOpenChat,
-              )
+            ? _withAvatar(contentBody, companion: companion)
             : contentBody,
         Positioned(
           left: 0,
@@ -1249,11 +1292,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   /// Overlays the companion character on the reading area. It is placed after
   /// the page content (and therefore above the tap zones) so tapping it never
   /// turns the page.
-  Widget _withAvatar(
-    Widget content, {
-    Future<String?> Function()? greetingLoader,
-    VoidCallback? onOpenChat,
-  }) {
+  Widget _withAvatar(Widget content, {_CompanionWiring? companion}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columnWidth = constraints.maxWidth < 720
@@ -1264,21 +1303,45 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final height = roomy
             ? (constraints.maxHeight * 0.28).clamp(120.0, 200.0).toDouble()
             : 120.0;
+        final bottom = roomy ? 24.0 : 12.0;
+        final panelWidth = constraints.maxWidth - 24 < 320
+            ? constraints.maxWidth - 24
+            : 320.0;
         return Stack(
           fit: StackFit.expand,
           children: [
             content,
             Positioned(
               right: 12,
-              bottom: roomy ? 24 : 12,
+              bottom: bottom,
               child: CompanionPresence(
                 key: const Key('companion-presence'),
                 height: height,
-                greetingLoader: greetingLoader,
-                onOpenChat: onOpenChat,
+                greetingLoader: companion?.greetingLoader,
+                onSpeak: companion?.onSpeak,
+                onOpenChat: _toggleChat,
                 pageTurns: _pageTurns,
               ),
             ),
+            if (_chatOpen)
+              Positioned(
+                right: 12,
+                bottom: bottom + height + 36,
+                width: panelWidth,
+                child: AnimatedBuilder(
+                  animation: _chatController,
+                  builder: (context, _) => CompanionChatPanel(
+                    title: companion?.chatTitle ?? '陪读',
+                    messages: _chatController.messagesFor(
+                      companion?.chatChapterId ?? '',
+                    ),
+                    streaming: _chatController.streaming,
+                    busy: _chatController.busy,
+                    onSend: companion?.onChatSend ?? (_) {},
+                    onClose: _toggleChat,
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -1651,4 +1714,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       ),
     );
   }
+}
+
+/// What the reader page hands to the companion overlay: how to fetch a line,
+/// how to route a chat message, and where that chat lives.
+class _CompanionWiring {
+  const _CompanionWiring({
+    this.greetingLoader,
+    this.onSpeak,
+    this.onChatSend,
+    this.chatChapterId,
+    this.chatTitle,
+  });
+
+  final Future<String?> Function()? greetingLoader;
+  final Future<String?> Function()? onSpeak;
+  final ValueChanged<String>? onChatSend;
+  final String? chatChapterId;
+  final String? chatTitle;
 }

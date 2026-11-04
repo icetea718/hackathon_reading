@@ -16,13 +16,12 @@ const companionChatFailureLine = '我这会儿有点卡，再问我一次？';
 /// panel keeps the conversation; switching chapters switches threads.
 class CompanionChatController extends ChangeNotifier {
   CompanionChatController({
-    required Future<AssistantService> Function() loadService,
-    required PersonaMode Function() loadPersona,
-  }) : _loadService = loadService,
-       _loadPersona = loadPersona;
+    required this.loadService,
+    required this.loadPersona,
+  });
 
-  final Future<AssistantService> Function() _loadService;
-  final PersonaMode Function() _loadPersona;
+  final Future<AssistantService> Function() loadService;
+  final PersonaMode Function() loadPersona;
 
   final Map<String, List<ChatMessage>> _sessions = {};
   String _streaming = '';
@@ -55,7 +54,7 @@ class CompanionChatController extends ChangeNotifier {
 
     var answer = '';
     try {
-      final service = await _loadService();
+      final service = await loadService();
       if (!service.isConfigured) {
         answer = companionChatFailureLine;
       } else {
@@ -63,7 +62,7 @@ class CompanionChatController extends ChangeNotifier {
           context,
           history,
           question,
-          persona: _loadPersona(),
+          persona: loadPersona(),
         )) {
           answer += chunk;
           _streaming = answer;
