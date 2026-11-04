@@ -230,8 +230,11 @@ List<({int line, PageIllustration image})> _placeIllustrations({
     if (source.width <= 0 || source.height <= 0 || source.offset < 0) continue;
     final offset = source.offset.clamp(0, text.length);
 
-    var displayWidth = columnWidth;
-    var displayHeight = columnWidth * source.height / source.width;
+    // Small images keep their natural size; big ones fit the column.
+    var displayWidth = source.width.toDouble() < columnWidth
+        ? source.width.toDouble()
+        : columnWidth;
+    var displayHeight = displayWidth * source.height / source.width;
     var gap = kIllustrationGap;
     final total = displayHeight + gap * 2;
     if (pageHeight > 0 && total > pageHeight) {
