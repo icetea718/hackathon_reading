@@ -44,7 +44,7 @@ class AppTheme {
       onSecondaryContainer: text,
     );
 
-    return ThemeData(
+    final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
@@ -82,6 +82,28 @@ class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
+    );
+
+    TextStyle? role(TextStyle? style, double size, FontWeight weight) =>
+        style?.copyWith(fontSize: size, fontWeight: weight);
+
+    final textTheme = base.textTheme.copyWith(
+      titleLarge: role(base.textTheme.titleLarge, 20, FontWeight.w600),
+      titleMedium: role(base.textTheme.titleMedium, 16, FontWeight.w600),
+      titleSmall: role(base.textTheme.titleSmall, 14, FontWeight.w600),
+      bodyLarge: role(base.textTheme.bodyLarge, 15, FontWeight.w400),
+      bodyMedium: role(base.textTheme.bodyMedium, 14, FontWeight.w400),
+      bodySmall: role(base.textTheme.bodySmall, 12, FontWeight.w400),
+    );
+
+    return base.copyWith(
+      textTheme: textTheme,
+      appBarTheme: base.appBarTheme.copyWith(
+        titleTextStyle: textTheme.titleMedium?.copyWith(color: text),
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        titleTextStyle: textTheme.titleLarge?.copyWith(color: text),
+      ),
     );
   }
 }
