@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../distill/llm/llm_config.dart';
+import '../../illustration/illustration_config.dart';
 import '../../tts/tts_client.dart';
 import '../../tts/tts_config.dart';
 
@@ -21,6 +22,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _temperature = TextEditingController();
   final _maxChunkChars = TextEditingController();
 
+  final _illBaseUrl = TextEditingController();
+  final _illApiKey = TextEditingController();
+  final _illChatModel = TextEditingController();
+  final _illImageModel = TextEditingController();
+
   final _ttsBaseUrl = TextEditingController();
   final _ttsVoice = TextEditingController();
   final _ttsSpeed = TextEditingController();
@@ -30,6 +36,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   bool _loaded = false;
   bool _testing = false;
+  bool _testingIllustration = false;
   bool _testingVoice = false;
 
   @override
@@ -45,6 +52,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _apiKey.dispose();
     _temperature.dispose();
     _maxChunkChars.dispose();
+    _illBaseUrl.dispose();
+    _illApiKey.dispose();
+    _illChatModel.dispose();
+    _illImageModel.dispose();
     _ttsBaseUrl.dispose();
     _ttsVoice.dispose();
     _ttsSpeed.dispose();
@@ -54,6 +65,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _load() async {
     final config = await ref.read(llmConfigStoreProvider).load();
+    final illustration =
+        await ref.read(illustrationConfigStoreProvider).load();
     final voice = await ref.read(ttsConfigStoreProvider).load();
     if (!mounted) return;
     setState(() {
@@ -62,6 +75,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _apiKey.text = config.apiKey;
       _temperature.text = '${config.temperature}';
       _maxChunkChars.text = '${config.maxChunkChars}';
+      _illBaseUrl.text = illustration.baseUrl;
+      _illApiKey.text = illustration.apiKey;
+      _illChatModel.text = illustration.chatModel;
+      _illImageModel.text = illustration.imageModel;
       _ttsBaseUrl.text = voice.baseUrl;
       _ttsVoice.text = voice.voice;
       _ttsSpeed.text = '${voice.speed}';
@@ -87,11 +104,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _save({bool announce = true}) async {
     await ref.read(llmConfigStoreProvider).save(_configFromForm());
     ref.invalidate(llmConfigProvider);
+    await ref
+        .read(illustrationConfigStoreProvider)
+        .save(_illustrationFromForm());
+    ref.invalidate(illustrationConfigProvider);
     await ref.read(ttsConfigStoreProvider).save(_voiceFromForm());
     ref.invalidate(ttsConfigProvider);
     if (!mounted || !announce) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('已保存')));
+  }
+
+  IllustrationConfig _illustrationFromForm() {
+    return IllustrationConfig(
+      baseUrl: _illBaseUrl.text.trim(),
+      apiKey: _illApiKey.text.trim(),
+      chatModel: _illChatModel.text.trim().isEmpty
+          ? IllustrationConfig.defaultChatModel
+          : _illChatModel.text.trim(),
+      imageModel: _illImageModel.text.trim().isEmpty
+          ? IllustrationConfig.defaultImageModel
+          : _illImageModel.text.trim(),
+    );
   }
 
   TtsConfig _voiceFromForm() {
@@ -154,6 +188,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _testIllustration() async {
+    if (_testingIllustration) return;
+    setState(() => _testingIllustration = true);
+    final effective = _illustrationFromForm().resolve(_configFromForm());
+    String message;
+    if (!effective.isConfigured) {
+      message = '请先填写插画 API Key（或沿用上面的 API Key）';
+    } else if (effective.isDeepSeek) {
+      message = 'DeepSeek 不支持绘图，请把插画接口改成火山方舟 Ark 地址';
+    } else {
+      final client = ref.read(llmClientFactoryProvider)(
+        LlmConfig(
+          baseUrl: effective.baseUrl,
+          model: effective.chatModel,
+          apiKey: effective.apiKey,
+          temperature: 0.4,
+        ),
+      );
+      try {
+        await client.completeJson(const [LlmMessage(LlmRole.user, 'ping')]);
+        message = '插画聊天接口可用（图像接口未单独测试）';
+      } catch (error) {
+        message = '插画配置连接失败：$error';
+      } finally {
+        client.dispose();
+      }
+    }
+    if (!mounted) return;
+    setState(() => _testingIllustration = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,6 +276,74 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     helperText: '2000–20000，默认 6000',
                   ),
                   keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  '插画（Seedream）',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '图像生成必须使用火山方舟 Ark；接口/Key 留空时沿用上面的 AI 服务。',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('illustration-base-url'),
+                  controller: _illBaseUrl,
+                  decoration: const InputDecoration(
+                    labelText: '插画接口地址（可选）',
+                    hintText: 'https://ark.cn-beijing.volces.com/api/v3',
+                    helperText: '留空则沿用上面的接口地址；绘图必须是 Ark',
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('illustration-api-key'),
+                  controller: _illApiKey,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '插画 API Key（可选）',
+                    helperText: '留空则复用上面的 API Key',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('illustration-chat-model'),
+                  controller: _illChatModel,
+                  decoration: const InputDecoration(
+                    labelText: '插画聊天模型',
+                    helperText: '默认 doubao-seed-2-1-pro-260915',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('illustration-image-model'),
+                  controller: _illImageModel,
+                  decoration: const InputDecoration(
+                    labelText: '图像模型',
+                    helperText: '默认 doubao-seedream-5-0-pro-260628',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    key: const Key('illustration-test'),
+                    onPressed: _testingIllustration ? null : _testIllustration,
+                    child: _testingIllustration
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('测试插画配置'),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const Divider(),

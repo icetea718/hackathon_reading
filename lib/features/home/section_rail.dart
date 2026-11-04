@@ -8,6 +8,10 @@ class SectionRail extends StatelessWidget {
     required this.activeSection,
     required this.onSelectSection,
     required this.onSettings,
+    this.onMemory,
+    this.memoryTooltip = '回忆录',
+    this.onIllustration,
+    this.illustrationTooltip = '插画',
     this.settingsTooltip = '设置',
     this.companionEnabled = true,
     this.companionTooltip = '陪读',
@@ -22,6 +26,10 @@ class SectionRail extends StatelessWidget {
   final AppSection? activeSection;
   final ValueChanged<AppSection> onSelectSection;
   final VoidCallback onSettings;
+  final VoidCallback? onMemory;
+  final String memoryTooltip;
+  final VoidCallback? onIllustration;
+  final String illustrationTooltip;
   final bool companionEnabled;
   final String companionTooltip;
   final String settingsTooltip;
@@ -115,6 +123,22 @@ class SectionRail extends StatelessWidget {
             active: activeSection == AppSection.bookshelf,
             onPressed: () => onSelectSection(AppSection.bookshelf),
           ),
+          if (onMemory != null)
+            button(
+              key: const Key('rail-memory'),
+              tooltip: memoryTooltip,
+              icon: Icons.photo_album_outlined,
+              active: activeSection == AppSection.memory,
+              onPressed: onMemory,
+            ),
+          if (onIllustration != null)
+            button(
+              key: const Key('rail-illustration'),
+              tooltip: illustrationTooltip,
+              icon: Icons.auto_awesome,
+              active: false,
+              onPressed: onIllustration,
+            ),
           button(
             key: const Key('rail-companion'),
             tooltip: companionTooltip,

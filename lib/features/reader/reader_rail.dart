@@ -11,6 +11,7 @@ class ReaderRail extends StatelessWidget {
     required this.onBackToLibrary,
     required this.onOpenCompanion,
     required this.onOpenSettings,
+    this.onOpenIllustration,
     required this.background,
     required this.foreground,
     required this.accent,
@@ -24,6 +25,7 @@ class ReaderRail extends StatelessWidget {
   final VoidCallback onBackToLibrary;
   final VoidCallback onOpenCompanion;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onOpenIllustration;
   final Color background;
   final Color foreground;
   final Color accent;
@@ -39,11 +41,15 @@ class ReaderRail extends StatelessWidget {
         switch (section) {
           case AppSection.bookshelf:
             onBackToLibrary();
+          case AppSection.memory:
+            break;
           case AppSection.companion:
             onOpenCompanion();
         }
       },
       onSettings: onOpenSettings,
+      onIllustration: onOpenIllustration,
+      illustrationTooltip: '插画',
       settingsTooltip: '应用设置',
       companionEnabled: companionEnabled,
       companionTooltip: companionTooltip,

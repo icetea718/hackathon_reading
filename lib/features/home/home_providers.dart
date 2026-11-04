@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum AppSection { bookshelf, companion }
+enum AppSection { bookshelf, memory, companion }
 
 class SelectedSection extends Notifier<AppSection> {
   @override
