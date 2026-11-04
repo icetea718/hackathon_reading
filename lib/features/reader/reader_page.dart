@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme/app_theme.dart';
+import '../../tts/tts_config.dart';
 import '../../assistant/assistant_service.dart';
 import '../../assistant/reading_context.dart';
 import '../../assistant/translation_exception.dart';
@@ -2209,6 +2210,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             translationBusy:
                 _translationBusy &&
                 _translationChapterId == currentChapter.id,
+            ttsMuted: ref.watch(ttsConfigProvider).value?.enabled == false,
+            onToggleTtsMuted: _toggleTtsMuted,
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
             onOpenCompanion: _toggleCompanion,
             onOpenReaderSettings: _openSettings,
@@ -2239,6 +2242,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   bool _chatOpen = false;
 
   void _toggleChat() => setState(() => _chatOpen = !_chatOpen);
+
+  /// Flips the same switch the settings page owns; muting also cuts off the
+  /// line that is playing right now.
+  Future<void> _toggleTtsMuted() async {
+    final store = ref.read(ttsConfigStoreProvider);
+    final current = await store.load();
+    final enable = !current.enabled;
+    await store.save(current.copyWith(enabled: enable));
+    if (!mounted) return;
+    ref.invalidate(ttsConfigProvider);
+    if (!enable) unawaited(ref.read(ttsServiceProvider).stop());
+  }
 
   /// Reads a bubble line out loud in the configured voice.
   ///
@@ -2541,6 +2556,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onToggleSpread: _toggleSpread,
             doubleSpread: _comicDouble,
             comicMode: true,
+            ttsMuted: ref.watch(ttsConfigProvider).value?.enabled == false,
+            onToggleTtsMuted: _toggleTtsMuted,
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
           ),
           endDrawer: ComicTocDrawer(

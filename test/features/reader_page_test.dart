@@ -33,6 +33,8 @@ import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
 import 'package:hackathon_reading/features/reader/reader_spread.dart';
+import 'package:hackathon_reading/tts/audio_output.dart';
+import 'package:hackathon_reading/tts/tts_config.dart';
 
 const _jobEffective = IllustrationEffective(
   baseUrl: 'https://api.example.com/v1',
@@ -2623,5 +2625,37 @@ void main() {
       expect(find.byType(CompanionClipStage), findsOneWidget);
       await disposeApp(tester);
     });
+  });
+
+  testWidgets('the top bar mutes and unmutes the companion voice',
+      (tester) async {
+    await pumpReader(
+      tester,
+      'b1',
+      overrides: [audioOutputProvider.overrideWithValue(NoopAudioOutput())],
+    );
+
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    await tester.tap(find.byKey(const Key('reader-tts-mute')));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.volume_off), findsOneWidget);
+    final muted = await TtsConfigStore(SettingsRepository(db)).load();
+    expect(muted.enabled, isFalse);
+
+    await tester.tap(find.byKey(const Key('reader-tts-mute')));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    final unmuted = await TtsConfigStore(SettingsRepository(db)).load();
+    expect(unmuted.enabled, isTrue);
+
+    await disposeApp(tester);
   });
 }
