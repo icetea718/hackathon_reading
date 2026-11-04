@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/domain/models/book_illustration.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
 
@@ -166,5 +167,136 @@ void main() {
     for (var i = 1; i < pagination.pages.length; i++) {
       expect(pagination.pages[i].start, pagination.pages[i - 1].end);
     }
+  });
+
+  BookIllustration imageFor(int offset, {int width = 320, int height = 160}) =>
+      BookIllustration(
+        path: '/tmp/pic.png',
+        chapterIndex: 0,
+        offset: offset,
+        width: width,
+        height: height,
+      );
+
+  ChapterPagination paginateWith(
+    String text,
+    List<BookIllustration> images, {
+    double width = 320,
+    double height = 240,
+  }) =>
+      paginateChapter(
+        text: text,
+        title: '第一章',
+        level: 1,
+        baseStyle: _style,
+        width: width,
+        height: height,
+        illustrations: images,
+      );
+
+  test('places an illustration at the line start that contains it', () {
+    final text = _longText(paragraphs: 20);
+    final paragraph = text.indexOf('第5段');
+    final pagination = paginateWith(text, [imageFor(paragraph + 3)]);
+
+    final pagesWithImages =
+        pagination.pages.where((page) => page.images.isNotEmpty).toList();
+    expect(pagesWithImages, hasLength(1));
+    expect(pagesWithImages.single.images.single.offset, paragraph);
+    expect(pagesWithImages.single.images.single.width, 320);
+    expect(pagesWithImages.single.images.single.height, 160);
+  });
+
+  test('moves a whole illustration to the next page when it does not fit',
+      () {
+    final text = _longText(paragraphs: 20);
+    final plain = _paginate(text);
+    final offset = List.generate(20, (i) => text.indexOf('第$i段'))
+        .lastWhere((o) => plain.pageIndexForOffset(o) == 0);
+
+    final withImage = paginateWith(text, [imageFor(offset, height: 200)]);
+    final page = withImage.pages.firstWhere((p) => p.images.isNotEmpty);
+
+    expect(page.start, offset);
+    expect(withImage.pageCount, greaterThan(plain.pageCount));
+  });
+
+  test('scales a tall illustration into the page', () {
+    final pagination = paginateWith(
+      _longText(paragraphs: 3),
+      [imageFor(0, width: 100, height: 1000)],
+    );
+    final image = pagination.pages.first.images.single;
+    expect(image.height + image.gap * 2, lessThanOrEqualTo(240 + 0.5));
+    expect(image.width, lessThan(320));
+  });
+
+  test('allows an image-only page and maps its offset to it', () {
+    final text = _longText(paragraphs: 20);
+    final plain = _paginate(text);
+    final offset = List.generate(20, (i) => text.indexOf('第$i段'))
+        .lastWhere((o) => plain.pageIndexForOffset(o) == 0);
+    final pagination = paginateWith(
+      text,
+      [imageFor(offset, width: 320, height: 2000)],
+    );
+
+    final imageOnly = pagination.pages.where(
+      (page) => page.start == page.end && page.images.isNotEmpty,
+    );
+    expect(imageOnly, isNotEmpty);
+    expect(pagination.pages[pagination.pageIndexForOffset(offset)].images,
+        isNotEmpty);
+  });
+
+  test('splits a page into text fragments around illustrations', () {
+    final page = PageSlice(
+      start: 10,
+      end: 40,
+      images: [
+        for (final offset in [20, 20, 40])
+          PageIllustration(
+            path: 'x',
+            offset: offset,
+            width: 100,
+            height: 50,
+            gap: 8,
+          ),
+      ],
+    );
+    expect(
+      pageTextFragments(page).map((f) => (f.start, f.end)),
+      [(10, 20), (20, 40)],
+    );
+    expect(pageTextFragments(const PageSlice(start: 7, end: 7)), isEmpty);
+  });
+
+  test('countBookPages loads illustrations per chapter', () async {
+    final image = imageFor(0);
+    final counts = await countBookPages(
+      chapters: [
+        Chapter(
+          id: 'c0',
+          bookId: 'b',
+          index: 0,
+          title: '第一章',
+          startOffset: 0,
+          endOffset: 100,
+          contentText: '',
+        ),
+      ],
+      layout: const PageLayout(
+        baseStyle: TextStyle(fontSize: 16, height: 1.8),
+        width: 320,
+        height: 240,
+        textScaler: TextScaler.noScaling,
+      ),
+      loadChapter: (index) async => _longText(paragraphs: 20),
+      loadIllustrations: (index) async => index == 0 ? [image] : const [],
+    );
+    expect(
+      counts.single,
+      paginateWith(_longText(paragraphs: 20), [image]).pageCount,
+    );
   });
 }
