@@ -867,7 +867,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(readerDataProvider(widget.bookId));
-    return data.when(
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: data.when(
       loading: () => _scaffold(
         title: '阅读',
         body: const Center(child: CircularProgressIndicator()),
@@ -1025,6 +1027,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                                   ),
                                   child: SelectableText.rich(
                                     TextSpan(children: spans),
+                                    scrollPhysics:
+                                        const NeverScrollableScrollPhysics(),
                                     contextMenuBuilder: (context, state) =>
                                         _selectionToolbar(
                                           state,
@@ -1116,6 +1120,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           bottomNavigationBar: _navigationBar(index, chapters),
         );
       },
+      ),
     );
   }
 

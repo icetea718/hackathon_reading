@@ -347,6 +347,19 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('locks the reading surface and hides desktop scrollbars', (
+    tester,
+  ) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+
+    expect(find.byType(RawScrollbar), findsNothing);
+    final body = tester.widget<SelectableText>(find.byType(SelectableText));
+    expect(body.scrollPhysics, isA<NeverScrollableScrollPhysics>());
+
+    await disposeApp(tester);
+  });
+
   testWidgets('keyboard paging during a chapter load does not skip chapters', (
     tester,
   ) async {
