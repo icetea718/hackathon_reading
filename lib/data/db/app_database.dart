@@ -17,6 +17,7 @@ part 'app_database.g.dart';
     DistillArtifacts,
     Categories,
     BookCategories,
+    TranslationCaches,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -25,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +66,9 @@ class AppDatabase extends _$AppDatabase {
             if (!hasLevel) {
               await m.addColumn(chapters, chapters.level);
             }
+          }
+          if (from < 9) {
+            await m.createTable(translationCaches);
           }
         },
       );

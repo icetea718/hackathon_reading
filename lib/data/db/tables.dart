@@ -149,3 +149,18 @@ class DistillArtifacts extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// Remembers translations so the same passage is never translated twice.
+///
+/// The key is the hash of the source text plus the target language, so an
+/// identical paragraph is reused no matter where it was selected from.
+@DataClassName('TranslationCacheRow')
+class TranslationCaches extends Table {
+  TextColumn get sourceHash => text()();
+  TextColumn get targetLang => text()();
+  TextColumn get translatedText => text()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {sourceHash, targetLang};
+}

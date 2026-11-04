@@ -116,15 +116,19 @@ class MyMemoryTranslator implements AssistantService {
     final segments = _segmenter.split(text);
     for (var index = 0; index < segments.length; index++) {
       final segment = segments[index];
+      // Segments are deltas of the final text, so paragraphs are separated
+      // here rather than in the UI (an LLM stream must not be re-chunked).
+      final prefix = index == 0 ? '' : '\n';
       if (isPredominantlyChinese(segment)) {
-        yield segment;
+        yield '$prefix$segment';
         continue;
       }
       if (index > 0) await Future<void>.delayed(requestInterval);
-      yield await _backend.translate(
+      final translated = await _backend.translate(
         segment,
         langPair: 'autodetect|$targetLang',
       );
+      yield '$prefix$translated';
     }
   }
 

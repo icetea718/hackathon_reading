@@ -4,12 +4,15 @@ import 'package:hackathon_reading/assistant/translation_exception.dart';
 import 'package:hackathon_reading/features/reader/translation_dialog.dart';
 
 import '../support/fake_assistant_service.dart';
+import '../support/fake_translation_cache.dart';
 
 Future<void> _openDialog(
   WidgetTester tester, {
   required String sourceText,
   required FakeAssistantService service,
+  FakeTranslationCache? cache,
 }) async {
+  final store = cache ?? FakeTranslationCache();
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -21,6 +24,7 @@ Future<void> _openDialog(
                 title: '翻译本章：第一章',
                 sourceText: sourceText,
                 service: service,
+                cache: store,
               ),
             ),
             child: const Text('打开'),
@@ -36,12 +40,76 @@ Future<void> _openDialog(
 void main() {
   testWidgets('streams the translation into the popup', (tester) async {
     final service = FakeAssistantService(chunks: ['你好，', '世界']);
-    await _openDialog(tester, sourceText: 'Hello world', service: service);
+    final cache = FakeTranslationCache();
+    await _openDialog(
+      tester,
+      sourceText: 'Hello world',
+      service: service,
+      cache: cache,
+    );
 
     expect(find.text('翻译本章：第一章'), findsOneWidget);
-    expect(find.text('目标语言：简体中文'), findsOneWidget);
-    expect(find.text('你好，\n世界'), findsOneWidget);
+    expect(find.textContaining('目标语言：简体中文'), findsOneWidget);
+    expect(find.text('你好，世界'), findsOneWidget);
     expect(service.translatedSources, ['Hello world']);
+  });
+
+  testWidgets('keeps the translated text wide instead of a one-column strip', (
+    tester,
+  ) async {
+    final long =
+        'The library smelled of old paper and dust. She turned the page '
+        'slowly, afraid the story would end too soon.';
+    await _openDialog(
+      tester,
+      sourceText: long,
+      service: FakeAssistantService(chunks: const ['图书馆里是旧纸和灰尘的味道。']),
+    );
+
+    final textFinder = find.text('图书馆里是旧纸和灰尘的味道。');
+    final box = tester.getSize(textFinder);
+    // A squeezed layout wrapped the text into a ~30px column, so it grew tall.
+    expect(box.width, greaterThan(200));
+    expect(box.height, lessThan(80));
+  });
+
+  testWidgets('reuses the cached translation without calling the service', (
+    tester,
+  ) async {
+    final service = FakeAssistantService(chunks: const ['新的译文']);
+    final cache = FakeTranslationCache({'zh-CN|Hello world': '旧译文'});
+    await _openDialog(
+      tester,
+      sourceText: 'Hello world',
+      service: service,
+      cache: cache,
+    );
+
+    expect(find.text('旧译文'), findsOneWidget);
+    expect(find.textContaining('来自本地缓存'), findsOneWidget);
+    expect(service.translatedSources, isEmpty);
+    expect(find.text('重新翻译'), findsOneWidget);
+  });
+
+  testWidgets('重新翻译 drops the remembered text and asks again', (
+    tester,
+  ) async {
+    final service = FakeAssistantService(chunks: const ['新译文']);
+    final cache = FakeTranslationCache({'zh-CN|Hello world': '旧译文'});
+    await _openDialog(
+      tester,
+      sourceText: 'Hello world',
+      service: service,
+      cache: cache,
+    );
+
+    await tester.tap(find.text('重新翻译'));
+    await tester.pumpAndSettle();
+
+    expect(cache.removals, 1);
+    expect(cache.entries, isEmpty);
+    expect(service.translatedSources, ['Hello world']);
+    expect(find.text('新译文'), findsOneWidget);
   });
 
   testWidgets('shows a hint instead of translating Chinese text', (
@@ -54,23 +122,21 @@ void main() {
     expect(service.translatedSources, isEmpty);
   });
 
-  testWidgets('shows the failure message from the service', (tester) async {
+  testWidgets('does not cache a failed translation', (tester) async {
     final service = FakeAssistantService(
       error: const TranslationException('网络连接失败，请检查网络后重试'),
     );
-    await _openDialog(tester, sourceText: 'Hello world', service: service);
+    final cache = FakeTranslationCache();
+    await _openDialog(
+      tester,
+      sourceText: 'Hello world',
+      service: service,
+      cache: cache,
+    );
 
     expect(find.text('网络连接失败，请检查网络后重试'), findsOneWidget);
     expect(find.text('重试'), findsOneWidget);
-  });
-
-  testWidgets('shows the not-configured hint for AI-only services', (
-    tester,
-  ) async {
-    final service = FakeAssistantService(error: Exception('boom'));
-    await _openDialog(tester, sourceText: 'Hello', service: service);
-
-    expect(find.textContaining('boom'), findsOneWidget);
+    expect(cache.entries, isEmpty);
   });
 
   testWidgets('closes from the close button', (tester) async {

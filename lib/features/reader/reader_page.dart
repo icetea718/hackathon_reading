@@ -1061,6 +1061,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         title: title,
         sourceText: sourceText,
         service: ref.read(translationServiceProvider),
+        cache: ref.read(translationCacheProvider),
       ),
     );
   }
