@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
 
 const _style = TextStyle(fontSize: 16, height: 1.8);
@@ -86,6 +87,38 @@ void main() {
     expect(pagination.pageIndexForOffset(pagination.pages[1].start), 1);
     expect(pagination.pageIndexForOffset(pagination.pages[0].end - 1), 0);
     expect(pagination.pageAt(999).end, pagination.pages.last.end);
+  });
+
+  test('counts pages for every chapter and reports progress', () async {
+    final chapters = [
+      for (var i = 0; i < 3; i++)
+        Chapter(
+          id: 'c$i',
+          bookId: 'b1',
+          index: i,
+          title: '第${i + 1}章',
+          startOffset: i * 1000,
+          endOffset: (i + 1) * 1000,
+          contentText: '',
+        ),
+    ];
+    final progress = <int>[];
+    final counts = await countBookPages(
+      chapters: chapters,
+      layout: const PageLayout(
+        baseStyle: TextStyle(fontSize: 16, height: 1.8),
+        width: 320,
+        height: 240,
+        textScaler: TextScaler.noScaling,
+      ),
+      loadChapter: (index) async => _longText(paragraphs: 20 + index * 20),
+      chunkSize: 1,
+      onProgress: (value) => progress.add(value.length),
+    );
+
+    expect(counts, hasLength(3));
+    expect(counts.every((count) => count >= 1), isTrue);
+    expect(progress, [1, 2, 3]);
   });
 
   test('gives a line taller than the page its own page', () {

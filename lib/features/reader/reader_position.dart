@@ -45,6 +45,28 @@ int absoluteOffsetForPageSelection(
   return chapter.startOffset + page.start + localOffset;
 }
 
+int bookPageAt({
+  required List<int> chapterPageCounts,
+  required int chapterIndex,
+  required int pageIndex,
+}) {
+  var cumulative = 0;
+  for (var i = 0; i < chapterIndex && i < chapterPageCounts.length; i++) {
+    cumulative += chapterPageCounts[i];
+  }
+  return cumulative + pageIndex + 1;
+}
+
+String readingFooterText({
+  required int pageIndex,
+  required int? chapterPageCount,
+  int? bookPageIndex,
+  int? bookPageTotal,
+}) {
+  return '第 ${pageIndex + 1} / ${chapterPageCount ?? '…'} 页 · '
+      '全书 ${bookPageIndex ?? '…'} / ${bookPageTotal ?? '…'} 页';
+}
+
 int offsetForPosition(Chapter chapter, double fraction) {
   final clamped = fraction.clamp(0.0, 1.0);
   final length = chapter.endOffset - chapter.startOffset;

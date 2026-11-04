@@ -94,6 +94,26 @@ void main() {
     expect(bottom.chapterIndex, 0);
   });
 
+  test('formats the chapter and whole-book footer, with placeholders', () {
+    expect(
+      readingFooterText(pageIndex: 2, chapterPageCount: 12),
+      '第 3 / 12 页 · 全书 … / … 页',
+    );
+    expect(
+      readingFooterText(
+        pageIndex: 2,
+        chapterPageCount: 12,
+        bookPageIndex: 56,
+        bookPageTotal: 320,
+      ),
+      '第 3 / 12 页 · 全书 56 / 320 页',
+    );
+    expect(
+      bookPageAt(chapterPageCounts: [5, 7, 3], chapterIndex: 2, pageIndex: 1),
+      14,
+    );
+  });
+
   test('offsetForPosition never exceeds chapter end', () {
     final chapter = _chapter(0, 10, '0123456789');
     expect(offsetForPosition(chapter, 1.0), chapter.startOffset + 10);

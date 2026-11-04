@@ -288,6 +288,13 @@ void main() {
   String footerText(WidgetTester tester) =>
       tester.widget<Text>(find.textContaining(RegExp(r'^第 \d+ / '))).data!;
 
+  Future<void> settleBookCount(WidgetTester tester) async {
+    for (var i = 0; i < 8; i++) {
+      await settleAfterIo(tester);
+      if (!footerText(tester).contains('…')) return;
+    }
+  }
+
   Future<void> tapNextZone(WidgetTester tester) async {
     await tester.tap(find.byKey(const Key('reader-next-zone')));
     await tester.pumpAndSettle();
@@ -1116,6 +1123,63 @@ void main() {
 
     expect(find.textContaining('第40段'), findsOneWidget);
     expect(footerText(tester), isNot(startsWith('第 1 /')));
+    await disposeApp(tester);
+  });
+
+  testWidgets('fills in the whole-book total and cumulative page', (
+    tester,
+  ) async {
+    await pumpReader(tester, 'b1');
+    await settleBookCount(tester);
+
+    expect(
+      footerText(tester),
+      matches(RegExp(r'^第 1 / 1 页 · 全书 2 / 3 页$')),
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('advances the whole-book page across a chapter boundary', (
+    tester,
+  ) async {
+    await seedTwoChapterBook();
+    await pumpReader(tester, 'jb');
+    await settleBookCount(tester);
+
+    final firstCount = int.parse(
+      RegExp(r'^第 \d+ / (\d+) 页').firstMatch(footerText(tester))!.group(1)!,
+    );
+    for (var i = 1; i < firstCount; i++) {
+      await tapNextZone(tester);
+    }
+    expect(footerText(tester), contains('全书 $firstCount / '));
+
+    await tapNextZone(tester);
+    expect(footerText(tester), startsWith('第 1 /'));
+    expect(footerText(tester), contains('全书 ${firstCount + 1} / '));
+    await disposeApp(tester);
+  });
+
+  testWidgets('recounts after a font change without stale totals', (
+    tester,
+  ) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+    await settleBookCount(tester);
+    final before = int.parse(
+      RegExp(r'全书 \d+ / (\d+) 页$').firstMatch(footerText(tester))!.group(1)!,
+    );
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+    await settleBookCount(tester);
+
+    final after = int.parse(
+      RegExp(r'全书 \d+ / (\d+) 页$').firstMatch(footerText(tester))!.group(1)!,
+    );
+    expect(after, greaterThan(before));
     await disposeApp(tester);
   });
 

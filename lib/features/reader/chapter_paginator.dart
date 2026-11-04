@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/models/chapter.dart';
+
 /// A half-open character range `[start, end)` covering one page.
 class PageSlice {
   const PageSlice({required this.start, required this.end});
@@ -109,6 +111,56 @@ ChapterPagination paginateChapter({
   }
   pages.add(PageSlice(start: start, end: text.length));
   return ChapterPagination(pages: pages, headingText: headingText);
+}
+
+/// The typography and viewport used to paginate every chapter of a book.
+class PageLayout {
+  const PageLayout({
+    required this.baseStyle,
+    required this.width,
+    required this.height,
+    required this.textScaler,
+  });
+
+  final TextStyle baseStyle;
+  final double width;
+  final double height;
+  final TextScaler textScaler;
+}
+
+Future<List<int>> countBookPages({
+  required List<Chapter> chapters,
+  required PageLayout layout,
+  required Future<String> Function(int index) loadChapter,
+  int chunkSize = 4,
+  void Function(List<int> counts)? onProgress,
+}) async {
+  final counts = <int>[];
+  for (var i = 0; i < chapters.length; i++) {
+    final text = await loadChapter(i);
+    final chapter = chapters[i];
+    counts.add(
+      paginateChapter(
+        text: text,
+        title: chapter.title,
+        level: chapter.level,
+        baseStyle: layout.baseStyle,
+        width: layout.width,
+        height: layout.height,
+        textScaler: layout.textScaler,
+      ).pageCount,
+    );
+    if ((i + 1) % chunkSize == 0) {
+      onProgress?.call(List.unmodifiable(counts));
+      if (i + 1 < chapters.length) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+  }
+  if (chapters.isNotEmpty && chapters.length % chunkSize != 0) {
+    onProgress?.call(List.unmodifiable(counts));
+  }
+  return counts;
 }
 
 TextStyle headingTextStyle(TextStyle base, int level) {

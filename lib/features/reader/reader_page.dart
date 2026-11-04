@@ -115,6 +115,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ChapterPagination? _pagination;
   String? _paginationKey;
   String? _paginationChapterId;
+  List<int>? _bookPageCounts;
+  String? _bookPageCountsSignature;
+  String? _bookPageSignature;
+  final Map<String, List<int>> _bookPageCache = {};
+  int _bookCountToken = 0;
   double _fontSize = 18;
   double _lineHeight = 1.8;
   ReaderBackground _background = ReaderBackground.light;
@@ -283,6 +288,53 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final index = _chapterIndex.clamp(0, chapters.length - 1);
     if (_paginationChapterId != chapters[index].id) return null;
     return _pagination;
+  }
+
+  void _startBookPageCount(
+    PageLayout layout,
+    List<Chapter> chapters,
+    String signature,
+  ) {
+    final cached = _bookPageCache[signature];
+    final token = ++_bookCountToken;
+    if (cached != null) {
+      setState(() {
+        _bookPageCounts = cached;
+        _bookPageCountsSignature = signature;
+      });
+      return;
+    }
+    setState(() {
+      _bookPageCounts = null;
+      _bookPageCountsSignature = null;
+    });
+    final repository = ref.read(chapterRepositoryProvider);
+    countBookPages(
+      chapters: chapters,
+      layout: layout,
+      loadChapter: (index) =>
+          repository.getContent(widget.bookId, index).then((text) => text ?? ''),
+      onProgress: (counts) {
+        if (!mounted ||
+            token != _bookCountToken ||
+            _bookPageSignature != signature) {
+          return;
+        }
+        setState(() {
+          _bookPageCounts = counts;
+          _bookPageCountsSignature = signature;
+        });
+      },
+    ).then((counts) {
+      _bookPageCache[signature] = counts;
+      if (!mounted || token != _bookCountToken || _bookPageSignature != signature) {
+        return;
+      }
+      setState(() {
+        _bookPageCounts = counts;
+        _bookPageCountsSignature = signature;
+      });
+    });
   }
 
   void _scheduleRestore(ReaderData data) {
@@ -910,6 +962,24 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   _paginationKey = key;
                   _paginationChapterId = currentChapter.id;
                 }
+                final bookSignature =
+                    '$_fontSize|$_lineHeight|'
+                    '${textScaler.scale(1).toStringAsFixed(3)}|'
+                    '${textWidth.round()}|${textHeight.round()}|'
+                    '${chapters.length}';
+                if (bookSignature != _bookPageSignature) {
+                  _bookPageSignature = bookSignature;
+                  final layout = PageLayout(
+                    baseStyle: baseStyle,
+                    width: textWidth,
+                    height: textHeight,
+                    textScaler: textScaler,
+                  );
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted || _bookPageSignature != bookSignature) return;
+                    _startBookPageCount(layout, chapters, bookSignature);
+                  });
+                }
                 final pending = _pendingOffset;
                 var pageIndex = pending != null
                     ? pagination.pageIndexForOffset(
@@ -1419,18 +1489,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
 
   Widget _navigationBar(int index, List<Chapter> chapters) {
     final (background, foreground) = _colors;
-    final percent = (_currentProgress()?.percent ?? 0)
-        .clamp(0.0, 1.0)
-        .toDouble();
     final pagination = _paginationChapterId == chapters[index].id
         ? _pagination
         : null;
     final pageCount = pagination?.pageCount ?? 1;
-    final pageNumber = _pageIndex.clamp(0, pageCount - 1) + 1;
+    final pageNumber = _pageIndex.clamp(0, pageCount - 1);
+    final counts =
+        _bookPageCountsSignature != null &&
+            _bookPageCountsSignature == _bookPageSignature &&
+            _bookPageCounts != null &&
+            _bookPageCounts!.length == chapters.length
+        ? _bookPageCounts
+        : null;
+    int? bookPageIndex;
+    int? bookPageTotal;
+    if (pagination != null && counts != null) {
+      bookPageTotal = counts.fold<int>(0, (sum, count) => sum + count);
+      bookPageIndex = bookPageAt(
+        chapterPageCounts: counts,
+        chapterIndex: index,
+        pageIndex: pageNumber,
+      );
+    }
+    final percent =
+        (bookPageIndex != null && bookPageTotal != null && bookPageTotal > 0
+                ? bookPageIndex / bookPageTotal
+                : _currentProgress()?.percent ?? 0)
+            .clamp(0.0, 1.0)
+            .toDouble();
     final atBookStart = index == 0 && _pageIndex <= 0;
     final atBookEnd =
         index == chapters.length - 1 && _pageIndex >= pageCount - 1;
-    final pageCountLabel = pagination?.pageCount.toString() ?? '…';
     return Container(
       color: background,
       child: SafeArea(
@@ -1456,7 +1545,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   ),
                   Expanded(
                     child: Text(
-                      '第 $pageNumber / $pageCountLabel 页 · 全书 … / … 页',
+                      readingFooterText(
+                        pageIndex: pageNumber,
+                        chapterPageCount: pagination?.pageCount,
+                        bookPageIndex: bookPageIndex,
+                        bookPageTotal: bookPageTotal,
+                      ),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: foreground),
                     ),
