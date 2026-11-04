@@ -14,6 +14,8 @@ import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
+import 'package:hackathon_reading/features/memory_book/memory_book_providers.dart';
+import 'package:hackathon_reading/memory_book/memory_book_models.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
 import 'package:hackathon_reading/tts/tts_service.dart';
 
@@ -139,6 +141,7 @@ Widget _host(
   int? pageStartOffset,
   int? pageEndOffset,
   String currentPageText = '',
+  Stream<List<MemoryBook>>? memoryBooks,
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
@@ -164,6 +167,7 @@ Widget _host(
     pageStartOffset: pageStartOffset,
     pageEndOffset: pageEndOffset,
     currentPageText: currentPageText,
+    memoryBooks: memoryBooks,
   );
 }
 
@@ -182,6 +186,7 @@ Widget _wrap(
   int? pageStartOffset,
   int? pageEndOffset,
   String currentPageText = '',
+  Stream<List<MemoryBook>>? memoryBooks,
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
   if (db == null) addTearDown(database.close);
@@ -193,6 +198,8 @@ Widget _wrap(
       appDatabaseProvider.overrideWithValue(database),
       ttsConfigProvider.overrideWith((ref) async => _ttsConfig),
       ttsServiceProvider.overrideWithValue(tts),
+      if (memoryBooks != null)
+        memoryBookListProvider.overrideWith((ref) => memoryBooks),
     ],
     child: MaterialApp(
       home: Scaffold(
@@ -904,5 +911,37 @@ void main() {
     expect(find.text('旧问题'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('去设置'), findsOneWidget);
+  });
+
+  testWidgets('the header opens the memory book sheet', (tester) async {
+    await tester.pumpWidget(
+      _host(_FakeAssistant(), memoryBooks: Stream.value(const [])),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-memory')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('companion-memory-sheet')), findsOneWidget);
+    expect(find.text('把这一页画成插画'), findsOneWidget);
+  });
+
+  testWidgets('the memory sheet prefers the page text over the chapter',
+      (tester) async {
+    await tester.pumpWidget(
+      _host(
+        _FakeAssistant(),
+        currentPageText: '这一页的正文。',
+        memoryBooks: Stream.value(const []),
+      ),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-memory')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-memory-generate')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('这一页的正文。'), findsOneWidget);
   });
 }

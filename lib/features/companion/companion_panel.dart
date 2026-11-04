@@ -13,6 +13,7 @@ import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
 import 'companion_history.dart';
+import 'companion_memory_sheet.dart';
 
 enum _CompanionView { chat, history }
 
@@ -645,6 +646,12 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               icon: const Icon(Icons.stop_circle_outlined),
               onPressed: _hush,
             ),
+          IconButton(
+            key: const Key('companion-memory'),
+            tooltip: '回忆录',
+            icon: const Icon(Icons.auto_stories_outlined),
+            onPressed: _openMemorySheet,
+          ),
           TextButton(
             onPressed: configured && !_busy && _readOnlyThread == null
                 ? _summarize
@@ -887,6 +894,23 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   void _openSettings() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+    );
+  }
+
+  void _openMemorySheet() {
+    final page = widget.currentPageText.trim();
+    final text = page.isEmpty ? widget.chapterText : page;
+    final label = [widget.bookTitle, widget.chapterTitle]
+        .where((part) => part.trim().isNotEmpty)
+        .join(' · ');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => CompanionMemorySheet(
+        initialText: text,
+        contextLabel: label,
+      ),
     );
   }
 }
