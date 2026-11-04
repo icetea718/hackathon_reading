@@ -17,6 +17,7 @@ import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_panel.dart';
+import '../companion/companion_presence.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
@@ -1144,7 +1145,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               companionEnabled: companionEnabled,
               companionTooltip: companionTooltip,
             ),
-            Expanded(child: contentBody),
+            Expanded(
+              child: companionEnabled ? _withAvatar(contentBody) : contentBody,
+            ),
           ],
         ),
       );
@@ -1153,7 +1156,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return Stack(
       fit: StackFit.expand,
       children: [
-        contentBody,
+        companionEnabled ? _withAvatar(contentBody) : contentBody,
         Positioned(
           left: 0,
           top: 0,
@@ -1205,6 +1208,38 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             ),
           ),
       ],
+    );
+  }
+
+  /// Overlays the companion character on the reading area. It is placed after
+  /// the page content (and therefore above the tap zones) so tapping it never
+  /// turns the page.
+  Widget _withAvatar(Widget content) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = constraints.maxWidth < 720
+            ? constraints.maxWidth
+            : 720.0;
+        final margin = (constraints.maxWidth - columnWidth) / 2;
+        final roomy = margin >= 168;
+        final height = roomy
+            ? (constraints.maxHeight * 0.28).clamp(120.0, 200.0).toDouble()
+            : 120.0;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            content,
+            Positioned(
+              right: 12,
+              bottom: roomy ? 24 : 12,
+              child: CompanionPresence(
+                key: const Key('companion-presence'),
+                height: height,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

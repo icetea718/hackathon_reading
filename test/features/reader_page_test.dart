@@ -1531,4 +1531,55 @@ void main() {
       await disposeApp(tester);
     });
   });
+
+  group('companion avatar', () {
+    testWidgets('hugs the right margin when the window is wide', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await pumpReader(tester, 'b1');
+
+      final page = tester.getRect(find.byKey(const Key('reader-page')));
+      final avatar = tester.getRect(find.byKey(const Key('companion-avatar')));
+      final columnRight = page.center.dx + 360; // 720-wide column, centred
+      expect(avatar.left, greaterThanOrEqualTo(columnRight));
+      expect(avatar.right, lessThanOrEqualTo(page.right));
+      expect(avatar.bottom, lessThanOrEqualTo(page.bottom));
+      expect(avatar.width / avatar.height, closeTo(0.75, 0.01));
+      await disposeApp(tester);
+    });
+
+    testWidgets('stays on screen and shrinks in a narrow window', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await pumpReader(tester, 'b1');
+
+      final page = tester.getRect(find.byKey(const Key('reader-page')));
+      final avatar = tester.getRect(find.byKey(const Key('companion-avatar')));
+      expect(avatar.height, 120);
+      expect(avatar.right, lessThanOrEqualTo(360));
+      expect(avatar.bottom, lessThanOrEqualTo(page.bottom));
+      await disposeApp(tester);
+    });
+
+    testWidgets('tapping the avatar does not turn the page', (tester) async {
+      await seedLongBook();
+      await pumpReader(tester, 'long');
+
+      String pageText() => tester
+          .widget<SelectableText>(find.byType(SelectableText))
+          .textSpan!
+          .toPlainText();
+      final before = pageText();
+
+      await tester.tap(find.byKey(const Key('companion-avatar')));
+      await tester.pumpAndSettle();
+
+      expect(pageText(), before);
+      await disposeApp(tester);
+    });
+  });
 }
