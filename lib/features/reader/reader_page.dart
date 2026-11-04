@@ -325,11 +325,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           _bookPageCountsSignature = signature;
         });
       },
+      isCurrent: () =>
+          mounted &&
+          token == _bookCountToken &&
+          _bookPageSignature == signature,
     ).then((counts) {
-      _bookPageCache[signature] = counts;
-      if (!mounted || token != _bookCountToken || _bookPageSignature != signature) {
+      if (!mounted ||
+          token != _bookCountToken ||
+          _bookPageSignature != signature) {
         return;
       }
+      _bookPageCache[signature] = counts;
       setState(() {
         _bookPageCounts = counts;
         _bookPageCountsSignature = signature;
@@ -408,7 +414,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     final pagination = _validPagination(data.chapters);
-    if (pagination != null && _pageIndex < pagination.pageCount - 1) {
+    if (pagination == null) return;
+    if (_pageIndex < pagination.pageCount - 1) {
       setState(() {
         _pageDirection = 1;
         _pageIndex++;
@@ -424,6 +431,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void _goToPreviousPage() {
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
+    if (_validPagination(data.chapters) == null) return;
     if (_pageIndex > 0) {
       setState(() {
         _pageDirection = -1;

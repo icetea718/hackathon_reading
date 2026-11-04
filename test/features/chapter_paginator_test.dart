@@ -121,6 +121,41 @@ void main() {
     expect(progress, [1, 2, 3]);
   });
 
+  test('stops counting once the layout is no longer current', () async {
+    final chapters = [
+      for (var i = 0; i < 3; i++)
+        Chapter(
+          id: 'c$i',
+          bookId: 'b1',
+          index: i,
+          title: '第${i + 1}章',
+          startOffset: i * 1000,
+          endOffset: (i + 1) * 1000,
+          contentText: '',
+        ),
+    ];
+    var checks = 0;
+    final loads = <int>[];
+    final counts = await countBookPages(
+      chapters: chapters,
+      layout: const PageLayout(
+        baseStyle: TextStyle(fontSize: 16, height: 1.8),
+        width: 320,
+        height: 240,
+        textScaler: TextScaler.noScaling,
+      ),
+      loadChapter: (index) async {
+        loads.add(index);
+        return _longText(paragraphs: 10);
+      },
+      chunkSize: 1,
+      isCurrent: () => ++checks <= 1,
+    );
+
+    expect(loads, [0]);
+    expect(counts, hasLength(1));
+  });
+
   test('gives a line taller than the page its own page', () {
     final text = _longText(paragraphs: 10);
     final pagination = _paginate(text, height: 8);

@@ -134,9 +134,11 @@ Future<List<int>> countBookPages({
   required Future<String> Function(int index) loadChapter,
   int chunkSize = 4,
   void Function(List<int> counts)? onProgress,
+  bool Function()? isCurrent,
 }) async {
   final counts = <int>[];
   for (var i = 0; i < chapters.length; i++) {
+    if (isCurrent != null && !isCurrent()) break;
     final text = await loadChapter(i);
     final chapter = chapters[i];
     counts.add(

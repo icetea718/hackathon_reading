@@ -335,6 +335,42 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('keyboard paging during a chapter load does not skip chapters', (
+    tester,
+  ) async {
+    String longText(String name) {
+      final buffer = StringBuffer();
+      for (var i = 0; i < 60; i++) {
+        buffer.writeln('$name第$i段：这是一段用来撑长页面的正文内容。');
+      }
+      return buffer.toString();
+    }
+
+    await seedHeadingBook(
+      id: 'busy',
+      titles: ['第一章', '第二章', '第三章'],
+      levels: [1, 1, 1],
+      texts: [longText('甲'), longText('乙'), longText('丙')],
+    );
+    await pumpReader(tester, 'busy');
+
+    while (true) {
+      final match = RegExp(
+        r'^第 (\d+) / (\d+) 页',
+      ).firstMatch(footerText(tester))!;
+      if (match.group(1) == match.group(2)) break;
+      await tapNextZone(tester);
+    }
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('层级书 · 第二章'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
   testWidgets('ignores taps in the middle and the rail hotzone', (
     tester,
   ) async {
