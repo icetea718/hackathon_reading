@@ -27,6 +27,8 @@ import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
 import 'chapter_translation.dart';
 import 'comic_toc_drawer.dart';
+import 'illustration_source.dart';
+import 'illustration_source_sheet.dart';
 import 'illustration_viewer.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
@@ -1285,15 +1287,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (data == null || data.chapters.isEmpty) return;
     final index = _chapterIndex.clamp(0, data.chapters.length - 1);
     final chapter = data.chapters[index];
-    final text = await ref.read(
+    final source = await showIllustrationSourceSheet(context);
+    if (source == null || !mounted) return;
+    final chapterText = await ref.read(
       chapterContentProvider((bookId: widget.bookId, index: index)).future,
     );
     if (!mounted) return;
-    await Navigator.of(context).push(
+    final pagination = _paginationChapterId == chapter.id ? _pagination : null;
+    final text = illustrationTextForSource(
+      source: source,
+      chapterText: chapterText,
+      pagination: pagination,
+      startPage: _pageIndex,
+      endPage: _pageEndIndex ?? _pageIndex,
+    );
+    await _openIllustrationComposer(
+      text,
+      [data.book?.title ?? '', chapter.title, source.label]
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · '),
+    );
+  }
+
+  Future<void> _openIllustrationComposer(String text, String label) {
+    return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => IllustrationComposerPage(
           initialText: text,
-          contextLabel: '${data.book?.title ?? ''} · ${chapter.title}',
+          contextLabel: label,
         ),
       ),
     );
@@ -1481,6 +1502,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     });
   }
 
+  void _illustrateSelection(Chapter chapter, TextSelection selection, String text) {
+    final selected = _selectedText(selection, text).trim();
+    if (selected.isEmpty) return;
+    _openIllustrationComposer(
+      selected,
+      [_cachedData?.book?.title ?? '', chapter.title, '选中文字']
+          .where((part) => part.trim().isNotEmpty)
+          .join(' · '),
+    );
+  }
+
   void _translateSelection(TextSelection selection, String text) {
     final start = selection.start.clamp(0, text.length);
     final end = selection.end.clamp(0, text.length);
@@ -1517,6 +1549,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             onPressed: () {
               editableTextState.hideToolbar();
               _addNote(chapter, page, selection, text);
+            },
+          ),
+          ContextMenuButtonItem(
+            label: '生成插画',
+            onPressed: () {
+              editableTextState.hideToolbar();
+              _illustrateSelection(chapter, selection, text);
             },
           ),
           ContextMenuButtonItem(

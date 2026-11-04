@@ -18,6 +18,7 @@ import 'package:hackathon_reading/domain/models/annotation.dart';
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/reading_progress.dart';
+import 'package:hackathon_reading/features/illustration/illustration_composer_page.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
@@ -1362,6 +1363,56 @@ void main() {
 
     expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
     expect(pageText(tester), startsWith(anchorText));
+    await disposeApp(tester);
+  });
+
+  testWidgets('the illustration entry asks which text to use', (tester) async {
+    await pumpReader(tester, 'b1');
+    await tester.tap(find.byTooltip('固定左栏'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('rail-illustration')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('illustration-source-sheet')), findsOneWidget);
+    expect(find.text('从哪里取文生图？'), findsOneWidget);
+    expect(find.byKey(const Key('illustration-source-page')), findsOneWidget);
+    expect(
+      find.byKey(const Key('illustration-source-nearby')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('illustration-source-chapter')),
+      findsOneWidget,
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('choosing the chapter fills the composer with its text',
+      (tester) async {
+    await pumpReader(tester, 'b1');
+    await tester.tap(find.byTooltip('固定左栏'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('rail-illustration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('illustration-source-chapter')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(IllustrationComposerPage), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, '第二章的内容');
+    await disposeApp(tester);
+  });
+
+  testWidgets('selecting text offers to turn it into an illustration',
+      (tester) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.longPress(find.byType(SelectableText).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('生成插画'), findsOneWidget);
     await disposeApp(tester);
   });
 
