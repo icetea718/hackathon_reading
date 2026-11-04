@@ -8,6 +8,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme/app_theme.dart';
+import '../../assistant/assistant_service.dart';
+import '../../assistant/translation_exception.dart';
+import '../../assistant/translation_segmenter.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
@@ -20,6 +23,7 @@ import '../companion/companion_panel.dart';
 import '../settings/settings_page.dart';
 import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
+import 'chapter_translation.dart';
 import 'comic_toc_drawer.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
@@ -141,6 +145,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   Timer? _comicSaveTimer;
   ReaderData? _cachedData;
   String _chapterText = '';
+  String? _chapterTextChapterId;
+  bool _translationVisible = false;
+  bool _translationBusy = false;
+  bool _translationActive = false;
+  String? _translationChapterId;
+  List<TranslationBlock> _translationBlocks = const [];
+  final Map<String, List<TranslationBlock>> _translationCache = {};
+  int _translationDone = 0;
+  int _translationTotal = 0;
+  int _translationToken = 0;
   ProgressRepository? _progressRepository;
   SettingsRepository? _settingsRepository;
   PageController? _comicController;
@@ -407,6 +421,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     if (index < 0 || index >= data.chapters.length) return;
+    _cancelChapterTranslation();
     final chapter = data.chapters[index];
     setState(() {
       _chapterIndex = index;
@@ -421,6 +436,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     final location = locateAnchor(data.chapters, charOffset);
+    _cancelChapterTranslation();
     setState(() {
       _chapterIndex = location.chapterIndex;
       _doubleAnchorOffset = null;
@@ -434,7 +450,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (data == null || data.chapters.isEmpty) return;
     final pagination = _validPagination(data.chapters);
     if (pagination == null) return;
-    final step = _doubleSpread ? 2 : 1;
+    final step = _doubleSpread && !_translationActive ? 2 : 1;
     if (_pageIndex + step <= pagination.pageCount - 1) {
       if (!_doubleSpread) _doubleAnchorOffset = null;
       setState(() => _pageIndex += step);
@@ -450,7 +466,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final data = _cachedData;
     if (data == null || data.chapters.isEmpty) return;
     if (_validPagination(data.chapters) == null) return;
-    final step = _doubleSpread ? 2 : 1;
+    final step = _doubleSpread && !_translationActive ? 2 : 1;
     if (_pageIndex > 0) {
       if (!_doubleSpread) _doubleAnchorOffset = null;
       setState(
@@ -761,6 +777,105 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     return spans;
   }
 
+  List<InlineSpan> _translationSpans({
+    required PageSlice page,
+    required ChapterPagination pagination,
+    required Chapter chapter,
+    required TextStyle baseStyle,
+  }) {
+    final spans = <InlineSpan>[];
+    for (final block in blocksForRange(
+      _translationBlocks,
+      page.start,
+      page.end,
+    )) {
+      if (block.translation.isEmpty) continue;
+      final heading = block.start == 0 && pagination.headingText != null;
+      if (spans.isNotEmpty) {
+        spans.add(TextSpan(text: '\n\n', style: baseStyle));
+      }
+      spans.add(
+        TextSpan(
+          text: block.translation,
+          style: heading
+              ? headingTextStyle(baseStyle, chapter.level)
+              : baseStyle,
+        ),
+      );
+    }
+    return spans;
+  }
+
+  Widget _translatedPane({
+    required PageSlice page,
+    required ChapterPagination pagination,
+    required Chapter chapter,
+    required TextStyle baseStyle,
+  }) {
+    final spans = _translationSpans(
+      page: page,
+      pagination: pagination,
+      chapter: chapter,
+      baseStyle: baseStyle,
+    );
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: kPaneHorizontalPadding,
+        ),
+        child: ClipRect(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: KeyedSubtree(
+              key: ValueKey('${chapter.id}-${page.start}-translation'),
+              child: SelectableText.rich(
+                TextSpan(children: spans),
+                scrollBehavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                scrollPhysics: const NeverScrollableScrollPhysics(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _translationProgressChip() {
+    final (background, foreground) = _colors;
+    return Container(
+      key: const Key('reader-translation-progress'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: foreground.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: _translationTotal == 0
+                  ? null
+                  : _translationDone / _translationTotal,
+              color: _accent,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '正在翻译 $_translationDone / $_translationTotal',
+            style: TextStyle(color: foreground, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openAnnotations(List<Chapter> chapters) async {
     final anchor = await Navigator.of(context).push<int>(
       MaterialPageRoute<int>(
@@ -847,8 +962,138 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     );
   }
 
-  void _translateChapter(Chapter chapter) {
-    _openTranslation('翻译本章：${chapter.title}', _chapterText);
+  Future<void> _toggleChapterTranslation(Chapter chapter) async {
+    if (_translationVisible && _translationChapterId == chapter.id) {
+      setState(() {
+        _translationVisible = false;
+        _translationActive = false;
+      });
+      return;
+    }
+    final cached = _translationCache[chapter.id];
+    if (cached != null && cached.isNotEmpty) {
+      _showTranslation(cached, chapter);
+      return;
+    }
+    await _startChapterTranslation(chapter);
+  }
+
+  void _showTranslation(List<TranslationBlock> blocks, Chapter chapter) {
+    setState(() {
+      _translationBlocks = blocks;
+      _translationChapterId = chapter.id;
+      _translationVisible = true;
+    });
+  }
+
+  Future<void> _startChapterTranslation(Chapter chapter) async {
+    final text = _chapterText;
+    if (_chapterTextChapterId != chapter.id) {
+      _showSnackBar('章节还在加载，请稍后再试');
+      return;
+    }
+    if (text.trim().isEmpty) {
+      _showSnackBar('本章暂时没有可翻译的内容');
+      return;
+    }
+    if (isPredominantlyChinese(text)) {
+      _showSnackBar('原文已是中文，无需翻译');
+      return;
+    }
+    final blocks = splitTranslationBlocks(text);
+    if (blocks.isEmpty) {
+      _showSnackBar('本章暂时没有可翻译的内容');
+      return;
+    }
+
+    final token = ++_translationToken;
+    setState(() {
+      _translationBusy = true;
+      _translationVisible = false;
+      _translationChapterId = chapter.id;
+      _translationBlocks = const [];
+      _translationDone = 0;
+      _translationTotal = blocks.length;
+    });
+
+    final service = ref.read(translationServiceProvider);
+    final translated = <TranslationBlock>[];
+    try {
+      for (final block in blocks) {
+        final buffer = StringBuffer();
+        await for (final chunk in service.translate(
+          block.source,
+          targetLang: 'zh-CN',
+        )) {
+          if (!mounted || token != _translationToken) return;
+          buffer.write(chunk);
+        }
+        if (!mounted || token != _translationToken) return;
+        translated.add(block.withTranslation(buffer.toString().trim()));
+        setState(() => _translationDone = translated.length);
+      }
+    } catch (error) {
+      if (!mounted || token != _translationToken) return;
+      setState(() {
+        _translationBusy = false;
+        _translationChapterId = null;
+        _translationBlocks = const [];
+      });
+      _showSnackBar(_translationErrorMessage(error));
+      return;
+    }
+
+    if (!mounted || token != _translationToken) return;
+    final withText = translated
+        .where((block) => block.translation.isNotEmpty)
+        .toList();
+    if (withText.isEmpty) {
+      setState(() {
+        _translationBusy = false;
+        _translationChapterId = null;
+        _translationBlocks = const [];
+      });
+      _showSnackBar('翻译服务没有返回译文，请稍后重试');
+      return;
+    }
+
+    _translationCache[chapter.id] = withText;
+    final stillHere = _currentChapterId() == chapter.id;
+    setState(() {
+      _translationBusy = false;
+      _translationChapterId = chapter.id;
+      _translationBlocks = withText;
+      _translationVisible = stillHere;
+    });
+  }
+
+  String? _currentChapterId() {
+    final data = _cachedData;
+    if (data == null || data.chapters.isEmpty) return null;
+    final index = _chapterIndex.clamp(0, data.chapters.length - 1);
+    return data.chapters[index].id;
+  }
+
+  String _translationErrorMessage(Object error) {
+    if (error is TranslationException) return error.message;
+    if (error is AssistantNotConfiguredException) return '未配置 AI 服务';
+    return '翻译失败，请稍后重试';
+  }
+
+  void _cancelChapterTranslation() {
+    _translationToken++;
+    if (!_translationBusy &&
+        !_translationVisible &&
+        _translationBlocks.isEmpty) {
+      return;
+    }
+    setState(() {
+      _translationBusy = false;
+      _translationVisible = false;
+      _translationActive = false;
+      _translationChapterId = null;
+      _translationBlocks = const [];
+    });
   }
 
   void _translateSelection(TextSelection selection, String text) {
@@ -992,12 +1237,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final chapterAnnotations = annotations
             .where((annotation) => annotation.chapterId == currentChapter.id)
             .toList();
+        final translationShown =
+            _translationVisible &&
+            _translationChapterId == currentChapter.id &&
+            _translationBlocks.isNotEmpty;
+        _translationActive = translationShown;
 
         final contentBody = content.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('章节加载失败：$error')),
           data: (text) {
             _chapterText = text;
+            _chapterTextChapterId = currentChapter.id;
             final baseStyle = TextStyle(
               fontSize: _fontSize,
               height: _lineHeight,
@@ -1078,13 +1329,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                       )
                     : _pageIndex;
                 pageIndex = pageIndex.clamp(0, pagination.pageCount - 1);
-                if (doubleSpread) pageIndex = spreadPageIndex(pageIndex);
+                if (doubleSpread && !translationShown) {
+                  pageIndex = spreadPageIndex(pageIndex);
+                }
                 final page = pagination.pageAt(pageIndex);
-                if (doubleSpread) {
+                if (doubleSpread && !translationShown) {
                   _doubleAnchorOffset = currentChapter.startOffset + page.start;
                 }
                 _pageIndex = pageIndex;
-                final nextPageEndIndex = doubleSpread
+                final nextPageEndIndex = doubleSpread && !translationShown
                     ? spreadLastPageIndex(pageIndex, pagination.pageCount)
                     : null;
                 final endIndexChanged = _pageEndIndex != nextPageEndIndex;
@@ -1173,21 +1426,36 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                               thickness: 1,
                               color: _colors.$2.withValues(alpha: 0.12),
                             ),
-                            pagePane(pageIndex + 1),
+                            if (translationShown)
+                              _translatedPane(
+                                page: page,
+                                pagination: pagination,
+                                chapter: currentChapter,
+                                baseStyle: baseStyle,
+                              )
+                            else
+                              pagePane(pageIndex + 1),
                           ],
                         ),
                       ),
                     ),
                   );
                 } else {
-                  final spans = _pageSpans(
-                    text: text,
-                    page: page,
-                    pagination: pagination,
-                    chapter: currentChapter,
-                    annotations: chapterAnnotations,
-                    baseStyle: baseStyle,
-                  );
+                  final spans = translationShown
+                      ? _translationSpans(
+                          page: page,
+                          pagination: pagination,
+                          chapter: currentChapter,
+                          baseStyle: baseStyle,
+                        )
+                      : _pageSpans(
+                          text: text,
+                          page: page,
+                          pagination: pagination,
+                          chapter: currentChapter,
+                          annotations: chapterAnnotations,
+                          baseStyle: baseStyle,
+                        );
                   final pageContent = text.substring(page.start, page.end);
                   pageBody = Center(
                     child: SizedBox(
@@ -1201,7 +1469,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                               alignment: Alignment.topLeft,
                               child: KeyedSubtree(
                                 key: ValueKey(
-                                  '${currentChapter.id}-$_pageIndex-$_paginationKey',
+                                  '${currentChapter.id}-$_pageIndex-$_paginationKey'
+                                  '-${translationShown ? 'translated' : 'source'}',
                                 ),
                                 child: SelectableText.rich(
                                   TextSpan(children: spans),
@@ -1210,13 +1479,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                                   ).copyWith(scrollbars: false),
                                   scrollPhysics:
                                       const NeverScrollableScrollPhysics(),
-                                  contextMenuBuilder: (context, state) =>
-                                      _selectionToolbar(
-                                        state,
-                                        page,
-                                        pageContent,
-                                        currentChapter,
-                                      ),
+                                  contextMenuBuilder: translationShown
+                                      ? null
+                                      : (context, state) => _selectionToolbar(
+                                          state,
+                                          page,
+                                          pageContent,
+                                          currentChapter,
+                                        ),
                                 ),
                               ),
                             ),
@@ -1231,6 +1501,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   fit: StackFit.expand,
                   children: [
                     pageBody,
+                    if (_translationBusy &&
+                        _translationChapterId == currentChapter.id)
+                      Positioned(
+                        top: 12,
+                        right: 24,
+                        child: _translationProgressChip(),
+                      ),
                     Positioned(
                       left: 0,
                       top: 0,
@@ -1276,7 +1553,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             bookmarked: chapterBookmarked,
             onToggleBookmark: () => _toggleBookmark(currentChapter),
             onOpenAnnotations: () => _openAnnotations(chapters),
-            onTranslate: () => _translateChapter(currentChapter),
+            onTranslate: () => _toggleChapterTranslation(currentChapter),
+            translationActive:
+                _translationVisible &&
+                _translationChapterId == currentChapter.id,
+            translationBusy:
+                _translationBusy &&
+                _translationChapterId == currentChapter.id,
             onOpenToc: () => _scaffoldKey.currentState?.openEndDrawer(),
             onOpenCompanion: _openCompanion,
             onOpenReaderSettings: _openSettings,
@@ -1749,7 +2032,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         : null;
     final pageCount = pagination?.pageCount ?? 1;
     final pageNumber = _pageIndex.clamp(0, pageCount - 1);
-    final pageEndIndex = pagination == null || !_doubleSpread
+    final pageEndIndex = pagination == null ||
+            !_doubleSpread ||
+            _translationActive
         ? null
         : _pageEndIndex;
     final counts =
@@ -1776,7 +2061,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             .clamp(0.0, 1.0)
             .toDouble();
     final atBookStart = index == 0 && _pageIndex <= 0;
-    final lastSpreadPage = _doubleSpread
+    final lastSpreadPage = _doubleSpread && !_translationActive
         ? spreadPageIndex(pageCount - 1)
         : pageCount - 1;
     final atBookEnd =

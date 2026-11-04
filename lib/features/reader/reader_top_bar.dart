@@ -14,6 +14,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.onToggleBookmark,
     this.onOpenAnnotations,
     this.onTranslate,
+    this.translationActive = false,
+    this.translationBusy = false,
     required this.onOpenToc,
     this.onOpenCompanion,
     this.onOpenReaderSettings,
@@ -33,6 +35,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onToggleBookmark;
   final VoidCallback? onOpenAnnotations;
   final VoidCallback? onTranslate;
+  final bool translationActive;
+  final bool translationBusy;
   final VoidCallback onOpenToc;
   final VoidCallback? onOpenCompanion;
   final VoidCallback? onOpenReaderSettings;
@@ -112,9 +116,17 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               if (onTranslate != null)
                 IconButton(
-                  tooltip: '翻译本章',
-                  icon: const Icon(Icons.translate),
-                  onPressed: onTranslate,
+                  key: const Key('reader-translate-button'),
+                  tooltip: translationBusy
+                      ? '正在翻译…'
+                      : translationActive
+                      ? '查看原文'
+                      : '翻译本章',
+                  icon: Icon(
+                    Icons.translate,
+                    color: translationActive ? accent : null,
+                  ),
+                  onPressed: translationBusy ? null : onTranslate,
                 ),
               IconButton(
                 tooltip: comicMode ? '漫画暂不支持陪读' : '陪读',
