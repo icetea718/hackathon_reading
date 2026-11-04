@@ -220,7 +220,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   key: const Key('tts-enabled'),
                   contentPadding: EdgeInsets.zero,
                   title: const Text('启用朗读'),
-                  subtitle: const Text('陪读回复右侧会出现喇叭按钮'),
+                  subtitle: const Text('关掉只停用「自动朗读回复」；手动点喇叭照样会读'),
                   value: _ttsEnabled,
                   onChanged: (value) => setState(() => _ttsEnabled = value),
                 ),

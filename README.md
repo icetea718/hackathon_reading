@@ -20,7 +20,7 @@
 - AI 接入：设置页填写 OpenAI 兼容接口（Base URL、模型、API Key、温度、分段字数）并可测试连接；`OpenAiAssistantService` 以上述四个流式接口对接真实模型（SSE）。
 - 书籍蒸馏：借鉴 [cangjie-skill](https://github.com/kangarooking/cangjie-skill) 的 RIA-TV++ 方法论，把 TXT/EPUB 按「分段提炼 → 分部合并 → 全书总览与语气 → 要点卡片」蒸馏成结构化底座并落库；任务可暂停、继续、取消，失败单元重试一次后停在暂停态，重跑复用已完成单元。
 - 陪读对话：阅读页「陪读」按钮打开底部面板，请求上下文 = 全书蒸馏摘要 + 当前章按阅读位置开窗的摘录，可自由提问或一键总结本章；未配置模型时给出去设置的入口。PDF 暂不支持蒸馏（不写章节表）。
-- 朗读陪伴（Windows）：参照 Coopanion 的 [GPT-SoVITS 语音世界插件](https://www.npmjs.com/package/@wocwang/cortico-world-gpt-sovits-for-coopanion) 实现了客户端那一半——设置页填写本机语音服务地址（默认 `http://127.0.0.1:8766`，即 chino-tts；也兼容 GPT-SoVITS `api_v2` 的 `http://127.0.0.1:9880`）、音色、语速、音量，助手每条回复气泡带「朗读」按钮，面板头部可「停止朗读」，也可打开「自动朗读回复」。文本先按标点切句：第一句单独成块尽快出声，之后的短句合并到 60 字左右再请求，边合成边播放，并且始终保留两个请求在途，避免本机克隆引擎比实时慢时每句之间断气。播放走 `winmm.dll`（`dart:ffi`，不引入音频插件）：WAV 用 `PlaySoundW`，MP3 用 `mciSendStringW` 并轮询 `status … mode` 拿到真实结束点；播放前切掉引擎在每段首尾补的静音，音量通过改写 WAV 采样实现，句间只留 80ms。
+- 朗读陪伴（Windows）：参照 Coopanion 的 [GPT-SoVITS 语音世界插件](https://www.npmjs.com/package/@wocwang/cortico-world-gpt-sovits-for-coopanion) 实现了客户端那一半——设置页填写本机语音服务地址（默认 `http://127.0.0.1:8766`，即 chino-tts；也兼容 GPT-SoVITS `api_v2` 的 `http://127.0.0.1:9880`）、音色、语速、音量，助手每条回复气泡带「朗读」按钮，面板头部可「停止朗读」，也可打开「自动朗读回复」。文本先按标点切句：第一句单独成块尽快出声，其余短句合并到 150 字左右再请求（一条回复通常只有 2~3 次播放接缝，而不是每句一次），边合成边播放，并且始终保留两个请求在途，避免本机克隆引擎比实时慢时每句之间断气。播放走 `winmm.dll`（`dart:ffi`，不引入音频插件）：WAV 用 `PlaySoundW`，MP3 用 `mciSendStringW` 并轮询 `status … mode` 拿到真实结束点；播放前切掉引擎在每段首尾补的静音，音量通过改写 WAV 采样实现，句间只留 20ms。「启用朗读」开关只管自动朗读，手动点气泡上的喇叭一定会读。想用自己的声音：在 chino-tts 目录跑 `node add-voice.mjs --id 名字 --ref 录音.wav --text "录音里那句话"`（零样本克隆，不用训练）。
 
 ## 环境要求
 
@@ -46,7 +46,7 @@ export PUB_HOSTED_URL=https://pub.flutter-io.cn
 flutter pub get
 ```
 
-PDF 渲染依赖 pdfrx，首次构建时由构建钩子从 GitHub 下载 PDFium 原生库。若 GitHub 不可达，构建会报 `build_hooks` 失败；可先用镜像下载对应平台的包，放到 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/`（Windows 为 `win-x64/pdfium.dll`）。本项目验证的是 `pdfium-win-x64.tgz`，来源为 `https://ghproxy.net/https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8125/pdfium-win-x64.tgz`。
+PDF 渲染依赖 pdfrx，首次构建时由构建钩子从 GitHub 下载 PDFium 原生库。若 GitHub 不可达，构建会报 `build_hooks` 失败；可先用镜像下载对应平台的包，放到 `.dart_tool/hooks_runner/shared/pdfium_dart/build/chromium_8125/<平台>/`（Windows 为 `win-x64/pdfium.dll`）。本项目验证的是 `pdfium-win-x64.tgz`，来源为 `https://ghproxy.net/https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8125/pdfium-win-x64.tgz`。sqlite3 的原生库同理，缓存在 `.dart_tool/hooks_runner/shared/sqlite3/build/download-2bf39f2a/sqlite3.dll`，缺了也会报 `Building native assets failed`，从别的机器/检出目录拷一份即可跳过下载。
 
 若无法开启开发者模式（`flutter pub get` 报 `Building with plugins requires symlink support`），可以先用目录联接代替符号链接，再带 `--no-pub` 构建：
 
