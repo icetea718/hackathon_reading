@@ -1,9 +1,12 @@
 import 'package:drift/native.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/assistant/assistant_service.dart';
+import 'package:hackathon_reading/assistant/persona.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
@@ -14,6 +17,10 @@ import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
+import 'package:hackathon_reading/tts/tts_config.dart';
+import 'package:hackathon_reading/tts/tts_service.dart';
+
+import '../support/fake_tts.dart';
 
 class _EchoAssistant implements AssistantService {
   @override
@@ -23,8 +30,9 @@ class _EchoAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) async* {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) async* {
     yield '回声';
   }
 
@@ -94,6 +102,17 @@ void main() {
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
+          // The companion reads its bubble line out loud; keep the audio
+          // engine fake and the speaker off so nothing waits on playback.
+          ttsServiceProvider.overrideWithValue(
+            TtsService(
+              client: FakeTtsClient(),
+              output: FakeAudioOutput(),
+              config: () => TtsConfig.defaults.copyWith(enabled: false),
+              tempDirectory: () async => Directory.systemTemp,
+              durationOf: (_) => const Duration(milliseconds: 20),
+            ),
+          ),
           if (configured)
             assistantServiceProvider.overrideWith(
               (ref) async => _EchoAssistant(),

@@ -1,4 +1,5 @@
 import 'package:hackathon_reading/assistant/assistant_service.dart';
+import 'package:hackathon_reading/assistant/persona.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 
 /// Test double that replays [chunks] for every translation request.
@@ -47,8 +48,9 @@ class FakeAssistantService implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     return const Stream.empty();
   }
 }

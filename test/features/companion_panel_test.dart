@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/assistant/assistant_service.dart';
+import 'package:hackathon_reading/assistant/persona.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 import 'package:hackathon_reading/assistant/unconfigured_assistant_service.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
@@ -43,8 +44,9 @@ class _FakeAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) async* {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) async* {
     prompts.add('chat:$userMessage');
     lastHistory = List.of(history);
     lastContext = context;
@@ -84,8 +86,9 @@ class _ControlledAssistant implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     contexts.add(context);
     histories.add(List.of(history));
     final controller = StreamController<String>();
@@ -117,8 +120,9 @@ class _FailingAssistant extends _FakeAssistant {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) async* {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) async* {
     prompts.add('chat:$userMessage');
     yield '半截';
     throw Exception('boom');

@@ -1,6 +1,7 @@
 import '../distill/llm/llm_client.dart';
 import '../distill/llm/llm_config.dart';
 import 'assistant_service.dart';
+import 'persona.dart';
 import 'reading_context.dart';
 
 /// [AssistantService] backed by any OpenAI-compatible chat endpoint.
@@ -57,11 +58,12 @@ class OpenAiAssistantService implements AssistantService {
   Stream<String> chat(
     ReadingContext context,
     List<ChatMessage> history,
-    String userMessage,
-  ) {
+    String userMessage, {
+    PersonaMode persona = PersonaMode.fallback,
+  }) {
     _ensureConfigured();
     return client.streamChat([
-      _systemMessage(context),
+      _systemMessage(context, persona: persona),
       for (final message in history)
         LlmMessage(
           message.role == ChatRole.user ? LlmRole.user : LlmRole.assistant,
@@ -75,9 +77,14 @@ class OpenAiAssistantService implements AssistantService {
     if (!isConfigured) throw const AssistantNotConfiguredException();
   }
 
-  LlmMessage _systemMessage(ReadingContext context) {
+  /// [persona] replaces the plain assistant line with a full character sheet;
+  /// translate / explain / summarize leave it out and stay neutral.
+  LlmMessage _systemMessage(ReadingContext context, {PersonaMode? persona}) {
     final lines = <String>[
-      '你是阅读助手，陪读者一起读一本书，回答要具体、基于原文，不要编造情节。',
+      if (persona != null)
+        persona.systemPrompt
+      else
+        '你是阅读助手，陪读者一起读一本书，回答要具体、基于原文，不要编造情节。',
     ];
     if (context.bookTitle.isNotEmpty) {
       lines.add('书名：《${context.bookTitle}》');
