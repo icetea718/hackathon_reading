@@ -122,15 +122,18 @@ class ChatMessageRepository {
     String content, {
     required String status,
     String? sourcesJson,
+    bool clearSources = false,
   }) {
     return (_db.update(_db.chatMessages)..where((row) => row.id.equals(id)))
         .write(
           ChatMessagesCompanion(
             content: Value(content),
             status: Value(status),
-            sourcesJson: sourcesJson == null
-                ? const Value.absent()
-                : Value(sourcesJson),
+            sourcesJson: clearSources
+                ? const Value<String?>(null)
+                : sourcesJson == null
+                    ? const Value.absent()
+                    : Value(sourcesJson),
           ),
         );
   }
