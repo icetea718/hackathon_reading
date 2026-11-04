@@ -557,4 +557,203 @@ void main() {
     expect(find.textContaining('出错了'), findsOneWidget);
     expect(find.textContaining('半截'), findsNothing);
   });
+
+  testWidgets('a new conversation is renamed after its first message',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await tester.pumpWidget(_host(_FakeAssistant(), db: db));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('companion-new-thread')));
+    await _settle(tester);
+
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    expect(find.text('新对话'), findsOneWidget);
+    expect(find.textContaining('共 0 条'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-tab-chat')));
+    await _settle(tester);
+    await tester.enterText(find.byType(TextField), '你好世界');
+    await tester.tap(find.byTooltip('发送'));
+    await _settle(tester);
+
+    final rows = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    expect(rows!.single.title, '你好世界');
+  });
+
+  testWidgets('deleting the only thread returns to an empty chat',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    late CompanionThread thread;
+    await tester.runAsync(() async {
+      final repo = CompanionChatRepository(db);
+      thread = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '唯一对话',
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '旧问题',
+      );
+    });
+    await tester.pumpWidget(_host(_FakeAssistant(), db: db));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(
+      find.byKey(Key('companion-thread-menu-${thread.id}')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-menu-delete')));
+    await _settle(tester);
+
+    final rows = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    expect(rows, isEmpty);
+    expect(find.text('还没有对话'), findsOneWidget);
+  });
+
+  testWidgets('deleting the open thread falls back to the latest one',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    late CompanionThread older;
+    late CompanionThread newer;
+    await tester.runAsync(() async {
+      var clock = DateTime(2026, 11, 4, 9);
+      final repo = CompanionChatRepository(db, now: () => clock);
+      older = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '旧对话',
+      );
+      await repo.appendMessage(
+        threadId: older.id,
+        role: CompanionRole.user,
+        content: '旧对话的问题',
+      );
+      clock = DateTime(2026, 11, 4, 10);
+      newer = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '新对话',
+      );
+      await repo.appendMessage(
+        threadId: newer.id,
+        role: CompanionRole.user,
+        content: '新对话的问题',
+      );
+    });
+    await tester.pumpWidget(_host(_FakeAssistant(), db: db));
+    await _settle(tester);
+
+    expect(find.text('新对话的问题'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(find.byKey(Key('companion-thread-menu-${newer.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-menu-delete')));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-tab-chat')));
+    await _settle(tester);
+
+    expect(find.text('旧对话的问题'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
+
+  testWidgets('deleting a thread stops the reply it was generating',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final fake = _ControlledAssistant();
+    await tester.pumpWidget(_host(fake, db: db));
+    await _settle(tester);
+
+    await tester.enterText(find.byType(TextField), '会迟到的提问');
+    await tester.tap(find.byTooltip('发送'));
+    await _flush(tester);
+
+    final rows = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    final oldId = rows!.single.id;
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(find.byKey(Key('companion-thread-menu-$oldId')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-menu-delete')));
+    await _flush(tester);
+
+    fake.controllers.last.add('迟到的回答');
+    await fake.controllers.last.close();
+    await _settle(tester);
+
+    expect(find.text('迟到的回答'), findsNothing);
+    final left = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    expect(left, isEmpty);
+    final messages = await tester.runAsync(
+      () => CompanionChatRepository(db).messagesForThread(oldId),
+    );
+    expect(messages, isEmpty);
+  });
+
+  testWidgets('an unconfigured panel still browses saved history',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    late CompanionThread thread;
+    await tester.runAsync(() async {
+      final repo = CompanionChatRepository(db);
+      thread = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '旧对话',
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '旧问题',
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.assistant,
+        content: '旧回答',
+      );
+    });
+    await tester.pumpWidget(
+      _host(const UnconfiguredAssistantService(), db: db),
+    );
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(find.byKey(Key('companion-thread-${thread.id}')));
+    await _settle(tester);
+
+    expect(find.text('旧问题'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('去设置'), findsOneWidget);
+  });
 }

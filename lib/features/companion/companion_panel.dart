@@ -12,6 +12,9 @@ import '../../domain/models/companion_chat.dart';
 import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
+import 'companion_history.dart';
+
+enum _CompanionView { chat, history }
 
 /// Companion chat for the chapter the reader is looking at. Laid out as a
 /// bottom sheet by default, or as a docked side column when [docked] is set.
@@ -60,6 +63,13 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   bool _autoTitlePending = false;
   int _requestToken = 0;
 
+  _CompanionView _view = _CompanionView.chat;
+  List<CompanionThread> _threads = const [];
+  bool _threadsLoading = false;
+
+  /// Thread from an earlier chapter being viewed; the composer is hidden.
+  CompanionThread? _readOnlyThread;
+
   late final TtsService _tts;
   StreamSubscription<TtsStatus>? _ttsSubscription;
   TtsStatus _ttsStatus = const TtsStatus();
@@ -92,6 +102,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       _thread = null;
       _history.clear();
       _autoTitlePending = false;
+      _view = _CompanionView.chat;
+      _threads = const [];
+      _threadsLoading = false;
+      _readOnlyThread = null;
     });
     unawaited(_tts.stop());
     unawaited(_loadLatestThread());
@@ -111,17 +125,153 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       _thread = thread;
       _history
         ..clear()
-        ..addAll(
-          messages.map(
-            (message) => ChatMessage(
-              role: message.role == CompanionRole.user
-                  ? ChatRole.user
-                  : ChatRole.assistant,
-              content: message.content,
-            ),
-          ),
-        );
+        ..addAll(messages.map(_toChatMessage));
       _autoTitlePending = false;
+    });
+  }
+
+  ChatMessage _toChatMessage(CompanionMessage message) {
+    return ChatMessage(
+      role: message.role == CompanionRole.user ? ChatRole.user : ChatRole.assistant,
+      content: message.content,
+    );
+  }
+
+  Future<void> _loadThreads() async {
+    final bookId = widget.bookId;
+    setState(() => _threadsLoading = true);
+    final threads = await _chats.threadsForBook(bookId);
+    if (!mounted || bookId != widget.bookId) return;
+    setState(() {
+      _threads = threads;
+      _threadsLoading = false;
+    });
+  }
+
+  void _selectTab(_CompanionView view) {
+    if (_view == view) return;
+    setState(() => _view = view);
+    if (view == _CompanionView.history) {
+      unawaited(_loadThreads());
+    } else if (_readOnlyThread != null) {
+      _readOnlyThread = null;
+      unawaited(_reloadCurrentThread());
+    }
+  }
+
+  Future<void> _reloadCurrentThread() async {
+    final token = _requestToken;
+    final thread = _thread;
+    final messages = thread == null
+        ? const <CompanionMessage>[]
+        : await _chats.messagesForThread(thread.id);
+    if (!mounted || token != _requestToken) return;
+    setState(() {
+      _history
+        ..clear()
+        ..addAll(messages.map(_toChatMessage));
+      _error = null;
+    });
+  }
+
+  void _cancelStream() {
+    _requestToken++;
+    setState(() {
+      _busy = false;
+      _streaming = '';
+    });
+  }
+
+  Future<void> _newThread() async {
+    if (_busy) _cancelStream();
+    final thread = await _chats.createThread(
+      bookId: widget.bookId,
+      chapterIndex: widget.chapterIndex,
+      chapterTitle: widget.chapterTitle,
+      title: '新对话',
+    );
+    if (!mounted) return;
+    setState(() {
+      _thread = thread;
+      _history.clear();
+      _autoTitlePending = true;
+      _error = null;
+      _readOnlyThread = null;
+      _view = _CompanionView.chat;
+    });
+    unawaited(_loadThreads());
+  }
+
+  Future<void> _renameThread(CompanionThread thread, String title) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return;
+    await _chats.renameThread(thread.id, trimmed);
+    if (!mounted) return;
+    final current = _thread;
+    final readOnly = _readOnlyThread;
+    setState(() {
+      if (current?.id == thread.id) {
+        _thread = current!.copyWith(title: trimmed);
+      }
+      if (readOnly?.id == thread.id) {
+        _readOnlyThread = readOnly!.copyWith(title: trimmed);
+      }
+    });
+    unawaited(_loadThreads());
+  }
+
+  Future<void> _deleteThread(CompanionThread thread) async {
+    final deletingCurrent = _thread?.id == thread.id;
+    final deletingReadOnly = _readOnlyThread?.id == thread.id;
+    if (deletingCurrent && _busy) _cancelStream();
+    await _chats.deleteThread(thread.id);
+    if (!mounted) return;
+
+    if (deletingCurrent || deletingReadOnly) {
+      final token = ++_requestToken;
+      final latest = deletingCurrent
+          ? await _chats.latestThreadForChapter(
+              widget.bookId,
+              widget.chapterIndex,
+            )
+          : _thread;
+      final messages = latest == null
+          ? const <CompanionMessage>[]
+          : await _chats.messagesForThread(latest.id);
+      if (!mounted || token != _requestToken) return;
+      setState(() {
+        _thread = latest;
+        _history
+          ..clear()
+          ..addAll(messages.map(_toChatMessage));
+        _autoTitlePending = false;
+        _error = null;
+        _readOnlyThread = null;
+        _speakingIndex = null;
+      });
+    }
+    unawaited(_loadThreads());
+  }
+
+  Future<void> _openThread(CompanionThread thread) async {
+    if (_busy) _cancelStream();
+    final token = _requestToken;
+    final messages = await _chats.messagesForThread(thread.id);
+    if (!mounted || token != _requestToken) return;
+    final sameChapter = thread.chapterIndex == widget.chapterIndex;
+    setState(() {
+      _history
+        ..clear()
+        ..addAll(messages.map(_toChatMessage));
+      if (sameChapter) {
+        _thread = thread;
+        _readOnlyThread = null;
+      } else {
+        _readOnlyThread = thread;
+      }
+      _autoTitlePending = false;
+      _error = null;
+      _view = _CompanionView.chat;
     });
   }
 
@@ -249,7 +399,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _busy) return;
+    if (text.isEmpty || _busy || _readOnlyThread != null) return;
     final service = ref.read(assistantServiceProvider).value;
     if (service == null || !service.isConfigured) return;
     _input.clear();
@@ -361,155 +511,32 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     final loading = service is AsyncLoading<AssistantService>;
 
     final panel = Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '陪读 · ${widget.chapterTitle}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (_voiceOn)
-                    IconButton(
-                      key: const Key('companion-hush'),
-                      tooltip: '停止朗读',
-                      icon: const Icon(Icons.stop_circle_outlined),
-                      onPressed: _hush,
-                    ),
-                  TextButton(
-                    onPressed: configured && !_busy ? _summarize : null,
-                    child: const Text('总结本章'),
-                  ),
-                  if (widget.onClose != null)
-                    IconButton(
-                      key: const Key('companion-close'),
-                      tooltip: '关闭陪读',
-                      icon: const Icon(Icons.close),
-                      onPressed: widget.onClose,
-                    ),
-                ],
-              ),
+      children: [
+        _header(context, configured: configured),
+        const Divider(height: 1),
+        _tabs(context),
+        if (_view == _CompanionView.history)
+          Expanded(
+            child: CompanionHistoryView(
+              threads: _threads,
+              currentChapterIndex: widget.chapterIndex,
+              loading: _threadsLoading,
+              onNewThread: () => unawaited(_newThread()),
+              onOpen: (thread) => unawaited(_openThread(thread)),
+              onRename: (thread, title) =>
+                  unawaited(_renameThread(thread, title)),
+              onDelete: (thread) => unawaited(_deleteThread(thread)),
             ),
-            const Divider(height: 1),
-            if (loading)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: CircularProgressIndicator(),
-              )
-            else if (!configured)
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('未配置 AI 服务，请到设置页填写'),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const SettingsPage(),
-                          ),
-                        ),
-                        child: const Text('去设置'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-              Expanded(
-                child: ListView(
-                  controller: _scroll,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Container(
-                      key: const Key('companion-memory-chip'),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        widget.chapterIndex == 0
-                            ? '暂无前序章节对话'
-                            : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    for (var index = 0; index < _history.length; index++)
-                      _Bubble(
-                        text: _history[index].content,
-                        isUser: _history[index].role == ChatRole.user,
-                        speaking: _speakingIndex == index,
-                        onSpeak: _history[index].role == ChatRole.user
-                            ? null
-                            : () => unawaited(
-                                  _speak(_history[index].content, index,
-                                      force: true),
-                                ),
-                      ),
-                    if (_streaming.isNotEmpty)
-                      _Bubble(text: _streaming, isUser: false),
-                    if (_busy && _streaming.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: LinearProgressIndicator(),
-                      ),
-                  ],
-                ),
-              ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Focus(
-                        canRequestFocus: false,
-                        skipTraversal: true,
-                        onKeyEvent: _handleComposerKey,
-                        child: TextField(
-                          controller: _input,
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            hintText: '问问这一章…',
-                            border: OutlineInputBorder(),
-                          ),
-                          onSubmitted: (_) => _send(),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '发送',
-                      icon: const Icon(Icons.send),
-                      onPressed: _busy ? null : _send,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        );
+          )
+        else if (loading)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          )
+        else
+          Expanded(child: _chatBody(context, configured: configured)),
+      ],
+    );
 
     if (widget.docked) {
       final scheme = Theme.of(context).colorScheme;
@@ -531,6 +558,203 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         height: MediaQuery.of(context).size.height * 0.7,
         child: panel,
       ),
+    );
+  }
+
+  Widget _header(BuildContext context, {required bool configured}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '陪读 · ${widget.chapterTitle}',
+              style: Theme.of(context).textTheme.titleMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (_voiceOn)
+            IconButton(
+              key: const Key('companion-hush'),
+              tooltip: '停止朗读',
+              icon: const Icon(Icons.stop_circle_outlined),
+              onPressed: _hush,
+            ),
+          TextButton(
+            onPressed: configured && !_busy ? _summarize : null,
+            child: const Text('总结本章'),
+          ),
+          if (widget.onClose != null)
+            IconButton(
+              key: const Key('companion-close'),
+              tooltip: '关闭陪读',
+              icon: const Icon(Icons.close),
+              onPressed: widget.onClose,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabs(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget tab(String key, String label, _CompanionView value) {
+      final selected = _view == value;
+      return Expanded(
+        child: TextButton(
+          key: Key(key),
+          onPressed: () => _selectTab(value),
+          style: TextButton.styleFrom(
+            foregroundColor:
+                selected ? scheme.primary : scheme.onSurfaceVariant,
+            shape: const RoundedRectangleBorder(),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab('companion-tab-chat', '聊天', _CompanionView.chat),
+        tab('companion-tab-history', '历史', _CompanionView.history),
+      ],
+    );
+  }
+
+  Widget _chatBody(BuildContext context, {required bool configured}) {
+    if (!configured) {
+      if (_history.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('未配置 AI 服务，请到设置页填写'),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _openSettings,
+                child: const Text('去设置'),
+              ),
+            ],
+          ),
+        );
+      }
+      return Column(
+        children: [
+          Expanded(child: _messageList(context)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Row(
+              children: [
+                const Expanded(child: Text('未配置 AI 服务，请到设置页填写')),
+                TextButton(
+                  onPressed: _openSettings,
+                  child: const Text('去设置'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(child: _messageList(context)),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (_readOnlyThread == null) _composer(),
+      ],
+    );
+  }
+
+  Widget _messageList(BuildContext context) {
+    return ListView(
+      controller: _scroll,
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          key: const Key('companion-memory-chip'),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            widget.chapterIndex == 0
+                ? '暂无前序章节对话'
+                : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        for (var index = 0; index < _history.length; index++)
+          _Bubble(
+            text: _history[index].content,
+            isUser: _history[index].role == ChatRole.user,
+            speaking: _speakingIndex == index,
+            onSpeak: _history[index].role == ChatRole.user
+                ? null
+                : () => unawaited(
+                      _speak(_history[index].content, index, force: true),
+                    ),
+          ),
+        if (_streaming.isNotEmpty) _Bubble(text: _streaming, isUser: false),
+        if (_busy && _streaming.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: LinearProgressIndicator(),
+          ),
+      ],
+    );
+  }
+
+  Widget _composer() {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Focus(
+              canRequestFocus: false,
+              skipTraversal: true,
+              onKeyEvent: _handleComposerKey,
+              child: TextField(
+                controller: _input,
+                minLines: 1,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: '问问这一章…',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => _send(),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: '发送',
+            icon: const Icon(Icons.send),
+            onPressed: _busy ? null : _send,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
     );
   }
 }
