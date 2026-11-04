@@ -28,6 +28,7 @@ class Chapters extends Table {
   IntColumn get startOffset => integer()();
   IntColumn get endOffset => integer()();
   TextColumn get contentText => text()();
+  IntColumn get level => integer().withDefault(const Constant(1))();
 
   @override
   Set<Column> get primaryKey => {id};

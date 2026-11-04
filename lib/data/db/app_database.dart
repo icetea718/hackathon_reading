@@ -25,7 +25,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +55,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 7) {
             await m.addColumn(books, books.comic);
+          }
+          if (from < 8) {
+            await m.addColumn(chapters, chapters.level);
           }
         },
       );

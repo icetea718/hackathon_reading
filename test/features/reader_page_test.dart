@@ -127,6 +127,42 @@ void main() {
     ]);
   }
 
+  Future<void> seedHeadingBook({
+    required String id,
+    required List<String> titles,
+    required List<int> levels,
+    required List<String> texts,
+  }) async {
+    await BookRepository(db).upsert(
+      Book(
+        id: id,
+        title: '层级书',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/$id.txt',
+        addedAt: DateTime(2026, 1, 5),
+      ),
+    );
+    var offset = 0;
+    final chapters = <Chapter>[];
+    for (var i = 0; i < texts.length; i++) {
+      chapters.add(
+        Chapter(
+          id: '$id-c$i',
+          bookId: id,
+          index: i,
+          title: titles[i],
+          startOffset: offset,
+          endOffset: offset + texts[i].length,
+          contentText: texts[i],
+          level: levels[i],
+        ),
+      );
+      offset += texts[i].length;
+    }
+    await ChapterRepository(db).replaceForBook(id, chapters);
+  }
+
   Future<void> seedBookmark({
     String id = 'bm1',
     String bookId = 'b1',
@@ -179,6 +215,10 @@ void main() {
       find.byType(SelectableText),
     );
     return selectable.textSpan!.children!.cast<TextSpan>().toList();
+  }
+
+  TextSpan spanWithText(WidgetTester tester, String text) {
+    return renderedSpans(tester).firstWhere((span) => span.text == text);
   }
 
   Future<void> settleAfterIo(WidgetTester tester) async {
@@ -390,6 +430,148 @@ void main() {
     await tester.tap(find.text('第3章'));
     await tester.pumpAndSettle();
     expect(find.textContaining('第三章的内容'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('TOC indents nested sections under their part', (tester) async {
+    await BookRepository(db).upsert(
+      Book(
+        id: 'nested',
+        title: '层级书',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/nested.txt',
+        addedAt: DateTime(2026, 1, 4),
+      ),
+    );
+    const texts = ['第一部分的内容', '择善的内容', '第二部分的内容'];
+    var offset = 0;
+    final chapters = <Chapter>[];
+    final titles = ['第一部分', '择善', '第二部分'];
+    final levels = [1, 2, 1];
+    for (var i = 0; i < texts.length; i++) {
+      chapters.add(
+        Chapter(
+          id: 'n$i',
+          bookId: 'nested',
+          index: i,
+          title: titles[i],
+          startOffset: offset,
+          endOffset: offset + texts[i].length,
+          contentText: texts[i],
+          level: levels[i],
+        ),
+      );
+      offset += texts[i].length;
+    }
+    await ChapterRepository(db).replaceForBook('nested', chapters);
+    await pumpReader(tester, 'nested');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+
+    final partTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, '第一部分'),
+    );
+    final sectionTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, '择善'),
+    );
+    expect(
+      partTile.contentPadding,
+      const EdgeInsetsDirectional.only(start: 16, end: 16),
+    );
+    expect(
+      sectionTile.contentPadding,
+      const EdgeInsetsDirectional.only(start: 40, end: 16),
+    );
+
+    final partText = tester.widget<Text>(find.text('第一部分'));
+    final sectionText = tester.widget<Text>(find.text('择善'));
+    expect(
+      sectionText.style?.fontSize,
+      lessThan(partText.style?.fontSize ?? 0),
+    );
+
+    await tester.tap(find.text('择善'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('择善的内容'), findsOneWidget);
+    await disposeApp(tester);
+  });
+
+  testWidgets('styles a level-one chapter heading above body text', (
+    tester,
+  ) async {
+    await seedHeadingBook(
+      id: 'h1',
+      titles: ['第一部分'],
+      levels: [1],
+      texts: ['第一部分\n正文一。'],
+    );
+    await pumpReader(tester, 'h1');
+
+    final heading = spanWithText(tester, '第一部分');
+    final body = renderedSpans(tester).firstWhere(
+      (span) => span.text?.contains('正文一。') ?? false,
+    );
+    expect(heading.style?.fontSize, 27);
+    expect(heading.style?.fontWeight, FontWeight.w700);
+    expect(body.style?.fontSize, 18);
+    expect(body.style?.fontWeight, isNot(FontWeight.w700));
+    await disposeApp(tester);
+  });
+
+  testWidgets('styles a level-two section heading between part and body', (
+    tester,
+  ) async {
+    await seedHeadingBook(
+      id: 'h2',
+      titles: ['择善'],
+      levels: [2],
+      texts: ['择善\n正文二。'],
+    );
+    await pumpReader(tester, 'h2');
+
+    final heading = spanWithText(tester, '择善');
+    final body = renderedSpans(tester).firstWhere(
+      (span) => span.text?.contains('正文二。') ?? false,
+    );
+    expect(heading.style?.fontSize, closeTo(21.6, 0.01));
+    expect(heading.style?.fontWeight, FontWeight.w600);
+    expect(body.style?.fontSize, 18);
+    await disposeApp(tester);
+  });
+
+  testWidgets('styles a heading that carries a footnote marker', (
+    tester,
+  ) async {
+    await seedHeadingBook(
+      id: 'h3',
+      titles: ['耶和华必预备'],
+      levels: [2],
+      texts: ['耶和华必预备[8]\n正文三。'],
+    );
+    await pumpReader(tester, 'h3');
+
+    final heading = spanWithText(tester, '耶和华必预备[8]');
+    expect(heading.style?.fontSize, closeTo(21.6, 0.01));
+    await disposeApp(tester);
+  });
+
+  testWidgets('leaves a first line alone when it is not the chapter title', (
+    tester,
+  ) async {
+    await seedHeadingBook(
+      id: 'h4',
+      titles: ['第一章'],
+      levels: [1],
+      texts: ['正文直接开始。\n下一段。'],
+    );
+    await pumpReader(tester, 'h4');
+
+    final first = renderedSpans(tester).first;
+    expect(first.text, '正文直接开始。\n下一段。');
+    expect(first.style?.fontSize, 18);
+    expect(first.style?.fontWeight, isNot(FontWeight.w700));
     await disposeApp(tester);
   });
 

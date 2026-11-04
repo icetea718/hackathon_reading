@@ -693,6 +693,16 @@ class $ChaptersTable extends Chapters
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
+  @override
+  late final GeneratedColumn<int> level = GeneratedColumn<int>(
+    'level',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -702,6 +712,7 @@ class $ChaptersTable extends Chapters
     startOffset,
     endOffset,
     contentText,
+    level,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -777,6 +788,12 @@ class $ChaptersTable extends Chapters
     } else if (isInserting) {
       context.missing(_contentTextMeta);
     }
+    if (data.containsKey('level')) {
+      context.handle(
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
+      );
+    }
     return context;
   }
 
@@ -814,6 +831,10 @@ class $ChaptersTable extends Chapters
         DriftSqlType.string,
         data['${effectivePrefix}content_text'],
       )!,
+      level: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}level'],
+      )!,
     );
   }
 
@@ -831,6 +852,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
   final int startOffset;
   final int endOffset;
   final String contentText;
+  final int level;
   const ChapterRecord({
     required this.id,
     required this.bookId,
@@ -839,6 +861,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     required this.startOffset,
     required this.endOffset,
     required this.contentText,
+    required this.level,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -850,6 +873,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     map['start_offset'] = Variable<int>(startOffset);
     map['end_offset'] = Variable<int>(endOffset);
     map['content_text'] = Variable<String>(contentText);
+    map['level'] = Variable<int>(level);
     return map;
   }
 
@@ -862,6 +886,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       startOffset: Value(startOffset),
       endOffset: Value(endOffset),
       contentText: Value(contentText),
+      level: Value(level),
     );
   }
 
@@ -878,6 +903,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       startOffset: serializer.fromJson<int>(json['startOffset']),
       endOffset: serializer.fromJson<int>(json['endOffset']),
       contentText: serializer.fromJson<String>(json['contentText']),
+      level: serializer.fromJson<int>(json['level']),
     );
   }
   @override
@@ -891,6 +917,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       'startOffset': serializer.toJson<int>(startOffset),
       'endOffset': serializer.toJson<int>(endOffset),
       'contentText': serializer.toJson<String>(contentText),
+      'level': serializer.toJson<int>(level),
     };
   }
 
@@ -902,6 +929,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     int? startOffset,
     int? endOffset,
     String? contentText,
+    int? level,
   }) => ChapterRecord(
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
@@ -910,6 +938,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     startOffset: startOffset ?? this.startOffset,
     endOffset: endOffset ?? this.endOffset,
     contentText: contentText ?? this.contentText,
+    level: level ?? this.level,
   );
   ChapterRecord copyWithCompanion(ChaptersCompanion data) {
     return ChapterRecord(
@@ -926,6 +955,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
       contentText: data.contentText.present
           ? data.contentText.value
           : this.contentText,
+      level: data.level.present ? data.level.value : this.level,
     );
   }
 
@@ -938,7 +968,8 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
           ..write('title: $title, ')
           ..write('startOffset: $startOffset, ')
           ..write('endOffset: $endOffset, ')
-          ..write('contentText: $contentText')
+          ..write('contentText: $contentText, ')
+          ..write('level: $level')
           ..write(')'))
         .toString();
   }
@@ -952,6 +983,7 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
     startOffset,
     endOffset,
     contentText,
+    level,
   );
   @override
   bool operator ==(Object other) =>
@@ -963,7 +995,8 @@ class ChapterRecord extends DataClass implements Insertable<ChapterRecord> {
           other.title == this.title &&
           other.startOffset == this.startOffset &&
           other.endOffset == this.endOffset &&
-          other.contentText == this.contentText);
+          other.contentText == this.contentText &&
+          other.level == this.level);
 }
 
 class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
@@ -974,6 +1007,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
   final Value<int> startOffset;
   final Value<int> endOffset;
   final Value<String> contentText;
+  final Value<int> level;
   final Value<int> rowid;
   const ChaptersCompanion({
     this.id = const Value.absent(),
@@ -983,6 +1017,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     this.startOffset = const Value.absent(),
     this.endOffset = const Value.absent(),
     this.contentText = const Value.absent(),
+    this.level = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChaptersCompanion.insert({
@@ -993,6 +1028,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     required int startOffset,
     required int endOffset,
     required String contentText,
+    this.level = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        bookId = Value(bookId),
@@ -1009,6 +1045,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     Expression<int>? startOffset,
     Expression<int>? endOffset,
     Expression<String>? contentText,
+    Expression<int>? level,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1019,6 +1056,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
       if (startOffset != null) 'start_offset': startOffset,
       if (endOffset != null) 'end_offset': endOffset,
       if (contentText != null) 'content_text': contentText,
+      if (level != null) 'level': level,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1031,6 +1069,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     Value<int>? startOffset,
     Value<int>? endOffset,
     Value<String>? contentText,
+    Value<int>? level,
     Value<int>? rowid,
   }) {
     return ChaptersCompanion(
@@ -1041,6 +1080,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
       startOffset: startOffset ?? this.startOffset,
       endOffset: endOffset ?? this.endOffset,
       contentText: contentText ?? this.contentText,
+      level: level ?? this.level,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1069,6 +1109,9 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
     if (contentText.present) {
       map['content_text'] = Variable<String>(contentText.value);
     }
+    if (level.present) {
+      map['level'] = Variable<int>(level.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1085,6 +1128,7 @@ class ChaptersCompanion extends UpdateCompanion<ChapterRecord> {
           ..write('startOffset: $startOffset, ')
           ..write('endOffset: $endOffset, ')
           ..write('contentText: $contentText, ')
+          ..write('level: $level, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5061,6 +5105,7 @@ typedef $$ChaptersTableCreateCompanionBuilder = ChaptersCompanion Function({
   required int startOffset,
   required int endOffset,
   required String contentText,
+  Value<int> level,
   Value<int> rowid,
 });
 typedef $$ChaptersTableUpdateCompanionBuilder = ChaptersCompanion Function({
@@ -5071,6 +5116,7 @@ typedef $$ChaptersTableUpdateCompanionBuilder = ChaptersCompanion Function({
   Value<int> startOffset,
   Value<int> endOffset,
   Value<String> contentText,
+  Value<int> level,
   Value<int> rowid,
 });
 
@@ -5115,6 +5161,11 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<String> get contentText => $composableBuilder(
     column: $table.contentText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5162,6 +5213,11 @@ class $$ChaptersTableOrderingComposer
     column: $table.contentText,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get level => $composableBuilder(
+    column: $table.level,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ChaptersTableAnnotationComposer
@@ -5199,6 +5255,9 @@ class $$ChaptersTableAnnotationComposer
     column: $table.contentText,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
 }
 
 class $$ChaptersTableTableManager
@@ -5239,6 +5298,7 @@ class $$ChaptersTableTableManager
                 Value<int> startOffset = const Value.absent(),
                 Value<int> endOffset = const Value.absent(),
                 Value<String> contentText = const Value.absent(),
+                Value<int> level = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion(
                 id: id,
@@ -5248,6 +5308,7 @@ class $$ChaptersTableTableManager
                 startOffset: startOffset,
                 endOffset: endOffset,
                 contentText: contentText,
+                level: level,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5259,6 +5320,7 @@ class $$ChaptersTableTableManager
                 required int startOffset,
                 required int endOffset,
                 required String contentText,
+                Value<int> level = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ChaptersCompanion.insert(
                 id: id,
@@ -5268,6 +5330,7 @@ class $$ChaptersTableTableManager
                 startOffset: startOffset,
                 endOffset: endOffset,
                 contentText: contentText,
+                level: level,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

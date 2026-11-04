@@ -21,12 +21,16 @@ class EpubBookChapter {
     required this.startOffset,
     required this.endOffset,
     required this.contentText,
+    this.level = 1,
   });
 
   final String title;
   final int startOffset;
   final int endOffset;
   final String contentText;
+
+  /// 1 for a part/chapter, 2 for a section nested inside it.
+  final int level;
 }
 
 class EpubCover {
@@ -112,6 +116,20 @@ EpubComicDocument? parseEpubComic(List<int> bytes) {
   }
 }
 
+class _TocEntry {
+  const _TocEntry({
+    required this.title,
+    required this.path,
+    required this.fragment,
+    required this.level,
+  });
+
+  final String title;
+  final String path;
+  final String? fragment;
+  final int level;
+}
+
 class _ManifestItem {
   const _ManifestItem({
     required this.id,
@@ -151,7 +169,11 @@ class _EpubParser {
           .split(RegExp(r'\s+'))
           .contains('nav'),
     )?.path;
-    final titles = _readTocTitles(opf, spine, manifest);
+    final tocEntries = _readTocEntries(opf, spine, manifest);
+    final entriesByPath = <String, List<_TocEntry>>{};
+    for (final entry in tocEntries) {
+      entriesByPath.putIfAbsent(entry.path, () => []).add(entry);
+    }
 
     final chapters = <EpubBookChapter>[];
     var cursor = 0;
@@ -167,18 +189,40 @@ class _EpubParser {
         continue;
       }
 
-      final text = _extractPlainText(item.path);
+      final itemEntries = entriesByPath[item.path] ?? const <_TocEntry>[];
+      final fragmentIds = <String>{
+        for (final entry in itemEntries)
+          if (entry.fragment != null) entry.fragment!,
+      };
+      final extracted = _extractPlainTextWithAnchors(item.path, fragmentIds);
+      final text = extracted.text;
       if (text.isEmpty) continue;
 
-      final title = titles[item.path] ??
-          _fallbackTitle(item.path, chapters.length + 1);
-      chapters.add(EpubBookChapter(
-        title: title,
-        startOffset: cursor,
-        endOffset: cursor + text.length,
-        contentText: text,
-      ));
-      cursor += text.length;
+      final segments = _chapterSegments(text, itemEntries, extracted.anchors);
+      if (segments.isEmpty) {
+        final title = itemEntries.isEmpty
+            ? _fallbackTitle(item.path, chapters.length + 1)
+            : itemEntries.first.title;
+        chapters.add(EpubBookChapter(
+          title: title,
+          startOffset: cursor,
+          endOffset: cursor + text.length,
+          contentText: text,
+        ));
+        cursor += text.length;
+        continue;
+      }
+
+      for (final segment in segments) {
+        chapters.add(EpubBookChapter(
+          title: segment.title,
+          level: segment.level,
+          startOffset: cursor,
+          endOffset: cursor + segment.text.length,
+          contentText: segment.text,
+        ));
+        cursor += segment.text.length;
+      }
     }
 
     return EpubDocument(
@@ -364,6 +408,18 @@ class _EpubParser {
     XmlElement spine,
     Map<String, _ManifestItem> manifest,
   ) {
+    final titles = <String, String>{};
+    for (final entry in _readTocEntries(opf, spine, manifest)) {
+      titles.putIfAbsent(entry.path, () => entry.title);
+    }
+    return titles;
+  }
+
+  List<_TocEntry> _readTocEntries(
+    XmlDocument opf,
+    XmlElement spine,
+    Map<String, _ManifestItem> manifest,
+  ) {
     final navItem = _firstWhereOrNull(
       manifest.values,
       (item) => item.properties
@@ -371,8 +427,8 @@ class _EpubParser {
           .contains('nav'),
     );
     if (navItem != null) {
-      final titles = _readNavTitles(navItem);
-      if (titles.isNotEmpty) return titles;
+      final entries = _readNavEntries(navItem);
+      if (entries.isNotEmpty) return entries;
     }
 
     final spineToc = spine.getAttribute('toc');
@@ -382,13 +438,13 @@ class _EpubParser {
           (item) => item.mediaType.contains('dtbncx'),
         );
     if (ncxItem != null) {
-      final titles = _readNcxTitles(ncxItem);
-      if (titles.isNotEmpty) return titles;
+      final entries = _readNcxEntries(ncxItem);
+      if (entries.isNotEmpty) return entries;
     }
-    return const {};
+    return const [];
   }
 
-  Map<String, String> _readNavTitles(_ManifestItem navItem) {
+  List<_TocEntry> _readNavEntries(_ManifestItem navItem) {
     try {
       final document = _parseXml(_readText(navItem.path));
       final navElements =
@@ -408,45 +464,130 @@ class _EpubParser {
         }
       }
       tocNav ??= navElements.isEmpty ? null : navElements.first;
-      if (tocNav == null) return const {};
+      if (tocNav == null) return const [];
 
-      final titles = <String, String>{};
-      for (final anchor in tocNav.findAllElements('a', namespaceUri: '*')) {
-        final href = anchor.getAttribute('href');
-        if (href == null || href.trim().isEmpty) continue;
-        final title = _normalizeInline(anchor.innerText);
-        if (title.isEmpty) continue;
-        titles.putIfAbsent(_resolvePath(navItem.path, href), () => title);
+      final rootList = _firstWhereOrNull(
+        tocNav.findAllElements('ol', namespaceUri: '*'),
+        (_) => true,
+      );
+      if (rootList == null) return const [];
+
+      final entries = <_TocEntry>[];
+      void walk(XmlElement list, int depth) {
+        for (final item in list.children.whereType<XmlElement>()) {
+          if (item.name.local.toLowerCase() != 'li') continue;
+          final anchor = _firstWhereOrNull(
+            item.children.whereType<XmlElement>(),
+            (child) => child.name.local.toLowerCase() == 'a',
+          );
+          if (anchor != null) {
+            final href = anchor.getAttribute('href');
+            final title = _normalizeInline(anchor.innerText);
+            if (href != null && href.trim().isNotEmpty && title.isNotEmpty) {
+              final target = _resolveTarget(navItem.path, href);
+              entries.add(_TocEntry(
+                title: title,
+                path: target.path,
+                fragment: target.fragment,
+                level: depth + 1,
+              ));
+            }
+          }
+          final nested = _firstWhereOrNull(
+            item.children.whereType<XmlElement>(),
+            (child) => child.name.local.toLowerCase() == 'ol',
+          );
+          if (nested != null) walk(nested, depth + 1);
+        }
       }
-      return titles;
+
+      walk(rootList, 0);
+      return entries;
     } catch (_) {
-      return const {};
+      return const [];
     }
   }
 
-  Map<String, String> _readNcxTitles(_ManifestItem ncxItem) {
+  List<_TocEntry> _readNcxEntries(_ManifestItem ncxItem) {
     try {
       final document = _parseXml(_readText(ncxItem.path));
-      final titles = <String, String>{};
-      for (final navPoint
-          in document.findAllElements('navPoint', namespaceUri: '*')) {
-        final label = _firstWhereOrNull(
-          navPoint.findAllElements('navLabel', namespaceUri: '*'),
-          (_) => true,
-        );
-        final content = _firstWhereOrNull(
-          navPoint.findAllElements('content', namespaceUri: '*'),
-          (_) => true,
-        );
-        final src = content?.getAttribute('src');
-        final title = label == null ? '' : _normalizeInline(label.innerText);
-        if (src == null || src.trim().isEmpty || title.isEmpty) continue;
-        titles.putIfAbsent(_resolvePath(ncxItem.path, src), () => title);
+      final entries = <_TocEntry>[];
+      final navMap = _firstWhereOrNull(
+        document.findAllElements('navMap', namespaceUri: '*'),
+        (_) => true,
+      );
+      if (navMap == null) return const [];
+
+      void walk(XmlElement parent, int depth) {
+        for (final navPoint in parent.children.whereType<XmlElement>()) {
+          if (navPoint.name.local.toLowerCase() != 'navpoint') continue;
+          final label = _firstWhereOrNull(
+            navPoint.findAllElements('navLabel', namespaceUri: '*'),
+            (_) => true,
+          );
+          final content = _firstWhereOrNull(
+            navPoint.findAllElements('content', namespaceUri: '*'),
+            (_) => true,
+          );
+          final src = content?.getAttribute('src');
+          final title = label == null ? '' : _normalizeInline(label.innerText);
+          if (src != null && src.trim().isNotEmpty && title.isNotEmpty) {
+            final target = _resolveTarget(ncxItem.path, src);
+            entries.add(_TocEntry(
+              title: title,
+              path: target.path,
+              fragment: target.fragment,
+              level: depth + 1,
+            ));
+          }
+          walk(navPoint, depth + 1);
+        }
       }
-      return titles;
+
+      walk(navMap, 0);
+      return entries;
     } catch (_) {
-      return const {};
+      return const [];
     }
+  }
+
+  List<({String title, int level, String text})> _chapterSegments(
+    String text,
+    List<_TocEntry> entries,
+    Map<String, int> anchors,
+  ) {
+    if (entries.isEmpty) return const [];
+
+    final starts = <({int offset, _TocEntry entry})>[];
+    for (final entry in entries) {
+      final fragment = entry.fragment;
+      final offset = fragment == null ? 0 : anchors[fragment];
+      if (offset == null || offset < 0 || offset >= text.length) continue;
+      starts.add((offset: offset, entry: entry));
+    }
+    if (starts.isEmpty) return const [];
+    starts.sort((a, b) => a.offset.compareTo(b.offset));
+
+    final segments = <({String title, int level, String text})>[];
+    final firstOffset = starts.first.offset;
+    if (firstOffset > 0) {
+      segments.add((
+        title: '前言',
+        level: 1,
+        text: text.substring(0, firstOffset).trim(),
+      ));
+    }
+    for (var i = 0; i < starts.length; i++) {
+      final start = starts[i].offset;
+      final end = i + 1 < starts.length ? starts[i + 1].offset : text.length;
+      if (end <= start) continue;
+      segments.add((
+        title: starts[i].entry.title,
+        level: starts[i].entry.level,
+        text: text.substring(start, end).trim(),
+      ));
+    }
+    return segments;
   }
 
   List<({List<int> bytes, String extension})> _extractPageImages(
@@ -496,7 +637,10 @@ class _EpubParser {
     return null;
   }
 
-  String _extractPlainText(String path) {
+  ({String text, Map<String, int> anchors}) _extractPlainTextWithAnchors(
+    String path,
+    Set<String> anchorIds,
+  ) {
     final source = _readText(path);
     try {
       final document = _parseXml(source);
@@ -506,17 +650,31 @@ class _EpubParser {
       );
       final container = body ?? document;
       final buffer = StringBuffer();
+      final anchorOrder = <String>[];
       for (final child in container.children) {
-        _collectText(child, buffer);
+        _collectText(
+          child,
+          buffer,
+          anchorIds: anchorIds,
+          anchorOrder: anchorOrder,
+        );
       }
-      return _normalizePlainText(buffer.toString());
+      return _normalizeTextTrackingAnchors(buffer.toString(), anchorOrder);
     } catch (_) {
       // Tolerate slightly malformed XHTML instead of losing the whole book.
-      return _normalizePlainText(_stripTagsFallback(source));
+      return (
+        text: _normalizePlainText(_stripTagsFallback(source)),
+        anchors: const <String, int>{},
+      );
     }
   }
 
-  void _collectText(XmlNode node, StringBuffer buffer) {
+  void _collectText(
+    XmlNode node,
+    StringBuffer buffer, {
+    Set<String> anchorIds = const {},
+    List<String>? anchorOrder,
+  }) {
     if (node is XmlText) {
       buffer.write(node.value);
       return;
@@ -530,12 +688,57 @@ class _EpubParser {
       return;
     }
 
+    final id = node.getAttribute('id');
+    if (anchorOrder != null && id != null && anchorIds.contains(id)) {
+      buffer.writeCharCode(0x0001);
+      anchorOrder.add(id);
+    }
+
     final isBlock = _blockTags.contains(tag);
     if (isBlock) buffer.write('\n');
     for (final child in node.children) {
-      _collectText(child, buffer);
+      _collectText(
+        child,
+        buffer,
+        anchorIds: anchorIds,
+        anchorOrder: anchorOrder,
+      );
     }
     if (isBlock) buffer.write('\n');
+  }
+
+  ({String text, Map<String, int> anchors}) _normalizeTextTrackingAnchors(
+    String raw,
+    List<String> anchorOrder,
+  ) {
+    final normalized = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    final buffer = StringBuffer();
+    final anchors = <String, int>{};
+    var anchorIndex = 0;
+    var written = 0;
+    var hasLine = false;
+    for (final line in normalized.split('\n')) {
+      final collapsed = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (collapsed.isEmpty) continue;
+      if (hasLine) {
+        buffer.write('\n');
+        written += 1;
+      }
+      for (var i = 0; i < collapsed.length; i++) {
+        final code = collapsed.codeUnitAt(i);
+        if (code == 0x0001) {
+          if (anchorIndex < anchorOrder.length) {
+            anchors.putIfAbsent(anchorOrder[anchorIndex], () => written);
+          }
+          anchorIndex++;
+          continue;
+        }
+        buffer.writeCharCode(code);
+        written += 1;
+      }
+      hasLine = true;
+    }
+    return (text: buffer.toString(), anchors: anchors);
   }
 
   String _stripTagsFallback(String source) {
@@ -598,6 +801,21 @@ class _EpubParser {
     return _normalizePath(
       p.url.join(directory == '.' ? '' : directory, target),
     );
+  }
+
+  ({String path, String? fragment}) _resolveTarget(
+    String basePath,
+    String href,
+  ) {
+    var target = href.trim();
+    String? fragment;
+    final hash = target.indexOf('#');
+    if (hash >= 0) {
+      final rawFragment = target.substring(hash + 1).trim();
+      fragment = rawFragment.isEmpty ? null : rawFragment;
+      target = target.substring(0, hash);
+    }
+    return (path: _resolvePath(basePath, target), fragment: fragment);
   }
 
   String _normalizePath(String path) {

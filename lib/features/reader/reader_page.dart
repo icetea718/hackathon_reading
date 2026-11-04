@@ -811,12 +811,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 'Georgia',
               ],
             );
-            final spans = buildAnnotationSpans(
-              text: text,
-              chapterStart: currentChapter.startOffset,
-              annotations: chapterAnnotations,
-              baseStyle: baseStyle,
+            final headingLine = _matchedHeadingLine(
+              text,
+              currentChapter.title,
             );
+            final spans = <InlineSpan>[];
+            if (headingLine == null) {
+              spans.addAll(buildAnnotationSpans(
+                text: text,
+                chapterStart: currentChapter.startOffset,
+                annotations: chapterAnnotations,
+                baseStyle: baseStyle,
+              ));
+            } else {
+              spans.add(TextSpan(
+                text: headingLine,
+                style: _headingStyle(baseStyle, currentChapter.level),
+              ));
+              final restStart = currentChapter.startOffset + headingLine.length;
+              final rest = text.substring(headingLine.length);
+              if (rest.isNotEmpty) {
+                spans.addAll(buildAnnotationSpans(
+                  text: rest,
+                  chapterStart: restStart,
+                  annotations: chapterAnnotations,
+                  baseStyle: baseStyle,
+                ));
+              }
+            }
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
@@ -1281,4 +1303,28 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       ),
     );
   }
+}
+
+TextStyle _headingStyle(TextStyle base, int level) {
+  final nested = level > 1;
+  return base.copyWith(
+    fontSize: (base.fontSize ?? 18) * (nested ? 1.2 : 1.5),
+    fontWeight: nested ? FontWeight.w600 : FontWeight.w700,
+    height: nested ? 1.6 : 1.7,
+  );
+}
+
+String? _matchedHeadingLine(String text, String title) {
+  final newline = text.indexOf('\n');
+  final firstLine = newline == -1 ? text : text.substring(0, newline);
+  final key = _headingKey(firstLine);
+  if (key.isEmpty || key != _headingKey(title)) return null;
+  return firstLine;
+}
+
+String _headingKey(String value) {
+  return value
+      .replaceAll(RegExp(r'\[[^\]]*\]|［[^］]*］|【[^】]*】'), '')
+      .replaceAll(RegExp(r'\s+'), '')
+      .trim();
 }

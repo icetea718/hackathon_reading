@@ -24,6 +24,19 @@ class EpubFixtureDoc {
   final bool inSpine;
 }
 
+/// A nested TOC entry; [href] may carry a `#fragment`.
+class EpubTocEntry {
+  const EpubTocEntry({
+    required this.href,
+    required this.title,
+    this.children = const [],
+  });
+
+  final String href;
+  final String title;
+  final List<EpubTocEntry> children;
+}
+
 /// A plain image resource referenced from an XHTML page.
 class EpubFixtureImage {
   const EpubFixtureImage({
@@ -89,6 +102,7 @@ List<int> buildEpubBytes({
   String opfPath = 'OEBPS/content.opf',
   required List<EpubFixtureDoc> docs,
   Map<String, String> toc = const {},
+  List<EpubTocEntry> tocEntries = const [],
   bool useNcx = false,
   bool includeNavInSpine = false,
   EpubFixtureCover? cover,
@@ -153,6 +167,12 @@ List<int> buildEpubBytes({
     ));
   }
 
+  final nestedToc = tocEntries.isNotEmpty
+      ? tocEntries
+      : [
+          for (final entry in toc.entries)
+            EpubTocEntry(href: entry.key, title: entry.value),
+        ];
   final navHref = useNcx ? 'toc.ncx' : 'nav.xhtml';
   final navId = useNcx ? 'ncx' : 'nav';
   if (useNcx) {
@@ -162,15 +182,27 @@ List<int> buildEpubBytes({
     );
     final navPoints = StringBuffer();
     var order = 1;
-    toc.forEach((href, title) {
-      navPoints.writeln(
-        '<navPoint id="navPoint-$order" playOrder="$order">'
-        '<navLabel><text>${_escapeXml(title)}</text></navLabel>'
-        '<content src="${_escapeXml(href)}"/>'
-        '</navPoint>',
+    void writeNavPoint(EpubTocEntry entry, String indent) {
+      final current = order++;
+      navPoints.write(
+        '$indent<navPoint id="navPoint-$current" playOrder="$current">'
+        '<navLabel><text>${_escapeXml(entry.title)}</text></navLabel>'
+        '<content src="${_escapeXml(entry.href)}"/>',
       );
-      order++;
-    });
+      if (entry.children.isEmpty) {
+        navPoints.writeln('</navPoint>');
+        return;
+      }
+      navPoints.writeln();
+      for (final child in entry.children) {
+        writeNavPoint(child, '$indent  ');
+      }
+      navPoints.writeln('$indent</navPoint>');
+    }
+
+    for (final entry in nestedToc) {
+      writeNavPoint(entry, '    ');
+    }
     archive.add(ArchiveFile.bytes(
       p.url.normalize(p.url.join(opfDir, navHref)),
       utf8.encode('<?xml version="1.0" encoding="utf-8"?>\n'
@@ -186,17 +218,28 @@ List<int> buildEpubBytes({
       'media-type="application/xhtml+xml" properties="nav"/>',
     );
     final links = StringBuffer();
-    toc.forEach((href, title) {
-      links.writeln(
-        '<li><a href="${_escapeXml(href)}">${_escapeXml(title)}</a></li>',
-      );
-    });
+    void writeList(List<EpubTocEntry> entries, String indent) {
+      links.writeln('$indent<ol>');
+      for (final entry in entries) {
+        links.writeln(
+          '$indent  <li>'
+          '<a href="${_escapeXml(entry.href)}">${_escapeXml(entry.title)}</a>',
+        );
+        if (entry.children.isNotEmpty) {
+          writeList(entry.children, '$indent    ');
+        }
+        links.writeln('$indent  </li>');
+      }
+      links.writeln('$indent</ol>');
+    }
+
+    writeList(nestedToc, '          ');
     archive.add(ArchiveFile.bytes(
       p.url.normalize(p.url.join(opfDir, navHref)),
       utf8.encode(_xhtml(
         '目录',
         '<nav epub:type="toc" '
-            'xmlns:epub="http://www.idpf.org/2007/ops"><ol>$links</ol></nav>',
+            'xmlns:epub="http://www.idpf.org/2007/ops">$links</nav>',
       )),
     ));
   }

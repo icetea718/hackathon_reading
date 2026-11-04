@@ -57,6 +57,85 @@ void main() {
       );
     });
 
+    test('splits a spine document at nested NCX section anchors', () {
+      final bytes = buildEpubBytes(
+        useNcx: true,
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/part1.xhtml',
+            body: '<h1>第一部分</h1><h2 id="s1">择善</h2><p>甲。</p>'
+                '<h2 id="s2">助产士</h2><p>乙。</p>',
+          ),
+          EpubFixtureDoc(
+            href: 'text/part2.xhtml',
+            body: '<h1>第二部分</h1><p>丙。</p>',
+          ),
+        ],
+        tocEntries: const [
+          EpubTocEntry(
+            href: 'text/part1.xhtml',
+            title: '第一部分',
+            children: [
+              EpubTocEntry(href: 'text/part1.xhtml#s1', title: '择善'),
+              EpubTocEntry(href: 'text/part1.xhtml#s2', title: '助产士'),
+            ],
+          ),
+          EpubTocEntry(href: 'text/part2.xhtml', title: '第二部分'),
+        ],
+      );
+
+      final document = parseEpubDocument(bytes);
+
+      expect(
+        document.chapters.map((c) => c.title),
+        ['第一部分', '择善', '助产士', '第二部分'],
+      );
+      expect(document.chapters.map((c) => c.level), [1, 2, 2, 1]);
+      expect(document.chapters[0].contentText, '第一部分');
+      expect(document.chapters[1].contentText, '择善\n甲。');
+      expect(document.chapters[2].contentText, '助产士\n乙。');
+      expect(document.chapters[3].contentText, '第二部分\n丙。');
+      expect(
+        document.chapters[1].startOffset,
+        document.chapters[0].endOffset,
+      );
+      expect(
+        document.chapters.last.endOffset,
+        document.chapters.fold<int>(0, (sum, c) => sum + c.contentText.length),
+      );
+    });
+
+    test('reads nested EPUB3 nav lists as sections', () {
+      final bytes = buildEpubBytes(
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/part1.xhtml',
+            body: '<h1>第一卷</h1><h2 id="one">第一章 起</h2><p>甲。</p>'
+                '<h2 id="two">第二章 承</h2><p>乙。</p>',
+          ),
+        ],
+        tocEntries: const [
+          EpubTocEntry(
+            href: 'text/part1.xhtml',
+            title: '第一卷',
+            children: [
+              EpubTocEntry(href: 'text/part1.xhtml#one', title: '第一章 起'),
+              EpubTocEntry(href: 'text/part1.xhtml#two', title: '第二章 承'),
+            ],
+          ),
+        ],
+      );
+
+      final document = parseEpubDocument(bytes);
+
+      expect(
+        document.chapters.map((c) => c.title),
+        ['第一卷', '第一章 起', '第二章 承'],
+      );
+      expect(document.chapters.map((c) => c.level), [1, 2, 2]);
+      expect(document.chapters[1].contentText, '第一章 起\n甲。');
+    });
+
     test('reads EPUB2 NCX titles', () {
       final bytes = buildEpubBytes(
         useNcx: true,
@@ -361,6 +440,35 @@ void main() {
           chapter.endOffset - chapter.startOffset,
         );
       }
+    });
+
+    test('import persists the nested section levels', () async {
+      final bytes = buildEpubBytes(
+        useNcx: true,
+        docs: const [
+          EpubFixtureDoc(
+            href: 'text/part1.xhtml',
+            body: '<h1>第一部分</h1><h2 id="s1">择善</h2><p>甲。</p>',
+          ),
+        ],
+        tocEntries: const [
+          EpubTocEntry(
+            href: 'text/part1.xhtml',
+            title: '第一部分',
+            children: [
+              EpubTocEntry(href: 'text/part1.xhtml#s1', title: '择善'),
+            ],
+          ),
+        ],
+      );
+      final source = File('${temp.path}/层级.epub')
+        ..writeAsBytesSync(bytes);
+
+      final book = await service.importFile(source.path);
+      final stored = await chapters.getForBook(book.id);
+
+      expect(stored.map((c) => c.title), ['第一部分', '择善']);
+      expect(stored.map((c) => c.level), [1, 2]);
     });
 
     test('import saves an EPUB cover and stores its path', () async {

@@ -29,6 +29,7 @@ void main() {
         startOffset: 10,
         endOffset: 20,
         contentText: '第二章的正文内容',
+        level: 2,
       ),
     ]);
   });
@@ -41,6 +42,18 @@ void main() {
     expect(chapters.map((c) => c.startOffset), [0, 10]);
     expect(chapters.map((c) => c.endOffset), [10, 20]);
     expect(chapters.every((c) => c.contentText.isEmpty), isTrue);
+  });
+
+  test('summaries keep the chapter level', () async {
+    final chapters = await repo.getSummariesForBook('b1');
+
+    expect(chapters.map((c) => c.level), [1, 2]);
+  });
+
+  test('full chapters keep the chapter level', () async {
+    final chapters = await repo.getForBook('b1');
+
+    expect(chapters.map((c) => c.level), [1, 2]);
   });
 
   test('content loads for a single chapter', () async {

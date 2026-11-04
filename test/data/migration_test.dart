@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 
 void main() {
-  test('upgrades a v5 database with categories and the comic flag', () async {
+  test('upgrades a v5 database through v8', () async {
     final db = AppDatabase(NativeDatabase.memory(
       setup: (raw) {
         raw.execute('PRAGMA user_version = 5;');
@@ -20,10 +20,25 @@ void main() {
           'added_at INTEGER NOT NULL, '
           'last_opened_at INTEGER)',
         );
+        raw.execute(
+          'CREATE TABLE chapters ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          'book_id TEXT NOT NULL, '
+          'chapter_index INTEGER NOT NULL, '
+          'title TEXT NOT NULL, '
+          'start_offset INTEGER NOT NULL, '
+          'end_offset INTEGER NOT NULL, '
+          'content_text TEXT NOT NULL)',
+        );
+        raw.execute(
+          "INSERT INTO chapters "
+          '(id, book_id, chapter_index, title, start_offset, end_offset, '
+          "content_text) VALUES ('c1', 'b1', 0, '旧章', 0, 10, '正文')",
+        );
       },
     ));
 
-    expect(db.schemaVersion, 7);
+    expect(db.schemaVersion, 8);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -48,6 +63,12 @@ void main() {
             variables: [Variable.withString('b1')])
         .getSingle();
     expect(comic.read<bool>('comic'), isFalse);
+
+    final chapter = await db
+        .customSelect('SELECT level FROM chapters WHERE id = ?',
+            variables: [Variable.withString('c1')])
+        .getSingle();
+    expect(chapter.read<int>('level'), 1);
 
     await db.close();
   });

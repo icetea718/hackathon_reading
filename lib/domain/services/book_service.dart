@@ -271,6 +271,7 @@ class BookService {
           startOffset: document.chapters[i].startOffset,
           endOffset: document.chapters[i].endOffset,
           contentText: document.chapters[i].contentText,
+          level: document.chapters[i].level,
         ),
     ];
   }
@@ -289,6 +290,7 @@ class BookService {
             document.chapters[i].startOffset,
             document.chapters[i].endOffset,
           ),
+          level: document.chapters[i].level,
         ),
     ];
   }
