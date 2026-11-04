@@ -11,9 +11,10 @@ import '../../data/repositories/translation_cache_repository.dart';
 /// A small popup that streams a translation into view.
 ///
 /// The dialog owns nothing but presentation: it looks the text up in
-/// [TranslationCacheStore] first, and only calls [AssistantService.translate]
-/// when nothing is cached. Finished translations are written back so the same
-/// passage opens instantly next time.
+/// [TranslationCacheStore] first and only subscribes to
+/// [AssistantService.translate] when nothing is cached, so a remembered
+/// passage opens instantly. Writing results back is the job of
+/// [CachedTranslationService], which also covers whole-chapter translation.
 class TranslationDialog extends StatefulWidget {
   const TranslationDialog({
     super.key,
@@ -114,10 +115,7 @@ class _TranslationDialogState extends State<TranslationDialog> {
 
   void _appendChunk(String chunk) {
     if (!mounted || chunk.isEmpty) return;
-    setState(() {
-      if (_buffer.isNotEmpty) _buffer.write('\n');
-      _buffer.write(chunk);
-    });
+    setState(() => _buffer.write(chunk));
     _scrollToBottom();
   }
 
@@ -131,18 +129,7 @@ class _TranslationDialogState extends State<TranslationDialog> {
 
   void _onDone() {
     if (!mounted) return;
-    final text = _buffer.toString();
     setState(() => _translating = false);
-    if (text.isEmpty) return;
-    unawaited(
-      widget.cache
-          .save(
-            widget.sourceText,
-            targetLang: widget.targetLang,
-            translatedText: text,
-          )
-          .catchError((Object _) {}),
-    );
   }
 
   String _describe(Object error) {
@@ -155,6 +142,19 @@ class _TranslationDialogState extends State<TranslationDialog> {
       if (!mounted || !_scrollController.hasClients) return;
       _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
     });
+  }
+
+  /// Drops the remembered translation and asks the model again.
+  Future<void> _retranslate() async {
+    try {
+      await widget.cache.remove(
+        widget.sourceText,
+        targetLang: widget.targetLang,
+      );
+    } catch (_) {
+      // Losing the delete is fine: we still try a fresh request.
+    }
+    await _start(ignoreCache: true);
   }
 
   Future<void> _copy() async {
@@ -226,12 +226,12 @@ class _TranslationDialogState extends State<TranslationDialog> {
                   ),
                   if (_fromCache)
                     TextButton(
-                      onPressed: () => _start(ignoreCache: true),
+                      onPressed: _retranslate,
                       child: const Text('重新翻译'),
                     ),
                   if (_error != null)
                     TextButton(
-                      onPressed: () => _start(ignoreCache: true),
+                      onPressed: _retranslate,
                       child: const Text('重试'),
                     ),
                   TextButton(

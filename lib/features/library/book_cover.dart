@@ -9,34 +9,22 @@ class BookCover extends StatelessWidget {
 
   final Book book;
 
-  static const List<List<Color>> _gradients = [
-    [Color(0xFF7080A8), Color(0xFF4C5878)],
-    [Color(0xFFA88070), Color(0xFF7A5848)],
-    [Color(0xFF6C9183), Color(0xFF48695E)],
-    [Color(0xFF82758F), Color(0xFF5A4F68)],
-    [Color(0xFF8A9070), Color(0xFF5E6548)],
-    [Color(0xFF6E7FA0), Color(0xFF4A5A78)],
+  static const _serifFallbacks = [
+    'Noto Serif CJK SC',
+    'SimSun',
+    'Georgia',
   ];
 
-  static int gradientIndex(String seed) {
-    var hash = 0x811C9DC5;
-    for (final unit in seed.codeUnits) {
-      hash ^= unit;
-      hash = (hash * 0x01000193) & 0xFFFFFFFF;
-    }
-    return hash % _gradients.length;
-  }
-
-  static String initialLetter(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return '书';
-    return String.fromCharCode(trimmed.runes.first).toUpperCase();
-  }
+  static List<Color> _paletteFor(BookFormat format) => switch (format) {
+        BookFormat.txt => const [Color(0xFF7080A8), Color(0xFF4C5878)],
+        BookFormat.epub => const [Color(0xFF6C9183), Color(0xFF48695E)],
+        BookFormat.pdf => const [Color(0xFFA88070), Color(0xFF7A5848)],
+      };
 
   @override
   Widget build(BuildContext context) {
     final coverPath = book.coverPath;
-    if (coverPath != null && File(coverPath).existsSync()) {
+    if (coverPath != null) {
       return Image.file(
         File(coverPath),
         fit: BoxFit.cover,
@@ -47,24 +35,75 @@ class BookCover extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    final colors = _gradients[gradientIndex(book.id)];
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: colors,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initialLetter(book.title),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 34,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+    final colors = _paletteFor(book.format);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 160.0;
+        final titleSize = (width * 0.14).clamp(14.0, 30.0);
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: colors,
+            ),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned(
+                left: 8,
+                top: 8,
+                right: 8,
+                bottom: 8,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.white24),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 30),
+                child: Center(
+                  child: Text(
+                    book.title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                      letterSpacing: 1.0,
+                      fontFamily: 'Source Han Serif SC',
+                      fontFamilyFallback: _serifFallbacks,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 12,
+                child: Text(
+                  book.format.label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

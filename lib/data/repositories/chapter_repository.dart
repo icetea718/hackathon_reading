@@ -37,6 +37,7 @@ class ChapterRepository {
         _db.chapters.title,
         _db.chapters.startOffset,
         _db.chapters.endOffset,
+        _db.chapters.level,
       ])
       ..where(_db.chapters.bookId.equals(bookId))
       ..orderBy([OrderingTerm.asc(_db.chapters.chapterIndex)]);
@@ -50,6 +51,7 @@ class ChapterRepository {
               startOffset: row.read(_db.chapters.startOffset)!,
               endOffset: row.read(_db.chapters.endOffset)!,
               contentText: '',
+              level: row.read(_db.chapters.level)!,
             ))
         .toList();
   }
@@ -72,6 +74,7 @@ class ChapterRepository {
       startOffset: row.startOffset,
       endOffset: row.endOffset,
       contentText: row.contentText,
+      level: row.level,
     );
   }
 
@@ -84,6 +87,7 @@ class ChapterRepository {
       startOffset: chapter.startOffset,
       endOffset: chapter.endOffset,
       contentText: chapter.contentText,
+      level: Value(chapter.level),
     );
   }
 }

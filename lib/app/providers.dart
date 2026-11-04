@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../assistant/assistant_service.dart';
+import '../assistant/cached_translation_service.dart';
 import '../assistant/digest_aware_assistant_service.dart';
 import '../assistant/my_memory_translator.dart';
 import '../assistant/openai_assistant_service.dart';
@@ -28,6 +30,7 @@ import '../distill/llm/llm_config.dart';
 import '../distill/llm/openai_llm_client.dart';
 import '../domain/models/book.dart';
 import '../domain/models/category.dart';
+import '../domain/models/comic_page.dart';
 import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
@@ -94,11 +97,14 @@ final translationCacheProvider = Provider<TranslationCacheStore>((ref) {
 });
 
 /// Translation always works: the configured model when there is one, the free
-/// public API otherwise.
+/// public API otherwise. Finished results are remembered on disk.
 final translationServiceProvider = Provider<AssistantService>((ref) {
-  return TranslationRouter(
-    preferred: ref.watch(assistantServiceProvider).value,
-    fallback: ref.watch(offlineTranslatorProvider),
+  return CachedTranslationService(
+    inner: TranslationRouter(
+      preferred: ref.watch(assistantServiceProvider).value,
+      fallback: ref.watch(offlineTranslatorProvider),
+    ),
+    cache: ref.watch(translationCacheProvider),
   );
 });
 
@@ -240,6 +246,12 @@ final bookStorageProvider = FutureProvider<BookStorage>((ref) async {
   return BookStorage(Directory(p.join(support.path, 'books')));
 });
 
+final comicPagesProvider =
+    FutureProvider.family<List<ComicPage>, String>((ref, bookId) async {
+  final storage = await ref.watch(bookStorageProvider.future);
+  return storage.loadComicPages(bookId);
+});
+
 final bookServiceProvider = FutureProvider<BookService>((ref) async {
   final service = BookService(
     books: ref.watch(bookRepositoryProvider),
@@ -253,6 +265,7 @@ final bookServiceProvider = FutureProvider<BookService>((ref) async {
     categories: ref.watch(categoryRepositoryProvider),
   );
   await service.backfillContentHashes();
+  unawaited(service.backfillCovers());
   return service;
 });
 

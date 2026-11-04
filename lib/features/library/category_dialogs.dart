@@ -49,8 +49,7 @@ Future<bool> confirmDeleteCategory(
 }
 
 Future<void> showCategoryPickerDialog(
-  BuildContext context,
-  WidgetRef ref, {
+  BuildContext context, {
   required Set<String> bookIds,
 }) {
   return showDialog<void>(
@@ -206,7 +205,8 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
   }
 
   Future<void> _submit() async {
-    if (_submitting || _controller.text.trim().isEmpty) return;
+    final trimmed = _controller.text.trim();
+    if (_submitting || trimmed.isEmpty || trimmed.length > 20) return;
     setState(() {
       _submitting = true;
       _error = null;
@@ -235,6 +235,10 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final trimmed = _controller.text.trim();
+    final lengthValid = trimmed.isNotEmpty && trimmed.length <= 20;
+    final message =
+        _error ?? (trimmed.length > 20 ? '名称需为 1–20 个字符' : null);
     return AlertDialog(
       title: Text(widget.title),
       content: Column(
@@ -249,11 +253,11 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _submit(),
           ),
-          if (_error != null)
+          if (message != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                _error!,
+                message,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
@@ -268,9 +272,7 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
         ),
         TextButton(
           key: const Key('category-name-confirm'),
-          onPressed: _submitting || _controller.text.trim().isEmpty
-              ? null
-              : _submit,
+          onPressed: _submitting || !lengthValid ? null : _submit,
           child: Text(widget.confirmLabel),
         ),
       ],

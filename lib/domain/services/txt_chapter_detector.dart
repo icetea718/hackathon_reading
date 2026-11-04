@@ -1,13 +1,19 @@
 import '../models/detected_chapter.dart';
 
-final RegExp _headingPattern = RegExp(
+final RegExp _chapterPattern = RegExp(
   r'^(?:'
-  r'第[0-9０-９一二三四五六七八九十百千万零两〇]+(?:[章节卷回篇集]|部(?:分)?)'
+  r'第[0-9０-９一二三四五六七八九十百千万零两〇]+(?:[章卷回篇集]|部(?:分)?)'
   r'(?:\s|[:：、.．\-—（(【\[]|$)'
   r'|(?:序章|楔子|引子|前言|序言|后记|尾声|番外|正文)'
   r'(?:\s|[:：、.．\-—（(【\[]|$)'
   r'|Chapter\s+[0-9IVXLC]+(?:\s|[:：.．\-（(【\[]|$)'
   r')',
+  caseSensitive: false,
+);
+
+final RegExp _sectionPattern = RegExp(
+  r'^第[0-9０-９一二三四五六七八九十百千万零两〇]+节'
+  r'(?:\s|[:：、.．\-—（(【\[]|$)',
   caseSensitive: false,
 );
 
@@ -20,6 +26,7 @@ List<DetectedChapter> detectTxtChapters(
   if (text.trim().isEmpty) return const [];
 
   final headings = <DetectedChapter>[];
+  var sawChapter = false;
   var lineStart = 0;
   for (final rawLine in text.split('\n')) {
     var line = rawLine;
@@ -29,14 +36,19 @@ List<DetectedChapter> detectTxtChapters(
     final trimmed = line.trim();
     if (trimmed.isNotEmpty &&
         trimmed.length <= 40 &&
-        !_sentenceEnders.any(trimmed.endsWith) &&
-        _headingPattern.hasMatch(trimmed)) {
-      final leadingWhitespace = line.length - line.trimLeft().length;
-      headings.add(DetectedChapter(
-        title: trimmed,
-        startOffset: lineStart + leadingWhitespace,
-        endOffset: 0,
-      ));
+        !_sentenceEnders.any(trimmed.endsWith)) {
+      final isChapter = _chapterPattern.hasMatch(trimmed);
+      final isSection = !isChapter && _sectionPattern.hasMatch(trimmed);
+      if (isChapter || isSection) {
+        final leadingWhitespace = line.length - line.trimLeft().length;
+        headings.add(DetectedChapter(
+          title: trimmed,
+          startOffset: lineStart + leadingWhitespace,
+          endOffset: 0,
+          level: isSection && sawChapter ? 2 : 1,
+        ));
+        if (isChapter) sawChapter = true;
+      }
     }
     lineStart += rawLine.length + 1;
   }
@@ -68,6 +80,7 @@ List<DetectedChapter> detectTxtChapters(
       startOffset: heading.startOffset,
       endOffset:
           i + 1 < headings.length ? headings[i + 1].startOffset : text.length,
+      level: heading.level,
     ));
   }
   return chapters;

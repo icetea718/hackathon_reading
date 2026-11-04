@@ -250,7 +250,6 @@ class _BookshelfViewState extends ConsumerState<BookshelfView> {
                     onToggleSelected: _toggleBook,
                     onAddToCategory: (book) => showCategoryPickerDialog(
                       context,
-                      ref,
                       bookIds: {book.id},
                     ),
                     onDelete: _deleteBook,
@@ -262,7 +261,6 @@ class _BookshelfViewState extends ConsumerState<BookshelfView> {
             ManageBar(
               onAddToCategory: () => showCategoryPickerDialog(
                 context,
-                ref,
                 bookIds: ref.read(selectedBookIdsProvider),
               ),
               onRemoveFromCategory: _removeFromCurrentCategory,

@@ -69,6 +69,36 @@ void main() {
     expect(chapters.last.endOffset, text.length);
   });
 
+  test('detects 第X节 as level-two sections inside a chapter', () {
+    const text = '第一章 开始\n甲\n第一节 起\n乙\n第二节 承\n丙\n第二章 继续\n丁';
+    final chapters = detectTxtChapters(text);
+
+    expect(chapters.map((c) => c.title), [
+      '第一章 开始',
+      '第一节 起',
+      '第二节 承',
+      '第二章 继续',
+    ]);
+    expect(chapters.map((c) => c.level), [1, 2, 2, 1]);
+    expect(chapters[1].startOffset, text.indexOf('第一节'));
+    expect(chapters[2].startOffset, text.indexOf('第二节'));
+    expect(chapters.last.endOffset, text.length);
+  });
+
+  test('treats sections before any chapter as level one', () {
+    const text = '第一节 起\n甲\n第二节 承\n乙';
+    final chapters = detectTxtChapters(text);
+
+    expect(chapters.map((c) => c.level), [1, 1]);
+  });
+
+  test('does not treat long prose starting with 第一节 as a heading', () {
+    const text = '第一节的内容写得非常精彩，我们都很喜欢。\n第二段';
+    final chapters = detectTxtChapters(text);
+
+    expect(chapters.single.title, '正文');
+  });
+
   test('returns no chapters for whitespace-only text', () {
     expect(detectTxtChapters(' \n\t '), isEmpty);
   });

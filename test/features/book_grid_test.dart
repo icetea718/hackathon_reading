@@ -20,6 +20,8 @@ Book mkBook(
   required String title,
   String author = '',
   BookFormat format = BookFormat.txt,
+  String? coverPath,
+  bool comic = false,
 }) {
   return Book(
     id: id,
@@ -27,7 +29,9 @@ Book mkBook(
     author: author,
     format: format,
     sourcePath: 'C:/books/$id.${format.name}',
+    coverPath: coverPath,
     contentHash: 'hash-$id',
+    comic: comic,
     addedAt: DateTime(2026, 1, 1),
   );
 }
@@ -110,7 +114,9 @@ void main() {
     await disposeShelf(tester);
   });
 
-  testWidgets('cards show title, author, and progress', (tester) async {
+  testWidgets('cards show title and progress without an author line', (
+    tester,
+  ) async {
     await seed(tester, mkBook('b1', title: '三体', author: '刘慈欣'));
     await seed(tester, mkBook('b2', title: '红楼梦'));
     await seed(tester, mkBook('b3', title: '论语', author: '孔子'));
@@ -127,10 +133,10 @@ void main() {
     await pumpShelf(tester);
 
     expect(find.byType(BookCard), findsNWidgets(3));
-    expect(find.text('三体'), findsOneWidget);
-    expect(find.text('刘慈欣'), findsOneWidget);
+    expect(find.text('三体'), findsWidgets);
+    expect(find.text('刘慈欣'), findsNothing);
+    expect(find.text('未知作者'), findsNothing);
     expect(find.text('62%'), findsOneWidget);
-    expect(find.text('未知作者'), findsOneWidget);
     expect(find.text('未开始'), findsNWidgets(2));
     await disposeShelf(tester);
   });
@@ -164,11 +170,17 @@ void main() {
     await disposeShelf(tester);
   });
 
-  testWidgets('card menu offers actions and disables distill for PDF', (
+  testWidgets('card menu disables distill for PDF and comic books', (
     tester,
   ) async {
     await seed(tester, mkBook('b1', title: '三体', author: '刘慈欣'));
     await seed(tester, mkBook('b2', title: '论文', format: BookFormat.pdf));
+    await seed(tester, mkBook(
+      'b3',
+      title: '漫画',
+      format: BookFormat.epub,
+      comic: true,
+    ));
     await pumpShelf(tester);
 
     await tester.tap(cardMenu('b1'));
@@ -191,6 +203,18 @@ void main() {
       ),
     );
     expect(distill.enabled, isFalse);
+
+    await tester.tapAt(const Offset(400, 590));
+    await tester.pumpAndSettle();
+    await tester.tap(cardMenu('b3'));
+    await tester.pumpAndSettle();
+    final comicDistill = tester.widget<PopupMenuItem<dynamic>>(
+      find.ancestor(
+        of: find.text('蒸馏'),
+        matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+      ),
+    );
+    expect(comicDistill.enabled, isFalse);
     await disposeShelf(tester);
   });
 
@@ -215,12 +239,30 @@ void main() {
     await disposeShelf(tester);
   });
 
-  testWidgets('cover helpers are deterministic', (tester) async {
-    final first = BookCover.gradientIndex('book-a');
-    expect(first, BookCover.gradientIndex('book-a'));
-    expect(first, inInclusiveRange(0, 5));
-    expect(BookCover.gradientIndex('book-b'), inInclusiveRange(0, 5));
-    expect(BookCover.initialLetter('三体'), '三');
-    expect(BookCover.initialLetter('abc'), 'A');
+  testWidgets('a missing cover file falls back to the generated cover', (
+    tester,
+  ) async {
+    final book = mkBook(
+      'b1',
+      title: '三体',
+      coverPath: '${temp.path}/missing-cover.jpg',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 120,
+            height: 160,
+            child: BookCover(book: book),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('三体'), findsOneWidget);
   });
 }

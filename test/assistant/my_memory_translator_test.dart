@@ -43,7 +43,10 @@ void main() {
               targetLang: 'zh-CN')
           .toList();
 
-      expect(chunks, ['译：First paragraph here.', '译：Second paragraph here.']);
+      expect(chunks, [
+        '译：First paragraph here.',
+        '\n译：Second paragraph here.',
+      ]);
       expect(backend.languagePairs, ['autodetect|zh-CN', 'autodetect|zh-CN']);
     });
 
@@ -58,7 +61,7 @@ void main() {
           .translate('这是中文。\nThis is English.', targetLang: 'zh-CN')
           .toList();
 
-      expect(chunks, ['这是中文。', '译：This is English.']);
+      expect(chunks, ['这是中文。', '\n译：This is English.']);
       expect(backend.texts, ['This is English.']);
     });
 

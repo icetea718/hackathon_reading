@@ -95,6 +95,36 @@ void main() {
     await disposePane(tester);
   });
 
+  testWidgets('counts share the same right edge', (tester) async {
+    final category = await io(tester, () => categories.create('科幻'));
+    await io(tester, () => categories.addBook('b1', category.id));
+    await pumpPane(tester);
+
+    final allCount = find.descendant(
+      of: find.byKey(const Key('category-row-all')),
+      matching: find.text('2'),
+    );
+    final categoryCount = find.descendant(
+      of: find.byKey(Key('category-row-${category.id}')),
+      matching: find.text('1'),
+    );
+
+    final allRight = tester.getTopRight(allCount).dx;
+    final categoryRight = tester.getTopRight(categoryCount).dx;
+    final uncategorizedRight = tester
+        .getTopRight(
+          find.descendant(
+            of: find.byKey(const Key('category-row-uncategorized')),
+            matching: find.text('1'),
+          ),
+        )
+        .dx;
+
+    expect(categoryRight, closeTo(allRight, 1));
+    expect(uncategorizedRight, closeTo(allRight, 1));
+    await disposePane(tester);
+  });
+
   testWidgets('creates a category', (tester) async {
     await pumpPane(tester);
 
@@ -237,13 +267,31 @@ void main() {
       'x' * 21,
     );
     await tester.pump();
-    await flushIo(
-      tester,
-      () => tester.tap(find.byKey(const Key('category-name-confirm'))),
+    expect(find.text('名称需为 1–20 个字符'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('category-name-confirm')))
+          .onPressed,
+      isNull,
     );
 
-    expect(find.text('名称需为 1–20 个字符'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('category-name-field')), '科幻');
+    await tester.pump();
+    expect(find.text('名称需为 1–20 个字符'), findsNothing);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('category-name-confirm')))
+          .onPressed,
+      isNotNull,
+    );
     expect(find.byKey(const Key('category-name-field')), findsOneWidget);
+    await disposePane(tester);
+  });
+
+  testWidgets('empty category list shows a hint', (tester) async {
+    await pumpPane(tester);
+
+    expect(find.text('还没有分类，可拖拽书籍到这里，或点击下方新建'), findsOneWidget);
     await disposePane(tester);
   });
 

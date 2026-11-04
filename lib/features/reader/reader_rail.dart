@@ -14,6 +14,9 @@ class ReaderRail extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.accent,
+    this.companionEnabled = true,
+    this.companionTooltip = '陪读',
+    this.elevated = false,
   });
 
   final bool pinned;
@@ -24,6 +27,9 @@ class ReaderRail extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color accent;
+  final bool companionEnabled;
+  final String companionTooltip;
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
@@ -39,10 +45,13 @@ class ReaderRail extends StatelessWidget {
       },
       onSettings: onOpenSettings,
       settingsTooltip: '应用设置',
+      companionEnabled: companionEnabled,
+      companionTooltip: companionTooltip,
       backgroundColor: background,
       foregroundColor: foreground,
       selectedBackgroundColor: accent.withValues(alpha: 0.18),
       selectedForegroundColor: accent,
+      elevated: elevated,
       footer: SizedBox(
         width: 48,
         child: TextButton(

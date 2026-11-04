@@ -7,6 +7,7 @@ class Chapter {
     required this.startOffset,
     required this.endOffset,
     required this.contentText,
+    this.level = 1,
   });
 
   final String id;
@@ -16,4 +17,7 @@ class Chapter {
   final int startOffset;
   final int endOffset;
   final String contentText;
+
+  /// 1 for a part/chapter, 2 for a section nested inside it.
+  final int level;
 }

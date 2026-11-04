@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -153,6 +154,19 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
 
   Future<void> _summarize() => _stream((service) => service.summarizeChapter(_context));
 
+  /// Enter sends the question, shift+enter keeps it for a second line, and
+  /// enter that belongs to an input method (picking a character) stays with it.
+  KeyEventResult _handleComposerKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.enter ||
+        HardwareKeyboard.instance.isShiftPressed ||
+        _input.value.composing.isValid) {
+      return KeyEventResult.ignored;
+    }
+    unawaited(_send());
+    return KeyEventResult.handled;
+  }
+
   bool get _autoSpeak {
     final config = ref.read(ttsConfigProvider);
     return config is AsyncData<TtsConfig> && config.value.autoSpeak;
@@ -276,15 +290,20 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _input,
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: const InputDecoration(
-                          hintText: '问问这一章…',
-                          border: OutlineInputBorder(),
+                      child: Focus(
+                        canRequestFocus: false,
+                        skipTraversal: true,
+                        onKeyEvent: _handleComposerKey,
+                        child: TextField(
+                          controller: _input,
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            hintText: '问问这一章…',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => _send(),
                         ),
-                        onSubmitted: (_) => _send(),
                       ),
                     ),
                     IconButton(

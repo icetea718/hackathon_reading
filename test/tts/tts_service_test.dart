@@ -30,6 +30,15 @@ class _ReadingOutput extends FakeAudioOutput {
   }
 }
 
+/// Polls on the real event loop; synthesis writes files, so fixed sleeps race
+/// with a loaded machine.
+Future<void> _waitUntil(bool Function() condition) async {
+  for (var i = 0; i < 400 && !condition(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+  expect(condition(), isTrue, reason: 'condition not met within 2s');
+}
+
 void main() {
   late Directory tempDir;
 
@@ -178,7 +187,7 @@ void main() {
     addTearDown(service.dispose);
 
     final speaking = service.speak('第一句。第二句。第三句。');
-    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await _waitUntil(() => output.played.isNotEmpty);
     await service.stop();
     await speaking;
 
@@ -198,7 +207,7 @@ void main() {
     addTearDown(service.dispose);
 
     final first = service.speak('旧的回复。还有一句。');
-    await Future<void>.delayed(const Duration(milliseconds: 40));
+    await _waitUntil(() => output.played.isNotEmpty);
     final second = service.speak('新的回复。');
     await Future.wait([first, second]);
 

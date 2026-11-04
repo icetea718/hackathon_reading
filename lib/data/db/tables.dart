@@ -10,6 +10,7 @@ class Books extends Table {
   TextColumn get sourcePath => text()();
   TextColumn get coverPath => text().nullable()();
   TextColumn get contentHash => text().nullable()();
+  BoolColumn get comic => boolean().withDefault(const Constant(false))();
   DateTimeColumn get addedAt => dateTime()();
   DateTimeColumn get lastOpenedAt => dateTime().nullable()();
 
@@ -27,6 +28,7 @@ class Chapters extends Table {
   IntColumn get startOffset => integer()();
   IntColumn get endOffset => integer()();
   TextColumn get contentText => text()();
+  IntColumn get level => integer().withDefault(const Constant(1))();
 
   @override
   Set<Column> get primaryKey => {id};

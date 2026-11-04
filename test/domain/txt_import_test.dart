@@ -61,6 +61,18 @@ void main() {
     expect(stored.last.endOffset, content.length);
   });
 
+  test('TXT import stores section levels', () async {
+    const content = '第一章 开始\n甲\n第一节 起\n乙\n第二章 继续\n丙';
+    final source = File('${temp.path}/sections.txt')
+      ..writeAsStringSync(content);
+
+    final book = await service.importFile(source.path);
+    final stored = await chapters.getForBook(book.id);
+
+    expect(stored.map((c) => c.title), ['第一章 开始', '第一节 起', '第二章 继续']);
+    expect(stored.map((c) => c.level), [1, 2, 1]);
+  });
+
   test('GB18030 import produces the same chapter titles', () async {
     const content = '第一章 开始\n甲\n第二章 继续\n乙';
     final utf8Source = File('${temp.path}/u.txt')

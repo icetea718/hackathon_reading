@@ -50,9 +50,8 @@ void main() {
 
     expect(find.text('翻译本章：第一章'), findsOneWidget);
     expect(find.textContaining('目标语言：简体中文'), findsOneWidget);
-    expect(find.text('你好，\n世界'), findsOneWidget);
+    expect(find.text('你好，世界'), findsOneWidget);
     expect(service.translatedSources, ['Hello world']);
-    expect(cache.entries.values.single, '你好，\n世界');
   });
 
   testWidgets('keeps the translated text wide instead of a one-column strip', (
@@ -92,7 +91,9 @@ void main() {
     expect(find.text('重新翻译'), findsOneWidget);
   });
 
-  testWidgets('重新翻译 bypasses the cache and overwrites it', (tester) async {
+  testWidgets('重新翻译 drops the remembered text and asks again', (
+    tester,
+  ) async {
     final service = FakeAssistantService(chunks: const ['新译文']);
     final cache = FakeTranslationCache({'zh-CN|Hello world': '旧译文'});
     await _openDialog(
@@ -105,9 +106,10 @@ void main() {
     await tester.tap(find.text('重新翻译'));
     await tester.pumpAndSettle();
 
+    expect(cache.removals, 1);
+    expect(cache.entries, isEmpty);
     expect(service.translatedSources, ['Hello world']);
     expect(find.text('新译文'), findsOneWidget);
-    expect(cache.entries['zh-CN|Hello world'], '新译文');
   });
 
   testWidgets('shows a hint instead of translating Chinese text', (

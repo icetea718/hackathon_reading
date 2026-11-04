@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
@@ -104,6 +105,19 @@ Future<void> _ask(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps the speaker and waits on the real event loop until playback starts.
+/// Synthesis writes temp files, so a fixed sleep races on a loaded machine.
+Future<void> _tapSpeak(WidgetTester tester, FakeAudioOutput speaker) async {
+  await tester.runAsync(() async {
+    await tester.tap(find.byTooltip('朗读'));
+    for (var i = 0; i < 80 && speaker.played.isEmpty; i++) {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+  });
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('an unconfigured panel points at the settings page',
       (tester) async {
@@ -125,6 +139,64 @@ void main() {
     expect(fake.prompts, contains('chat:福贵为什么败家？'));
     expect(find.text('福贵为什么败家？'), findsOneWidget);
     expect(find.textContaining('是因为赌博'), findsOneWidget);
+  });
+
+  testWidgets('pressing enter sends the question', (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(fake));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '福贵为什么败家？');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(fake.prompts, contains('chat:福贵为什么败家？'));
+    expect(find.text('福贵为什么败家？'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      isEmpty,
+      reason: 'the box should be cleared once the question is on its way',
+    );
+  });
+
+  testWidgets('shift+enter keeps the line in the box instead of sending',
+      (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(fake));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '第一行');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+
+    expect(fake.prompts, isEmpty);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '第一行',
+    );
+  });
+
+  testWidgets('enter while the input method is composing does not send',
+      (tester) async {
+    final fake = _FakeAssistant();
+    await tester.pumpWidget(_host(fake));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'nihao');
+    tester.widget<TextField>(find.byType(TextField)).controller!.value =
+        const TextEditingValue(
+      text: 'nihao',
+      selection: TextSelection.collapsed(offset: 5),
+      composing: TextRange(start: 0, end: 5),
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(fake.prompts, isEmpty);
   });
 
   testWidgets('the summary button streams a chapter summary', (tester) async {
@@ -153,14 +225,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _ask(tester);
-    // The service writes each line to a temp file, so run the tap on the real
-    // event loop where file IO can actually complete.
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('朗读'));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    });
-    await tester.pumpAndSettle();
+    await _tapSpeak(tester, speaker);
 
     expect(voice.texts, isNotEmpty);
     expect(voice.texts.first, contains('赌博'));
@@ -183,12 +248,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _ask(tester);
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('朗读'));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    });
-    await tester.pumpAndSettle();
+    await _tapSpeak(tester, speaker);
 
     expect(voice.texts, isNotEmpty);
     expect(speaker.played, isNotEmpty, reason: 'status=${tts.status}');

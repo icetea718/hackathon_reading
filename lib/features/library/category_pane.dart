@@ -199,6 +199,17 @@ class CategoryPane extends ConsumerWidget {
                             data.effectiveCategoryId == uncategorizedCategoryId,
                         onTap: () => select(uncategorizedCategoryId),
                       ),
+                      if (data.categories.isEmpty)
+                        Padding(
+                          key: const Key('category-empty-hint'),
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                          child: Text(
+                            '还没有分类，可拖拽书籍到这里，或点击下方新建',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       DragTarget<String>(
                         key: const Key('category-drop-new'),
                         onAcceptWithDetails: (details) =>
@@ -291,48 +302,51 @@ class _CategoryRowState extends State<_CategoryRow> {
         selectedTileColor: theme.colorScheme.secondaryContainer,
         selectedColor: theme.colorScheme.onSurface,
         onTap: widget.onTap,
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: widget.accent
-                    ? TextStyle(color: theme.colorScheme.primary)
-                    : null,
-              ),
-            ),
-            if (widget.count != null)
-              Text(
-                '${widget.count}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-          ],
+        title: Text(
+          widget.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: widget.accent
+              ? TextStyle(color: theme.colorScheme.primary)
+              : null,
         ),
-        trailing: _hasMenu
-            ? IgnorePointer(
-                ignoring: !_hovering,
-                child: Opacity(
-                  opacity: _hovering ? 1 : 0,
-                  child: PopupMenuButton<String>(
-                    tooltip: '分类更多',
-                    icon: const Icon(Icons.more_horiz, size: 18),
-                    padding: EdgeInsets.zero,
-                    onSelected: _run,
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<String>(
-                        value: 'rename',
-                        child: Text('重命名'),
+        trailing: widget.count == null && !_hasMenu
+            ? null
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_hasMenu)
+                    IgnorePointer(
+                      ignoring: !_hovering,
+                      child: Opacity(
+                        opacity: _hovering ? 1 : 0,
+                        child: PopupMenuButton<String>(
+                          tooltip: '分类更多',
+                          icon: const Icon(Icons.more_horiz, size: 18),
+                          padding: EdgeInsets.zero,
+                          onSelected: _run,
+                          itemBuilder: (context) => const [
+                            PopupMenuItem<String>(
+                              value: 'rename',
+                              child: Text('重命名'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('删除'),
+                            ),
+                          ],
+                        ),
                       ),
-                      PopupMenuItem<String>(value: 'delete', child: Text('删除')),
-                    ],
-                  ),
-                ),
-              )
-            : null,
+                    ),
+                  if (widget.count != null)
+                    Text(
+                      '${widget.count}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
       ),
     );
 

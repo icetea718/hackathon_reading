@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_theme.dart';
+
 class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   const ReaderTopBar({
     super.key,
@@ -7,14 +9,19 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.background,
     required this.foreground,
     required this.pinned,
-    required this.onTogglePinned,
+    this.onTogglePinned,
     required this.bookmarked,
-    required this.onToggleBookmark,
-    required this.onOpenAnnotations,
-    required this.onTranslate,
+    this.onToggleBookmark,
+    this.onOpenAnnotations,
+    this.onTranslate,
+    this.translationActive = false,
+    this.translationBusy = false,
     required this.onOpenToc,
-    required this.onOpenCompanion,
-    required this.onOpenReaderSettings,
+    this.onOpenCompanion,
+    this.onOpenReaderSettings,
+    this.onToggleSpread,
+    this.doubleSpread = false,
+    this.comicMode = false,
   });
 
   static const double height = 48;
@@ -23,14 +30,19 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   final Color background;
   final Color foreground;
   final bool pinned;
-  final VoidCallback onTogglePinned;
+  final VoidCallback? onTogglePinned;
   final bool bookmarked;
-  final VoidCallback onToggleBookmark;
-  final VoidCallback onOpenAnnotations;
-  final VoidCallback onTranslate;
+  final VoidCallback? onToggleBookmark;
+  final VoidCallback? onOpenAnnotations;
+  final VoidCallback? onTranslate;
+  final bool translationActive;
+  final bool translationBusy;
   final VoidCallback onOpenToc;
-  final VoidCallback onOpenCompanion;
-  final VoidCallback onOpenReaderSettings;
+  final VoidCallback? onOpenCompanion;
+  final VoidCallback? onOpenReaderSettings;
+  final VoidCallback? onToggleSpread;
+  final bool doubleSpread;
+  final bool comicMode;
 
   @override
   Size get preferredSize => const Size.fromHeight(height);
@@ -38,8 +50,8 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final accent = background.computeLuminance() < 0.5
-        ? const Color(0xFF7FA3FF)
-        : const Color(0xFF3D6AE0);
+        ? AppTheme.darkAccent
+        : AppTheme.accent;
 
     return Material(
       color: background,
@@ -71,13 +83,22 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: foreground),
                 ),
               ),
+              if (onToggleSpread != null)
+                IconButton(
+                  key: const Key('reader-spread-toggle'),
+                  tooltip: doubleSpread ? '双页' : '单页',
+                  icon: Icon(
+                    doubleSpread
+                        ? Icons.auto_stories_outlined
+                        : Icons.crop_portrait,
+                  ),
+                  onPressed: onToggleSpread,
+                ),
               IconButton(
                 tooltip: '目录',
                 icon: const Icon(Icons.menu),
@@ -89,22 +110,31 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: onToggleBookmark,
               ),
               IconButton(
-                tooltip: '标注',
+                tooltip: comicMode ? '漫画暂不支持标注' : '标注',
                 icon: const Icon(Icons.format_list_bulleted),
                 onPressed: onOpenAnnotations,
               ),
+              if (onTranslate != null)
+                IconButton(
+                  key: const Key('reader-translate-button'),
+                  tooltip: translationBusy
+                      ? '正在翻译…'
+                      : translationActive
+                      ? '查看原文'
+                      : '翻译本章',
+                  icon: Icon(
+                    Icons.translate,
+                    color: translationActive ? accent : null,
+                  ),
+                  onPressed: translationBusy ? null : onTranslate,
+                ),
               IconButton(
-                tooltip: '翻译本章',
-                icon: const Icon(Icons.translate),
-                onPressed: onTranslate,
-              ),
-              IconButton(
-                tooltip: '陪读',
+                tooltip: comicMode ? '漫画暂不支持陪读' : '陪读',
                 icon: const Icon(Icons.forum_outlined),
                 onPressed: onOpenCompanion,
               ),
               IconButton(
-                tooltip: '设置',
+                tooltip: comicMode ? '漫画暂不支持设置' : '设置',
                 icon: const Icon(Icons.text_fields),
                 onPressed: onOpenReaderSettings,
               ),

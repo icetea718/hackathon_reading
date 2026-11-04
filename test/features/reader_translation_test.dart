@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
+import 'package:hackathon_reading/assistant/translation_exception.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 import 'package:hackathon_reading/data/repositories/book_repository.dart';
 import 'package:hackathon_reading/data/repositories/chapter_repository.dart';
@@ -17,6 +18,7 @@ void main() {
   late AppDatabase db;
 
   const chapterText = 'The night was cold and the road was empty.';
+  const translated = '夜晚寒冷，道路空旷。';
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
@@ -45,7 +47,10 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpReader(WidgetTester tester, FakeAssistantService service) async {
+  Future<void> pumpReader(
+    WidgetTester tester,
+    FakeAssistantService service,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -61,21 +66,105 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('translating the whole chapter opens the popup', (tester) async {
-    final service = FakeAssistantService(chunks: const ['夜很冷，路很空。']);
+  testWidgets('translating the chapter replaces the page and toggles back', (
+    tester,
+  ) async {
+    final service = FakeAssistantService(chunks: const [translated]);
     await pumpReader(tester, service);
 
     await tester.tap(find.byTooltip('翻译本章'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(TranslationDialog), findsOneWidget);
-    expect(find.text('翻译本章：第一章'), findsOneWidget);
-    expect(find.text('夜很冷，路很空。'), findsOneWidget);
+    expect(find.byType(TranslationDialog), findsNothing);
+    expect(find.textContaining(translated), findsOneWidget);
+    expect(find.textContaining('The night was cold'), findsNothing);
     expect(service.translatedSources.single, chapterText);
 
-    await tester.tap(find.text('关闭'));
+    await tester.tap(find.byTooltip('查看原文'));
     await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox());
+
+    expect(find.textContaining('The night was cold'), findsOneWidget);
+    expect(find.textContaining(translated), findsNothing);
+  });
+
+  testWidgets('a wide window keeps the original left and translation right', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await pumpReader(
+      tester,
+      FakeAssistantService(translateText: (source) => translated),
+    );
+
+    await tester.tap(find.byTooltip('翻译本章'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TranslationDialog), findsNothing);
+    expect(find.textContaining('The night was cold'), findsOneWidget);
+    expect(find.textContaining(translated), findsOneWidget);
+  });
+
+  testWidgets('translation spreads advance one original page at a time', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final longText = List.generate(
+      30,
+      (index) => 'Line ${index + 1} ${'word ' * 24}',
+    ).join('\n');
+    await ChapterRepository(db).replaceForBook('tb', [
+      Chapter(
+        id: 'tb-c0',
+        bookId: 'tb',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: longText.length,
+        contentText: longText,
+      ),
+    ]);
+
+    await pumpReader(
+      tester,
+      FakeAssistantService(translateText: (source) => '译文'),
+    );
+    await tester.tap(find.byTooltip('翻译本章'));
+    await tester.pumpAndSettle();
+
+    String footer() => tester
+        .widget<Text>(find.textContaining(RegExp(r'^第 \d+ / ')))
+        .data!;
+
+    expect(footer(), contains('第 1 /'));
+    expect(footer(), isNot(contains('–')));
+
+    await tester.tap(find.text('下一页'));
+    await tester.pumpAndSettle();
+
+    expect(footer(), contains('第 2 /'));
+  });
+
+  testWidgets('a failed translation leaves the page untouched', (tester) async {
+    await pumpReader(
+      tester,
+      FakeAssistantService(
+        error: const TranslationException('网络连接失败，请检查网络后重试'),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('翻译本章'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TranslationDialog), findsNothing);
+    expect(find.textContaining('网络连接失败'), findsOneWidget);
+    expect(find.textContaining('The night was cold'), findsOneWidget);
+    expect(find.byTooltip('翻译本章'), findsOneWidget);
   });
 
   testWidgets('the chapter translate button is always reachable', (
