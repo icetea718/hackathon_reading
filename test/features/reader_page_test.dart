@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -85,10 +86,15 @@ void main() {
     WidgetTester tester,
     String bookId, {
     TargetPlatform? platform,
+    BookStorage? storage,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          if (storage != null)
+            bookStorageProvider.overrideWith((ref) async => storage),
+        ],
         child: MaterialApp(
           theme: platform == null ? null : ThemeData(platform: platform),
           home: ReaderPage(bookId: bookId),
@@ -1718,6 +1724,180 @@ void main() {
     expect(spreadPageText(tester), contains(anchorText));
     expect(spreadFooterText(tester), contains('–'));
     await disposeApp(tester);
+  });
+
+  group('inline illustrations', () {
+    late Directory temp;
+    late BookStorage storage;
+
+    const illustratedText = '第0段：开头文字。\n第1段：中间文字。\n第2段：结尾文字。';
+
+    final kTinyPng = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    );
+
+    setUp(() async {
+      temp = await Directory.systemTemp.createTemp('reader_illustration_test');
+      storage = BookStorage(Directory('${temp.path}/books'));
+    });
+
+    tearDown(() async {
+      try {
+        await temp.delete(recursive: true);
+      } on FileSystemException {
+        // Decoded image files can stay locked briefly on Windows.
+      }
+    });
+
+    Future<void> pumpIllustrated(WidgetTester tester, String bookId) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            bookStorageProvider.overrideWith((ref) async => storage),
+          ],
+          child: MaterialApp(home: ReaderPage(bookId: bookId)),
+        ),
+      );
+      // The illustration manifest is real file IO, so alternate fake frames
+      // with real-time slices until the provider resolves.
+      for (var round = 0; round < 16; round++) {
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+      }
+      await tester.pump();
+    }
+
+    Future<void> seedIllustrated({
+      int offset = '第0段：开头文字。\n'.length,
+    }) async {
+      await BookRepository(db).upsert(
+        Book(
+          id: 'ill',
+          title: '插图本',
+          author: '',
+          format: BookFormat.epub,
+          sourcePath: 'C:/books/ill.epub',
+          addedAt: DateTime(2026, 1, 1),
+        ),
+      );
+      await ChapterRepository(db).replaceForBook('ill', [
+        Chapter(
+          id: 'ill-c0',
+          bookId: 'ill',
+          index: 0,
+          title: '第一章',
+          startOffset: 0,
+          endOffset: illustratedText.length,
+          contentText: illustratedText,
+        ),
+      ]);
+      await storage.saveIllustrations('ill', [
+        (
+          chapterIndex: 0,
+          offset: offset,
+          width: 2,
+          height: 1,
+          bytes: kTinyPng,
+          extension: 'png',
+        ),
+      ]);
+    }
+
+    testWidgets('an illustrated page renders text fragments around the image', (
+      tester,
+    ) async {
+      await tester.runAsync(seedIllustrated);
+      await pumpIllustrated(tester, 'ill');
+
+      expect(
+        find.byKey(const ValueKey('reader-illustration-0')),
+        findsOneWidget,
+      );
+      final texts = tester
+          .widgetList<SelectableText>(find.byType(SelectableText))
+          .map((widget) => widget.textSpan!.toPlainText())
+          .toList();
+      expect(texts.length, greaterThanOrEqualTo(2));
+      expect(texts.join(), contains('开头文字'));
+      expect(texts.join(), contains('中间文字'));
+      await disposeApp(tester);
+    });
+
+    testWidgets('tapping an image opens the viewer instead of turning the page', (
+      tester,
+    ) async {
+      await tester.runAsync(seedIllustrated);
+      await pumpIllustrated(tester, 'ill');
+      final footer = tester
+          .widget<Text>(find.byKey(const Key('reader-footer')))
+          .data;
+
+      await tester.tapAt(
+        tester.getCenter(find.byKey(const ValueKey('reader-illustration-0'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('illustration-viewer')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('illustration-viewer-close')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('illustration-viewer')), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('reader-footer'))).data,
+        footer,
+      );
+      await disposeApp(tester);
+    });
+
+    testWidgets('pages without images keep a single SelectableText', (
+      tester,
+    ) async {
+      await pumpReader(tester, 'b1');
+      expect(find.byType(SelectableText), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+      await disposeApp(tester);
+    });
+
+    testWidgets('a spread shows an illustration on only one pane', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.runAsync(seedIllustrated);
+      await pumpIllustrated(tester, 'ill');
+
+      expect(
+        find.byKey(const ValueKey('reader-illustration-0')),
+        findsOneWidget,
+      );
+      await disposeApp(tester);
+    });
+
+    testWidgets('an illustrated page keeps its content inside the clip', (
+      tester,
+    ) async {
+      await tester.runAsync(seedIllustrated);
+      await pumpIllustrated(tester, 'ill');
+
+      final image = find.byKey(const ValueKey('reader-illustration-0'));
+      final content = tester
+          .renderObject<RenderBox>(
+            find.ancestor(of: image, matching: find.byType(Column)).first,
+          )
+          .size
+          .height;
+      final clip = tester
+          .renderObject<RenderBox>(
+            find.ancestor(of: image, matching: find.byType(ClipRect)).first,
+          )
+          .size
+          .height;
+      expect(content, lessThanOrEqualTo(clip + 0.5));
+      await disposeApp(tester);
+    });
   });
 
   group('comic reader', () {

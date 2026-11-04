@@ -15,6 +15,7 @@ import '../../data/repositories/progress_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/annotation.dart';
 import '../../domain/models/book.dart';
+import '../../domain/models/book_illustration.dart';
 import '../../domain/models/chapter.dart';
 import '../../domain/models/comic_page.dart';
 import '../../domain/models/reading_progress.dart';
@@ -26,6 +27,7 @@ import 'annotation_spans.dart';
 import 'chapter_paginator.dart';
 import 'chapter_translation.dart';
 import 'comic_toc_drawer.dart';
+import 'illustration_viewer.dart';
 import 'reader_position.dart';
 import 'reader_providers.dart';
 import 'reader_rail.dart';
@@ -171,6 +173,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   String _companionChapterText = '';
   int _companionCharOffset = 0;
   int _companionLoadToken = 0;
+  List<({GlobalKey key, String path})> _illustrationTargets = const [];
+  int _illustrationSeq = 0;
 
   @override
   void initState() {
@@ -335,6 +339,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     PageLayout layout,
     List<Chapter> chapters,
     String signature,
+    List<BookIllustration> illustrations,
   ) {
     final cached = _bookPageCache[signature];
     final token = ++_bookCountToken;
@@ -355,6 +360,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       layout: layout,
       loadChapter: (index) =>
           repository.getContent(widget.bookId, index).then((text) => text ?? ''),
+      loadIllustrations: (index) async => [
+        for (final image in illustrations)
+          if (image.chapterIndex == index) image,
+      ],
       onProgress: (counts) {
         if (!mounted ||
             token != _bookCountToken ||
@@ -800,6 +809,148 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
       );
     }
     return spans;
+  }
+
+  String _illustrationSignature(List<BookIllustration> images) => images
+      .map(
+        (image) =>
+            '${image.path}|${image.offset}|${image.width}x${image.height}',
+      )
+      .join(',');
+
+  Widget _illustrationBlock(PageIllustration image) {
+    final index = _illustrationSeq++;
+    final key = GlobalKey();
+    _illustrationTargets = [
+      ..._illustrationTargets,
+      (key: key, path: image.path),
+    ];
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: image.gap),
+      child: Center(
+        child: GestureDetector(
+          key: ValueKey('reader-illustration-$index'),
+          onTap: () => openIllustrationViewer(context, image.path),
+          child: SizedBox(
+            width: image.width,
+            height: image.height,
+            child: Image.file(
+              File(image.path),
+              key: key,
+              fit: BoxFit.contain,
+              cacheWidth: (image.width * ratio).round(),
+              errorBuilder: (_, _, _) => const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _openIllustrationAt(Offset globalPosition) {
+    for (final target in _illustrationTargets) {
+      final box = target.key.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) continue;
+      if ((box.localToGlobal(Offset.zero) & box.size).contains(globalPosition)) {
+        openIllustrationViewer(context, target.path);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Widget _pageContent({
+    required String text,
+    required PageSlice page,
+    required ChapterPagination pagination,
+    required Chapter chapter,
+    required List<Annotation> annotations,
+    required TextStyle baseStyle,
+    bool showImages = true,
+  }) {
+    if (!showImages || page.images.isEmpty) {
+      final content = text.substring(page.start, page.end);
+      return SelectableText.rich(
+        TextSpan(
+          children: _pageSpans(
+            text: text,
+            page: page,
+            pagination: pagination,
+            chapter: chapter,
+            annotations: annotations,
+            baseStyle: baseStyle,
+          ),
+        ),
+        scrollBehavior: ScrollConfiguration.of(
+          context,
+        ).copyWith(scrollbars: false),
+        scrollPhysics: const NeverScrollableScrollPhysics(),
+        contextMenuBuilder: (context, state) =>
+            _selectionToolbar(state, page, content, chapter),
+      );
+    }
+
+    final images = [...page.images]
+      ..sort((a, b) => a.offset.compareTo(b.offset));
+    final blocks = <Widget>[];
+    var nextImage = 0;
+    void addImagesThrough(int offset) {
+      while (nextImage < images.length && images[nextImage].offset <= offset) {
+        blocks.add(_illustrationBlock(images[nextImage++]));
+      }
+    }
+
+    for (final fragment in pageTextFragments(page)) {
+      addImagesThrough(fragment.start);
+      // A fragment's trailing newline only separates lines that the paginator
+      // already counted; rendering it inside its own SelectableText would add
+      // a blank line the paginator never budgeted for and overflow the page.
+      var displayEnd = fragment.end;
+      while (displayEnd > fragment.start &&
+          (text[displayEnd - 1] == '\n' || text[displayEnd - 1] == '\r')) {
+        displayEnd--;
+      }
+      final display = PageSlice(start: fragment.start, end: displayEnd);
+      blocks.add(
+        KeyedSubtree(
+          key: ValueKey('${chapter.id}-${page.start}-frag-${fragment.start}'),
+          child: SelectableText.rich(
+            TextSpan(
+              children: _pageSpans(
+                text: text,
+                page: display,
+                pagination: pagination,
+                chapter: chapter,
+                annotations: annotations,
+                baseStyle: baseStyle,
+              ),
+            ),
+            scrollBehavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            scrollPhysics: const NeverScrollableScrollPhysics(),
+            contextMenuBuilder: (context, state) => _selectionToolbar(
+              state,
+              display,
+              text.substring(fragment.start, displayEnd),
+              chapter,
+            ),
+          ),
+        ),
+      );
+    }
+    addImagesThrough(page.end);
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: blocks,
+        ),
+      ),
+    );
   }
 
   List<InlineSpan> _translationSpans({
@@ -1465,6 +1616,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
             ref.watch(readerAnnotationListProvider(widget.bookId)).value ??
             const <Annotation>[];
         final currentChapter = chapters[index];
+        final illustrations = readerData.illustrations;
+        final chapterImages = [
+          for (final image in illustrations)
+            if (image.chapterIndex == index) image,
+        ];
         if (_companionOpen && _companionChapterIndex != index) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && _companionOpen) _ensureCompanionChapter(index);
@@ -1534,7 +1690,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     '${currentChapter.id}|$_fontSize|$_lineHeight|'
                     '${textScaler.scale(1).toStringAsFixed(3)}|'
                     '${textWidth.round()}|${textHeight.round()}|'
-                    '${text.length}|${doubleSpread ? 'double' : 'single'}';
+                    '${text.length}|${doubleSpread ? 'double' : 'single'}|'
+                    '${_illustrationSignature(chapterImages)}';
                 ChapterPagination pagination;
                 if (_paginationKey == key &&
                     _paginationChapterId == currentChapter.id &&
@@ -1549,6 +1706,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     width: textWidth,
                     height: textHeight,
                     textScaler: textScaler,
+                    illustrations: chapterImages,
                   );
                   _pagination = pagination;
                   _paginationKey = key;
@@ -1559,7 +1717,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     '${textScaler.scale(1).toStringAsFixed(3)}|'
                     '${textWidth.round()}|${textHeight.round()}|'
                     '${chapters.length}|'
-                    '${doubleSpread ? 'double' : 'single'}';
+                    '${doubleSpread ? 'double' : 'single'}|'
+                    '${_illustrationSignature(illustrations)}';
                 if (bookSignature != _bookPageSignature) {
                   _bookPageSignature = bookSignature;
                   final layout = PageLayout(
@@ -1570,7 +1729,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   );
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted || _bookPageSignature != bookSignature) return;
-                    _startBookPageCount(layout, chapters, bookSignature);
+                    _startBookPageCount(
+                      layout,
+                      chapters,
+                      bookSignature,
+                      illustrations,
+                    );
                   });
                 }
                 final pending = _pendingOffset;
@@ -1612,18 +1776,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     );
                   }
                   final panePage = pagination.pageAt(paneIndex);
-                  final paneSpans = _pageSpans(
-                    text: text,
-                    page: panePage,
-                    pagination: pagination,
-                    chapter: currentChapter,
-                    annotations: chapterAnnotations,
-                    baseStyle: baseStyle,
-                  );
-                  final paneContent = text.substring(
-                    panePage.start,
-                    panePage.end,
-                  );
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -1636,19 +1788,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                             key: ValueKey(
                               '${currentChapter.id}-$paneIndex-$_paginationKey',
                             ),
-                            child: SelectableText.rich(
-                              TextSpan(children: paneSpans),
-                              scrollBehavior: ScrollConfiguration.of(
-                                context,
-                              ).copyWith(scrollbars: false),
-                              scrollPhysics: const NeverScrollableScrollPhysics(),
-                              contextMenuBuilder: (context, state) =>
-                                  _selectionToolbar(
-                                    state,
-                                    panePage,
-                                    paneContent,
-                                    currentChapter,
-                                  ),
+                            child: _pageContent(
+                              text: text,
+                              page: panePage,
+                              pagination: pagination,
+                              chapter: currentChapter,
+                              annotations: chapterAnnotations,
+                              baseStyle: baseStyle,
+                              showImages: !translationShown,
                             ),
                           ),
                         ),
@@ -1657,6 +1804,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   );
                 }
 
+                _illustrationTargets = const [];
+                _illustrationSeq = 0;
                 final Widget pageBody;
                 if (doubleSpread) {
                   final contentWidth = constraints.maxWidth.clamp(
@@ -1692,14 +1841,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     ),
                   );
                 } else {
-                  final spans = translationShown
-                      ? _translationSpans(
-                          page: page,
-                          pagination: pagination,
-                          chapter: currentChapter,
-                          baseStyle: baseStyle,
+                  final pageChild = translationShown
+                      ? SelectableText.rich(
+                          TextSpan(
+                            children: _translationSpans(
+                              page: page,
+                              pagination: pagination,
+                              chapter: currentChapter,
+                              baseStyle: baseStyle,
+                            ),
+                          ),
+                          scrollBehavior: ScrollConfiguration.of(
+                            context,
+                          ).copyWith(scrollbars: false),
+                          scrollPhysics: const NeverScrollableScrollPhysics(),
                         )
-                      : _pageSpans(
+                      : _pageContent(
                           text: text,
                           page: page,
                           pagination: pagination,
@@ -1707,7 +1864,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                           annotations: chapterAnnotations,
                           baseStyle: baseStyle,
                         );
-                  final pageContent = text.substring(page.start, page.end);
                   pageBody = Center(
                     child: SizedBox(
                       width: constraints.maxWidth.clamp(0.0, 720.0),
@@ -1723,22 +1879,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                                   '${currentChapter.id}-$_pageIndex-$_paginationKey'
                                   '-${translationShown ? 'translated' : 'source'}',
                                 ),
-                                child: SelectableText.rich(
-                                  TextSpan(children: spans),
-                                  scrollBehavior: ScrollConfiguration.of(
-                                    context,
-                                  ).copyWith(scrollbars: false),
-                                  scrollPhysics:
-                                      const NeverScrollableScrollPhysics(),
-                                  contextMenuBuilder: translationShown
-                                      ? null
-                                      : (context, state) => _selectionToolbar(
-                                          state,
-                                          page,
-                                          pageContent,
-                                          currentChapter,
-                                        ),
-                                ),
+                                child: pageChild,
                               ),
                             ),
                           ),
@@ -1767,7 +1908,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                       child: GestureDetector(
                         key: const Key('reader-prev-zone'),
                         behavior: HitTestBehavior.translucent,
-                        onTap: _goToPreviousPage,
+                        onTapUp: (details) {
+                          if (_openIllustrationAt(details.globalPosition)) {
+                            return;
+                          }
+                          _goToPreviousPage();
+                        },
                         child: const SizedBox.expand(),
                       ),
                     ),
@@ -1779,7 +1925,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                       child: GestureDetector(
                         key: const Key('reader-next-zone'),
                         behavior: HitTestBehavior.translucent,
-                        onTap: _goToNextPage,
+                        onTapUp: (details) {
+                          if (_openIllustrationAt(details.globalPosition)) {
+                            return;
+                          }
+                          _goToNextPage();
+                        },
                         child: const SizedBox.expand(),
                       ),
                     ),
@@ -2360,6 +2511,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                   ),
                   Expanded(
                     child: Text(
+                      key: const Key('reader-footer'),
                       readingFooterText(
                         pageIndex: pageNumber,
                         pageEndIndex: pageEndIndex,
