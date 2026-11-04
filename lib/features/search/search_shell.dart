@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../domain/models/book.dart';
+import '../../search/search_book.dart';
 import '../root/app_mode.dart';
 import '../root/mode_switch.dart';
 import '../settings/settings_page.dart';
+import 'book_picker.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
 import 'conversation_sidebar.dart';
@@ -52,6 +55,12 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     );
   }
 
+  Future<void> _pickBook() async {
+    final picked = await showBookPicker(context);
+    if (!mounted || picked == null) return;
+    ref.read(searchBookProvider.notifier).select(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final configured = ref.watch(llmConfigProvider).asData?.value
@@ -62,6 +71,13 @@ class _SearchShellState extends ConsumerState<SearchShell> {
 
     final chat = ref.watch(chatControllerProvider(_threadKey));
     final controller = ref.read(chatControllerProvider(_threadKey).notifier);
+
+    final bookId = ref.watch(searchBookProvider);
+    final books = ref.watch(bookListProvider).asData?.value ?? const <Book>[];
+    String? bookTitle;
+    for (final book in books) {
+      if (book.id == bookId) bookTitle = book.title;
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -101,6 +117,9 @@ class _SearchShellState extends ConsumerState<SearchShell> {
               webEnabled: _webSearch,
               webConfigured: webConfigured,
               onWebChanged: (value) => setState(() => _webSearch = value),
+              bookTitle: bookTitle,
+              onPickBook: _pickBook,
+              onClearBook: () => ref.read(searchBookProvider.notifier).clear(),
               onStop: controller.stop,
               onSend: (text) =>
                   controller.send(text, webSearch: _webSearch && webConfigured),
@@ -244,7 +263,8 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '打开「联网」会先检索网页，答案后面附上来源。',
+              '打开「联网」会先检索网页，答案后面附上来源；'
+              '点「选择书」可以让回答只依据书架里的某一本书。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

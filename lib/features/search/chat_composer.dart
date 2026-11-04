@@ -11,6 +11,9 @@ class ChatComposer extends StatefulWidget {
     required this.webEnabled,
     required this.onWebChanged,
     this.webConfigured = true,
+    this.bookTitle,
+    this.onPickBook,
+    this.onClearBook,
   });
 
   final Future<void> Function(String text) onSend;
@@ -22,6 +25,11 @@ class ChatComposer extends StatefulWidget {
 
   /// False means the web provider has no key: tapping the chip explains how.
   final bool webConfigured;
+
+  /// Title of the shelf book the answers should be grounded in.
+  final String? bookTitle;
+  final VoidCallback? onPickBook;
+  final VoidCallback? onClearBook;
 
   @override
   State<ChatComposer> createState() => _ChatComposerState();
@@ -94,6 +102,13 @@ class _ChatComposerState extends State<ChatComposer> {
                   active: widget.webEnabled,
                   onPressed: widget.enabled ? _toggleWeb : null,
                 ),
+                const SizedBox(width: 8),
+                _BookControl(
+                  title: widget.bookTitle,
+                  enabled: widget.enabled,
+                  onPick: widget.onPickBook,
+                  onClear: widget.onClearBook,
+                ),
                 const Spacer(),
                 if (widget.streaming)
                   IconButton(
@@ -114,6 +129,49 @@ class _ChatComposerState extends State<ChatComposer> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Either "选择书" or the chip naming the book already attached.
+class _BookControl extends StatelessWidget {
+  const _BookControl({
+    required this.title,
+    required this.enabled,
+    this.onPick,
+    this.onClear,
+  });
+
+  final String? title;
+  final bool enabled;
+  final VoidCallback? onPick;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final picked = title;
+    if (picked == null) {
+      return Tooltip(
+        message: '选一本书，让回答依据书里的内容',
+        child: TextButton.icon(
+          key: const Key('chat-book'),
+          onPressed: enabled ? onPick : null,
+          icon: const Icon(Icons.menu_book_outlined, size: 18),
+          label: const Text('选择书'),
+        ),
+      );
+    }
+    return InputChip(
+      key: const Key('chat-book-chip'),
+      avatar: const Icon(Icons.menu_book_outlined, size: 16),
+      label: Text(
+        picked,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onDeleted: onClear,
+      deleteButtonTooltipMessage: '取消引用这本书',
+      visualDensity: VisualDensity.compact,
     );
   }
 }

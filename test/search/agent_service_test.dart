@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/distill/llm/llm_client.dart';
 import 'package:hackathon_reading/search/agent_service.dart';
+import 'package:hackathon_reading/search/book_context.dart';
 import 'package:hackathon_reading/search/search_hit.dart';
 
 import '../support/fake_llm_client.dart';
@@ -86,6 +87,41 @@ void main() {
     );
     // The newest turns survive; the oldest ones go first.
     expect(kept.last.content, startsWith('29'));
+  });
+
+  test('a picked book puts its brief and quotes in the system prompt',
+      () async {
+    final client = FakeLlmClient();
+    final service = SearchAgentService(client: client);
+
+    await service.send(
+      history: const [],
+      userText: '冰层有多厚',
+      book: const BookContext(
+        bookId: 'b1',
+        title: '瓦尔登湖',
+        author: '梭罗',
+        brief: '一句话：一个人在林子里住两年。\n第 2 章 冬天的湖',
+        distilled: true,
+        excerpts: [
+          BookExcerpt(
+            chapterIndex: 1,
+            chapterTitle: '冬天的湖',
+            text: '冰层有二十二英寸厚。',
+          ),
+        ],
+      ),
+      cancel: CancelToken(),
+    ).toList();
+
+    final system = client.lastMessages.first.content;
+    expect(system, contains(searchBookHeader));
+    expect(system, contains('《瓦尔登湖》'));
+    expect(system, contains('一个人在林子里住两年。'));
+    expect(system, contains('第 2 章 冬天的湖'));
+    expect(system, contains('冰层有二十二英寸厚。'));
+    // The model is told to cite the chapter rather than invent quotes.
+    expect(system, contains('不要编造原文'));
   });
 
   test('a pre-cancelled request never reaches the client', () async {
