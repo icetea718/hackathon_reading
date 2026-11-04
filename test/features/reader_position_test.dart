@@ -98,5 +98,23 @@ void main() {
       bookPageAt(chapterPageCounts: [5, 7, 3], chapterIndex: 2, pageIndex: 1),
       14,
     );
+    expect(
+      readingFooterText(
+        pageIndex: 2,
+        pageEndIndex: 3,
+        chapterPageCount: 12,
+        bookPageIndex: 56,
+        bookPageTotal: 320,
+      ),
+      '第 3–4 / 12 页 · 全书 56 / 320 页',
+    );
+    expect(
+      readingFooterText(
+        pageIndex: 0,
+        pageEndIndex: 0,
+        chapterPageCount: 1,
+      ),
+      '第 1 / 1 页 · 全书 … / … 页',
+    );
   });
 }

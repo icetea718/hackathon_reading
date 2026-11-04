@@ -188,7 +188,9 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
     final data = ref.watch(readerDataProvider(widget.bookId));
     final info = ref.watch(pdfBookInfoProvider(widget.bookId));
 
-    return data.when(
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: data.when(
       loading: () => _scaffold(
         title: '阅读',
         body: const Center(child: CircularProgressIndicator()),
@@ -289,6 +291,7 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
           },
         );
       },
+      ),
     );
   }
 

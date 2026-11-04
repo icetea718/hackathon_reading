@@ -13,9 +13,14 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
     required this.bookmarked,
     this.onToggleBookmark,
     this.onOpenAnnotations,
+    this.onTranslate,
+    this.translationActive = false,
+    this.translationBusy = false,
     required this.onOpenToc,
     this.onOpenCompanion,
     this.onOpenReaderSettings,
+    this.onToggleSpread,
+    this.doubleSpread = false,
     this.comicMode = false,
   });
 
@@ -29,9 +34,14 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
   final bool bookmarked;
   final VoidCallback? onToggleBookmark;
   final VoidCallback? onOpenAnnotations;
+  final VoidCallback? onTranslate;
+  final bool translationActive;
+  final bool translationBusy;
   final VoidCallback onOpenToc;
   final VoidCallback? onOpenCompanion;
   final VoidCallback? onOpenReaderSettings;
+  final VoidCallback? onToggleSpread;
+  final bool doubleSpread;
   final bool comicMode;
 
   @override
@@ -78,6 +88,17 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                   ).textTheme.titleMedium?.copyWith(color: foreground),
                 ),
               ),
+              if (onToggleSpread != null)
+                IconButton(
+                  key: const Key('reader-spread-toggle'),
+                  tooltip: doubleSpread ? '双页' : '单页',
+                  icon: Icon(
+                    doubleSpread
+                        ? Icons.auto_stories_outlined
+                        : Icons.crop_portrait,
+                  ),
+                  onPressed: onToggleSpread,
+                ),
               IconButton(
                 tooltip: '目录',
                 icon: const Icon(Icons.menu),
@@ -93,6 +114,20 @@ class ReaderTopBar extends StatelessWidget implements PreferredSizeWidget {
                 icon: const Icon(Icons.format_list_bulleted),
                 onPressed: onOpenAnnotations,
               ),
+              if (onTranslate != null)
+                IconButton(
+                  key: const Key('reader-translate-button'),
+                  tooltip: translationBusy
+                      ? '正在翻译…'
+                      : translationActive
+                      ? '查看原文'
+                      : '翻译本章',
+                  icon: Icon(
+                    Icons.translate,
+                    color: translationActive ? accent : null,
+                  ),
+                  onPressed: translationBusy ? null : onTranslate,
+                ),
               IconButton(
                 tooltip: comicMode ? '漫画暂不支持陪读' : '陪读',
                 icon: const Icon(Icons.forum_outlined),

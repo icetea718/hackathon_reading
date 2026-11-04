@@ -40,7 +40,7 @@ void main() {
     await db.close();
   });
 
-  testWidgets('the reader opens the companion panel', (tester) async {
+  Future<void> pumpReader(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
@@ -51,10 +51,53 @@ void main() {
       () => Future<void>.delayed(const Duration(milliseconds: 100)),
     );
     await tester.pumpAndSettle();
+  }
+
+  void useWindow(WidgetTester tester, Size size) {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
+  testWidgets('wide windows dock the companion beside the page',
+      (tester) async {
+    useWindow(tester, const Size(1400, 900));
+    await pumpReader(tester);
 
     await tester.tap(find.byTooltip('陪读'));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('companion-docked')), findsOneWidget);
+    expect(find.byKey(const Key('reader-page')), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.textContaining('陪读 · 第一章'), findsOneWidget);
+    expect(find.textContaining('未配置 AI 服务'), findsOneWidget);
+  });
+
+  testWidgets('closing the side panel leaves the reader in place',
+      (tester) async {
+    useWindow(tester, const Size(1400, 900));
+    await pumpReader(tester);
+
+    await tester.tap(find.byTooltip('陪读'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('companion-docked')), findsNothing);
+    expect(find.byKey(const Key('reader-page')), findsOneWidget);
+  });
+
+  testWidgets('narrow windows keep the bottom sheet', (tester) async {
+    useWindow(tester, const Size(800, 900));
+    await pumpReader(tester);
+
+    await tester.tap(find.byTooltip('陪读'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('companion-docked')), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.textContaining('陪读 · 第一章'), findsOneWidget);
     expect(find.textContaining('未配置 AI 服务'), findsOneWidget);
   });

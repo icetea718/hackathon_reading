@@ -20,6 +20,7 @@ import 'package:hackathon_reading/domain/models/reading_progress.dart';
 import 'package:hackathon_reading/features/reader/annotation_spans.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/features/reader/reader_settings_sheet.dart';
+import 'package:hackathon_reading/features/reader/reader_spread.dart';
 
 void main() {
   late AppDatabase db;
@@ -80,11 +81,18 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpReader(WidgetTester tester, String bookId) async {
+  Future<void> pumpReader(
+    WidgetTester tester,
+    String bookId, {
+    TargetPlatform? platform,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
-        child: MaterialApp(home: ReaderPage(bookId: bookId)),
+        child: MaterialApp(
+          theme: platform == null ? null : ThemeData(platform: platform),
+          home: ReaderPage(bookId: bookId),
+        ),
       ),
     );
     await tester.runAsync(
@@ -98,9 +106,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   }
 
-  Future<void> seedLongBook() async {
+  Future<void> seedLongBook({int lines = 60}) async {
     final buffer = StringBuffer();
-    for (var i = 0; i < 60; i++) {
+    for (var i = 0; i < lines; i++) {
       buffer.writeln('第$i段：这是一段用来撑长页面的正文内容，确保可以滚动。');
     }
     final text = buffer.toString();
@@ -230,11 +238,14 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<List<Annotation>?> storedBookmarks(WidgetTester tester) {
+  Future<List<Annotation>?> storedBookmarks(
+    WidgetTester tester, {
+    String bookId = 'b1',
+  }) {
     return tester.runAsync(
-      () =>
-          AnnotationRepository(db)
-              .getForBook('b1', type: AnnotationType.bookmark),
+      () => AnnotationRepository(
+        db,
+      ).getForBook(bookId, type: AnnotationType.bookmark),
     );
   }
 
@@ -305,6 +316,69 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  void useWideWindow(WidgetTester tester) {
+    addTearDown(tester.view.reset);
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.handleMetricsChanged();
+  }
+
+  String spreadFooterText(WidgetTester tester) =>
+      tester.widget<Text>(find.textContaining('全书')).data!;
+
+  String spreadPageText(WidgetTester tester) => tester
+      .widgetList<SelectableText>(find.byType(SelectableText))
+      .map(
+        (selectable) => selectable.textSpan!.children!
+            .cast<TextSpan>()
+            .map((span) => span.text ?? '')
+            .join(),
+      )
+      .join();
+
+  String firstPaneText(WidgetTester tester) => tester
+      .widgetList<SelectableText>(find.byType(SelectableText))
+      .first
+      .textSpan!
+      .children!
+      .cast<TextSpan>()
+      .map((span) => span.text ?? '')
+      .join();
+
+  double paneTextBottom(WidgetTester tester, SelectableText pane) {
+    final state = tester.state<EditableTextState>(
+      find.descendant(
+        of: find.byWidget(pane),
+        matching: find.byType(EditableText),
+      ),
+    );
+    final text = pane.textSpan!.children!
+        .cast<TextSpan>()
+        .map((span) => span.text ?? '')
+        .join()
+        .trimRight();
+    final boxes = state.renderEditable.getBoxesForSelection(
+      TextSelection(baseOffset: 0, extentOffset: text.length),
+    );
+    return boxes.fold<double>(
+      0,
+      (value, box) => box.bottom > value ? box.bottom : value,
+    );
+  }
+
+  double paneClipHeight(WidgetTester tester, SelectableText pane) =>
+      tester
+          .renderObject<RenderBox>(
+            find
+                .ancestor(
+                  of: find.byWidget(pane),
+                  matching: find.byType(ClipRect),
+                )
+                .first,
+          )
+          .size
+          .height;
+
   testWidgets('flips pages with tap zones, keys, and footer buttons', (
     tester,
   ) async {
@@ -344,6 +418,31 @@ void main() {
 
     expect(find.byType(SelectableText), findsOneWidget);
     expect(footerText(tester), matches(RegExp(r'^第 2 / \d+ 页 · ')));
+    await disposeApp(tester);
+  });
+
+  testWidgets('locks the reading surface and hides desktop scrollbars', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long', platform: TargetPlatform.windows);
+
+    expect(find.byType(Scrollbar), findsNothing);
+    final body = tester.widget<SelectableText>(
+      find.byType(SelectableText).first,
+    );
+    expect(body.scrollPhysics, isA<NeverScrollableScrollPhysics>());
+
+    await tester.tap(find.byTooltip('目录'));
+    await tester.pumpAndSettle();
+    expect(find.text('第一章'), findsOneWidget);
+    expect(find.byType(Scrollbar), findsNothing);
+
     await disposeApp(tester);
   });
 
@@ -554,6 +653,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.drag(find.byType(Slider).first, const Offset(150, 0));
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.ensureVisible(find.text('深色'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('深色'));
     await tester.pump(const Duration(milliseconds: 400));
     await settleAfterIo(tester);
@@ -584,6 +685,67 @@ void main() {
 
     expect(first.style?.fontSize, 18);
     expect(first.style?.height, 2.0);
+    await disposeApp(tester);
+  });
+
+  testWidgets('defaults to double and persists a switch to single', (
+    tester,
+  ) async {
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    final control = tester.widget<SegmentedButton<ReaderSpread>>(
+      find.byType(SegmentedButton<ReaderSpread>),
+    );
+    expect(control.selected, {ReaderSpread.double});
+
+    await tester.ensureVisible(find.text('单页'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('单页'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await settleAfterIo(tester);
+
+    final stored = await tester.runAsync(
+      () => SettingsRepository(db).get('reader.spread'),
+    );
+    expect(stored, 'single');
+    await disposeApp(tester);
+  });
+
+  testWidgets('restores the persisted spread into the settings sheet', (
+    tester,
+  ) async {
+    await SettingsRepository(db).set('reader.spread', 'single');
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SegmentedButton<ReaderSpread>>(
+            find.byType(SegmentedButton<ReaderSpread>),
+          )
+          .selected,
+      {ReaderSpread.single},
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('treats an unknown spread value as double', (tester) async {
+    await SettingsRepository(db).set('reader.spread', 'triple');
+    await pumpReader(tester, 'b1');
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SegmentedButton<ReaderSpread>>(
+            find.byType(SegmentedButton<ReaderSpread>),
+          )
+          .selected,
+      {ReaderSpread.double},
+    );
     await disposeApp(tester);
   });
 
@@ -756,7 +918,7 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets('bookmark icon adds a bookmark for the current chapter', (
+  testWidgets('bookmark icon adds a bookmark for the current page', (
     tester,
   ) async {
     await pumpReader(tester, 'b1');
@@ -786,6 +948,94 @@ void main() {
     expect(find.text('已取消书签'), findsOneWidget);
     expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
     expect(await storedBookmarks(tester), isEmpty);
+    await disposeApp(tester);
+  });
+
+  testWidgets('keeps one bookmark per page inside a chapter', (tester) async {
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long');
+
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    await tapNextZone(tester);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    var stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(2));
+    expect(stored!.map((bookmark) => bookmark.chapterId).toSet(), {'long-c0'});
+    expect(stored[0].anchorStart, lessThan(stored[1].anchorStart));
+
+    await tapNextZone(tester);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+
+    await tapPrevZone(tester);
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(1));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a spread bookmark targets the left page', (tester) async {
+    await seedLongBook(lines: 200);
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final leftText = firstPaneText(tester);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final stored = await storedBookmarks(tester, bookId: 'long');
+    expect(stored, hasLength(1));
+    expect(stored!.single.anchorStart, text.indexOf(leftText));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a bookmark survives a font change and still lands', (
+    tester,
+  ) async {
+    await seedLongBook(lines: 200);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchorText = pageText(tester).substring(0, 10);
+    await tester.tap(find.byTooltip('书签'));
+    await settleAfterIo(tester);
+    final before = await storedBookmarks(tester, bookId: 'long');
+    expect(before, hasLength(1));
+
+    await tapNextZone(tester);
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(20, 80));
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), isNot(contains(anchorText)));
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.ancestor(
+        of: find.byTooltip('删除书签'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(pageText(tester), contains(anchorText));
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    final after = await storedBookmarks(tester, bookId: 'long');
+    expect(after, hasLength(1));
+    expect(after!.single.anchorStart, before!.single.anchorStart);
     await disposeApp(tester);
   });
 
@@ -993,6 +1243,7 @@ void main() {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     tester.binding.handleMetricsChanged();
+    await SettingsRepository(db).set('reader.spread', 'single');
 
     final text = List.filled(400, '这是一段足够长的正文内容').join();
     await BookRepository(db).upsert(
@@ -1231,6 +1482,244 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('defaults to a two-page spread on a wide window', (tester) async {
+    await seedLongBook();
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    expect(find.byType(SelectableText), findsNWidgets(2));
+    expect(spreadFooterText(tester), startsWith('第 1–2 / '));
+    expect(spreadFooterText(tester), contains('全书 '));
+    await disposeApp(tester);
+  });
+
+  testWidgets('spread pages fit the style they are rendered with', (
+    tester,
+  ) async {
+    final paragraph = List.filled(200, 'a').join();
+    final text = List.filled(120, paragraph).join('\n');
+    await BookRepository(db).upsert(
+      Book(
+        id: 'spread-fit',
+        title: '宽度测试',
+        author: '',
+        format: BookFormat.txt,
+        sourcePath: 'C:/books/spread-fit.txt',
+        addedAt: DateTime(2026, 1, 4),
+      ),
+    );
+    await ChapterRepository(db).replaceForBook('spread-fit', [
+      Chapter(
+        id: 'spread-fit-c0',
+        bookId: 'spread-fit',
+        index: 0,
+        title: '第一章',
+        startOffset: 0,
+        endOffset: text.length,
+        contentText: text,
+      ),
+    ]);
+    addTearDown(tester.view.reset);
+    // 1304 logical pixels gives a 600px pane: the paginator fits 33 glyphs
+    // at 18px each, but the rendered SelectableText inherits the theme's
+    // 0.25 letterSpacing and fits only 32.
+    tester.view.physicalSize = const Size(1304, 900);
+    tester.view.devicePixelRatio = 1;
+    tester.binding.handleMetricsChanged();
+    await pumpReader(tester, 'spread-fit');
+
+    final panes = tester
+        .widgetList<SelectableText>(find.byType(SelectableText))
+        .toList();
+    expect(panes, hasLength(2));
+    for (final pane in panes) {
+      expect(
+        paneTextBottom(tester, pane),
+        lessThanOrEqualTo(paneClipHeight(tester, pane) + 0.5),
+      );
+    }
+    await disposeApp(tester);
+  });
+
+  testWidgets('advances two pages at a time in a spread', (tester) async {
+    await seedLongBook(lines: 200);
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    expect(spreadFooterText(tester), startsWith('第 3–4 / '));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(spreadFooterText(tester), startsWith('第 5–6 / '));
+
+    await tester.tap(find.widgetWithText(TextButton, '上一页'));
+    await tester.pumpAndSettle();
+    expect(spreadFooterText(tester), startsWith('第 3–4 / '));
+    await disposeApp(tester);
+  });
+
+  testWidgets('narrow windows fall back to a single page', (tester) async {
+    await seedLongBook();
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+    expect(find.byType(SelectableText), findsNWidgets(2));
+
+    tester.view.physicalSize = const Size(800, 600);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectableText), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectableText), findsNWidgets(2));
+    await disposeApp(tester);
+  });
+
+  testWidgets('shrinking and widening keeps the spread position', (
+    tester,
+  ) async {
+    await seedLongBook(lines: 200);
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchor = spreadPageText(tester).substring(0, 10);
+    final footer = spreadFooterText(tester);
+
+    tester.view.physicalSize = const Size(800, 600);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    expect(spreadFooterText(tester), footer);
+    expect(spreadPageText(tester), contains(anchor));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a one-page chapter leaves the right pane blank', (tester) async {
+    await seedHeadingBook(
+      id: 'spread-empty',
+      titles: ['空章', '有字'],
+      levels: [1, 1],
+      texts: ['', '有字的内容。'],
+    );
+    useWideWindow(tester);
+    await pumpReader(tester, 'spread-empty');
+
+    expect(find.byType(SelectableText), findsOneWidget);
+    expect(find.byKey(const Key('reader-spread-blank')), findsOneWidget);
+    expect(spreadFooterText(tester), startsWith('第 1 / 1 页'));
+
+    await tapNextZone(tester);
+    expect(find.textContaining('有字的内容。'), findsOneWidget);
+    await tapNextZone(tester);
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '下一页'))
+          .onPressed,
+      isNull,
+    );
+    await disposeApp(tester);
+  });
+
+  testWidgets('chapters restart on the left of a fresh spread', (tester) async {
+    await seedTwoChapterBook();
+    useWideWindow(tester);
+    await pumpReader(tester, 'jb');
+
+    var guard = 0;
+    while (find.textContaining('跳转测试 · 第二章').evaluate().isEmpty &&
+        guard++ < 200) {
+      await tapNextZone(tester);
+    }
+    expect(find.textContaining('跳转测试 · 第二章'), findsOneWidget);
+    expect(spreadFooterText(tester), startsWith('第 1–2 / '));
+
+    await tapPrevZone(tester);
+    expect(find.textContaining('跳转测试 · 第一章'), findsOneWidget);
+    final footer = spreadFooterText(tester);
+    final range = RegExp(r'^第 (\d+)–(\d+) / (\d+) 页').firstMatch(footer);
+    if (range != null) {
+      expect(range.group(2), range.group(3));
+    } else {
+      final lone = RegExp(r'^第 (\d+) / (\d+) 页').firstMatch(footer)!;
+      expect(lone.group(1), lone.group(2));
+    }
+    await disposeApp(tester);
+  });
+
+  testWidgets('a saved position opens the spread containing it', (
+    tester,
+  ) async {
+    await seedLongBook(lines: 200);
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final marker = text.indexOf('第80段');
+    await ProgressRepository(db).save(
+      ReadingProgress(
+        bookId: 'long',
+        anchor: ReadingAnchor(charOffset: marker),
+        percent: marker / text.length,
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    expect(find.textContaining('第80段'), findsOneWidget);
+    expect(spreadFooterText(tester), isNot(startsWith('第 1–')));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a bookmark jump opens the spread containing the anchor', (
+    tester,
+  ) async {
+    await seedTwoChapterBook();
+    final text0 = (await ChapterRepository(db).getContent('jb', 0))!;
+    final text1 = (await ChapterRepository(db).getContent('jb', 1))!;
+    final marker = text0.length + text1.indexOf('乙第30段');
+    await seedBookmark(
+      id: 'bm-spread',
+      bookId: 'jb',
+      chapterId: 'jb-c1',
+      anchorStart: marker,
+    );
+    useWideWindow(tester);
+    await pumpReader(tester, 'jb');
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('书签'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('第二章'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('乙第30段'), findsOneWidget);
+    expect(spreadFooterText(tester), contains('–'));
+    await disposeApp(tester);
+  });
+
+  testWidgets('a font change keeps the spread anchor', (tester) async {
+    await seedMarkerProgress();
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+    final anchorText = spreadPageText(tester).substring(0, 10);
+
+    await tester.tap(find.byTooltip('设置'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    await tester.pumpAndSettle();
+
+    expect(spreadPageText(tester), contains(anchorText));
+    expect(spreadFooterText(tester), contains('–'));
+    await disposeApp(tester);
+  });
+
   group('comic reader', () {
     late Directory temp;
     late BookStorage storage;
@@ -1283,6 +1772,14 @@ void main() {
         );
       }
       await tester.pump();
+    }
+
+    Future<void> pumpComicWide(WidgetTester tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.binding.handleMetricsChanged();
+      await pumpComic(tester);
     }
 
     IconButton toolbarButton(WidgetTester tester, String tooltip) {
@@ -1528,6 +2025,113 @@ void main() {
       );
       expect(saved!.anchor.page, 3);
       expect(saved.percent, closeTo(1.0, 0.001));
+      await disposeApp(tester);
+    });
+
+    testWidgets('renders two comic pages per spread on a wide window', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.text('第 1 / 3 页 · 33%'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('moves comic spreads with buttons and keys', (tester) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
+      expect(find.text('第 3 / 3 页 · 100%'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '上一页'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the top bar toggles the spread and persists it', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+      expect(find.byTooltip('双页'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('reader-spread-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comic-page-1')), findsNothing);
+      expect(find.byTooltip('单页'), findsOneWidget);
+
+      final stored = await tester.runAsync(
+        () => SettingsRepository(db).get('reader.spread'),
+      );
+      expect(stored, 'single');
+
+      await tester.tap(find.byKey(const Key('reader-spread-toggle')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('a saved comic page opens its spread', (tester) async {
+      await ProgressRepository(db).save(
+        ReadingProgress(
+          bookId: 'manga',
+          anchor: const ReadingAnchor.page(2),
+          percent: 2 / 3,
+          updatedAt: DateTime(2026, 1, 6),
+        ),
+      );
+      await pumpComicWide(tester);
+
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('the drawer jump opens the spread containing the page', (
+      tester,
+    ) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.byTooltip('目录'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('第一话'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+      await disposeApp(tester);
+    });
+
+    testWidgets('pinning the rail keeps a coherent spread', (tester) async {
+      await pumpComicWide(tester);
+
+      await tester.tap(find.byTooltip('固定左栏'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+
+      await tester.tap(find.byTooltip('固定左栏'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader-rail-pinned')), findsNothing);
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
       await disposeApp(tester);
     });
   });

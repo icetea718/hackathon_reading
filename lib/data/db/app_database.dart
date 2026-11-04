@@ -20,6 +20,7 @@ part 'app_database.g.dart';
     BookCategories,
     ChatThreads,
     ChatMessages,
+    TranslationCaches,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -28,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -60,13 +61,40 @@ class AppDatabase extends _$AppDatabase {
             await m.addColumn(books, books.comic);
           }
           if (from < 8) {
-            await m.addColumn(chapters, chapters.level);
+            final columns = await m.database
+                .customSelect('PRAGMA table_info(chapters)')
+                .get();
+            final hasLevel =
+                columns.any((row) => row.read<String>('name') == 'level');
+            if (!hasLevel) {
+              await m.addColumn(chapters, chapters.level);
+            }
           }
+          Future<bool> hasTable(String name) async {
+            final rows = await m.database.customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+              variables: [Variable.withString(name)],
+            ).get();
+            return rows.isNotEmpty;
+          }
+
           if (from < 9) {
-            await m.createTable(chatThreads);
-            await m.createTable(chatMessages);
-            await m.create(chatThreadsUpdated);
-            await m.create(chatMessagesThread);
+            await m.createTable(translationCaches);
+          }
+          if (from < 10) {
+            // Both branches used schema version 9, so a v9 database may have
+            // only one of these table groups. Create whichever is missing.
+            if (!await hasTable('chat_threads')) {
+              await m.createTable(chatThreads);
+              await m.create(chatThreadsUpdated);
+            }
+            if (!await hasTable('chat_messages')) {
+              await m.createTable(chatMessages);
+              await m.create(chatMessagesThread);
+            }
+            if (!await hasTable('translation_caches')) {
+              await m.createTable(translationCaches);
+            }
           }
         },
       );
