@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,9 @@ import 'package:hackathon_reading/app/providers.dart';
 import 'package:hackathon_reading/assistant/assistant_service.dart';
 import 'package:hackathon_reading/assistant/reading_context.dart';
 import 'package:hackathon_reading/assistant/unconfigured_assistant_service.dart';
+import 'package:hackathon_reading/data/db/app_database.dart';
+import 'package:hackathon_reading/data/repositories/companion_chat_repository.dart';
+import 'package:hackathon_reading/domain/models/companion_chat.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
 import 'package:hackathon_reading/tts/tts_service.dart';
@@ -25,6 +30,8 @@ const _ttsConfig = TtsConfig(
 
 class _FakeAssistant implements AssistantService {
   final List<String> prompts = [];
+  List<ChatMessage>? lastHistory;
+  ReadingContext? lastContext;
 
   @override
   bool get isConfigured => true;
@@ -36,6 +43,8 @@ class _FakeAssistant implements AssistantService {
     String userMessage,
   ) async* {
     prompts.add('chat:$userMessage');
+    lastHistory = List.of(history);
+    lastContext = context;
     yield '福贵';
     yield '是因为赌博。';
   }
@@ -60,11 +69,66 @@ class _FakeAssistant implements AssistantService {
   }
 }
 
+class _ControlledAssistant implements AssistantService {
+  final controllers = <StreamController<String>>[];
+  final histories = <List<ChatMessage>>[];
+  final contexts = <ReadingContext>[];
+
+  @override
+  bool get isConfigured => true;
+
+  @override
+  Stream<String> chat(
+    ReadingContext context,
+    List<ChatMessage> history,
+    String userMessage,
+  ) {
+    contexts.add(context);
+    histories.add(List.of(history));
+    final controller = StreamController<String>();
+    controllers.add(controller);
+    return controller.stream;
+  }
+
+  @override
+  Stream<String> summarizeChapter(ReadingContext context) async* {
+    yield '摘要';
+  }
+
+  @override
+  Stream<String> explain(
+    String text, {
+    required ReadingContext context,
+  }) async* {
+    yield '解释';
+  }
+
+  @override
+  Stream<String> translate(String text, {required String targetLang}) async* {
+    yield '翻译';
+  }
+}
+
+class _FailingAssistant extends _FakeAssistant {
+  @override
+  Stream<String> chat(
+    ReadingContext context,
+    List<ChatMessage> history,
+    String userMessage,
+  ) async* {
+    prompts.add('chat:$userMessage');
+    yield '半截';
+    throw Exception('boom');
+  }
+}
+
 Widget _host(
   AssistantService service, {
   FakeTtsClient? client,
   FakeAudioOutput? output,
   Duration speechLength = const Duration(milliseconds: 20),
+  AppDatabase? db,
+  ValueNotifier<int>? chapter,
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
@@ -75,34 +139,65 @@ Widget _host(
     tempDirectory: () async => Directory.systemTemp,
     durationOf: (_) => speechLength,
   );
-  return _wrap(service, tts);
+  return _wrap(service, tts, db: db, chapter: chapter);
 }
 
-Widget _wrap(AssistantService service, TtsService tts) {
+Widget _wrap(
+  AssistantService service,
+  TtsService tts, {
+  AppDatabase? db,
+  ValueNotifier<int>? chapter,
+}) {
+  final database = db ?? AppDatabase(NativeDatabase.memory());
+  if (db == null) addTearDown(database.close);
+  final chapterIndex = chapter ?? ValueNotifier<int>(1);
+  if (chapter == null) addTearDown(chapterIndex.dispose);
   return ProviderScope(
     overrides: [
       assistantServiceProvider.overrideWith((ref) async => service),
+      appDatabaseProvider.overrideWithValue(database),
       ttsConfigProvider.overrideWith((ref) async => _ttsConfig),
       ttsServiceProvider.overrideWithValue(tts),
     ],
-    child: const MaterialApp(
+    child: MaterialApp(
       home: Scaffold(
-        body: CompanionPanel(
-          bookId: 'book-1',
-          chapterIndex: 1,
-          chapterTitle: '第二章',
-          chapterText: '福贵牵着老牛走在田埂上。',
-          chapterCharOffset: 4,
+        body: ValueListenableBuilder<int>(
+          valueListenable: chapterIndex,
+          builder: (context, index, _) => CompanionPanel(
+            bookId: 'book-1',
+            chapterIndex: index,
+            chapterTitle: '第${index + 1}章',
+            chapterText: '福贵牵着老牛走在田埂上。',
+            chapterCharOffset: 4,
+          ),
         ),
       ),
     ),
   );
 }
 
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 6; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pumpAndSettle();
+  }
+}
+
+Future<void> _flush(WidgetTester tester, {int rounds = 8}) async {
+  for (var i = 0; i < rounds; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  }
+}
+
 Future<void> _ask(WidgetTester tester) async {
   await tester.enterText(find.byType(TextField), '福贵为什么败家？');
   await tester.tap(find.byTooltip('发送'));
-  await tester.pumpAndSettle();
+  await _settle(tester);
 }
 
 /// Taps the speaker and waits on the real event loop until playback starts.
@@ -122,7 +217,7 @@ void main() {
   testWidgets('an unconfigured panel points at the settings page',
       (tester) async {
     await tester.pumpWidget(_host(const UnconfiguredAssistantService()));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.textContaining('未配置 AI 服务'), findsOneWidget);
     expect(find.text('去设置'), findsOneWidget);
@@ -132,7 +227,7 @@ void main() {
       (tester) async {
     final fake = _FakeAssistant();
     await tester.pumpWidget(_host(fake));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await _ask(tester);
 
@@ -144,11 +239,11 @@ void main() {
   testWidgets('pressing enter sends the question', (tester) async {
     final fake = _FakeAssistant();
     await tester.pumpWidget(_host(fake));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.enterText(find.byType(TextField), '福贵为什么败家？');
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(fake.prompts, contains('chat:福贵为什么败家？'));
     expect(find.text('福贵为什么败家？'), findsOneWidget);
@@ -163,7 +258,7 @@ void main() {
       (tester) async {
     final fake = _FakeAssistant();
     await tester.pumpWidget(_host(fake));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.enterText(find.byType(TextField), '第一行');
     await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
@@ -182,7 +277,7 @@ void main() {
       (tester) async {
     final fake = _FakeAssistant();
     await tester.pumpWidget(_host(fake));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.enterText(find.byType(TextField), 'nihao');
     tester.widget<TextField>(find.byType(TextField)).controller!.value =
@@ -194,7 +289,7 @@ void main() {
     await tester.pump();
 
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(fake.prompts, isEmpty);
   });
@@ -202,10 +297,10 @@ void main() {
   testWidgets('the summary button streams a chapter summary', (tester) async {
     final fake = _FakeAssistant();
     await tester.pumpWidget(_host(fake));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.tap(find.text('总结本章'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(fake.prompts, contains('summary'));
     expect(find.textContaining('福贵败家'), findsOneWidget);
@@ -222,7 +317,7 @@ void main() {
       durationOf: (_) => const Duration(milliseconds: 20),
     );
     await tester.pumpWidget(_wrap(_FakeAssistant(), tts));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await _ask(tester);
     await _tapSpeak(tester, speaker);
@@ -245,7 +340,7 @@ void main() {
       durationOf: (_) => const Duration(milliseconds: 20),
     );
     await tester.pumpWidget(_wrap(_FakeAssistant(), tts));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await _ask(tester);
     await _tapSpeak(tester, speaker);
@@ -264,7 +359,7 @@ void main() {
         speechLength: const Duration(milliseconds: 400),
       ),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await _ask(tester);
     await tester.tap(find.byTooltip('朗读'));
@@ -285,10 +380,181 @@ void main() {
       (tester) async {
     final voice = FakeTtsClient();
     await tester.pumpWidget(_host(_FakeAssistant(), client: voice));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await _ask(tester);
 
     expect(voice.texts, isEmpty);
+  });
+
+  testWidgets('a saved conversation reopens with the panel', (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    late CompanionThread thread;
+    await tester.runAsync(() async {
+      final repo = CompanionChatRepository(db);
+      thread = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '福贵',
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.user,
+        content: '福贵为什么败家？',
+      );
+      await repo.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.assistant,
+        content: '因为赌博。',
+      );
+    });
+
+    await tester.pumpWidget(_host(_FakeAssistant(), db: db));
+    await _settle(tester);
+
+    expect(find.text('福贵为什么败家？'), findsOneWidget);
+    expect(find.text('因为赌博。'), findsOneWidget);
+  });
+
+  testWidgets('the question is stored before the reply finishes',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final fake = _ControlledAssistant();
+    await tester.pumpWidget(_host(fake, db: db));
+    await _settle(tester);
+
+    await tester.enterText(find.byType(TextField), '福贵为什么败家？');
+    await tester.tap(find.byTooltip('发送'));
+    await _flush(tester);
+
+    final rows = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    expect(rows, hasLength(1));
+    final stored = await tester.runAsync(
+      () => CompanionChatRepository(db).messagesForThread(rows!.single.id),
+    );
+    expect(stored!.map((m) => m.content), contains('福贵为什么败家？'));
+    expect(stored.where((m) => m.role == CompanionRole.assistant), isEmpty);
+  });
+
+  testWidgets('the model sees the last eight messages and the prior digest',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final fake = _FakeAssistant();
+    await tester.runAsync(() async {
+      final repo = CompanionChatRepository(db);
+      final prior = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 0,
+        chapterTitle: '第一章',
+        title: '前文',
+      );
+      await repo.appendMessage(
+        threadId: prior.id,
+        role: CompanionRole.user,
+        content: '前文问答',
+      );
+      final later = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 3,
+        chapterTitle: '第四章',
+        title: '未来',
+      );
+      await repo.appendMessage(
+        threadId: later.id,
+        role: CompanionRole.user,
+        content: '未来剧透',
+      );
+      final current = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '当前',
+      );
+      for (var i = 1; i <= 10; i++) {
+        await repo.appendMessage(
+          threadId: current.id,
+          role: i.isOdd ? CompanionRole.user : CompanionRole.assistant,
+          content: 'm$i',
+        );
+      }
+    });
+
+    await tester.pumpWidget(_host(fake, db: db));
+    await _settle(tester);
+    await tester.enterText(find.byType(TextField), '新问题');
+    await tester.tap(find.byTooltip('发送'));
+    await _settle(tester);
+
+    expect(fake.lastHistory, hasLength(8));
+    expect(fake.lastHistory!.first.content, 'm3');
+    expect(fake.lastHistory!.last.content, 'm10');
+    expect(
+      fake.lastHistory!.where((m) => m.content == '新问题'),
+      isEmpty,
+      reason: 'the current question must only be sent once',
+    );
+    expect(fake.lastContext!.companionMemory, contains('前文问答'));
+    expect(fake.lastContext!.companionMemory, isNot(contains('未来剧透')));
+  });
+
+  testWidgets('switching chapters drops the reply that was still streaming',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final fake = _ControlledAssistant();
+    final chapter = ValueNotifier(1);
+    addTearDown(chapter.dispose);
+    await tester.pumpWidget(_host(fake, db: db, chapter: chapter));
+    await _settle(tester);
+
+    await tester.enterText(find.byType(TextField), '旧章问题');
+    await tester.tap(find.byTooltip('发送'));
+    await _flush(tester);
+
+    chapter.value = 2;
+    await _flush(tester);
+
+    fake.controllers.last.add('迟到的回答');
+    await fake.controllers.last.close();
+    await _settle(tester);
+
+    expect(find.text('迟到的回答'), findsNothing);
+    final rows = await tester.runAsync(
+      () => CompanionChatRepository(db).threadsForBook('book-1'),
+    );
+    for (final thread in rows!) {
+      final messages = await tester.runAsync(
+        () => CompanionChatRepository(db).messagesForThread(thread.id),
+      );
+      expect(messages!.where((m) => m.content == '迟到的回答'), isEmpty);
+    }
+  });
+
+  testWidgets('a failed reply keeps the question and drops the partial answer',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await tester.pumpWidget(_host(_FailingAssistant(), db: db));
+    await _settle(tester);
+
+    await tester.enterText(find.byType(TextField), '会失败的问题');
+    await tester.tap(find.byTooltip('发送'));
+    await _settle(tester);
+
+    final repo = CompanionChatRepository(db);
+    final threads = await tester.runAsync(() => repo.threadsForBook('book-1'));
+    final stored = await tester.runAsync(
+      () => repo.messagesForThread(threads!.single.id),
+    );
+    expect(stored!.map((m) => m.content), ['会失败的问题']);
+    expect(stored.where((m) => m.role == CompanionRole.assistant), isEmpty);
+    expect(find.textContaining('出错了'), findsOneWidget);
+    expect(find.textContaining('半截'), findsNothing);
   });
 }

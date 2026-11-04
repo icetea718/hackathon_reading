@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../assistant/assistant_service.dart';
 import '../../assistant/reading_context.dart';
+import '../../data/repositories/companion_chat_repository.dart';
+import '../../domain/models/companion_chat.dart';
 import '../../tts/tts_config.dart';
 import '../../tts/tts_service.dart';
 import '../settings/settings_page.dart';
@@ -53,6 +55,11 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   bool _busy = false;
   String? _error;
 
+  late final CompanionChatRepository _chats;
+  CompanionThread? _thread;
+  bool _autoTitlePending = false;
+  int _requestToken = 0;
+
   late final TtsService _tts;
   StreamSubscription<TtsStatus>? _ttsSubscription;
   TtsStatus _ttsStatus = const TtsStatus();
@@ -63,8 +70,85 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   @override
   void initState() {
     super.initState();
+    _chats = ref.read(companionChatRepositoryProvider);
     _tts = ref.read(ttsServiceProvider);
     _ttsSubscription = _tts.statuses.listen(_onTtsStatus);
+    unawaited(_loadLatestThread());
+  }
+
+  @override
+  void didUpdateWidget(covariant CompanionPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bookId == widget.bookId &&
+        oldWidget.chapterIndex == widget.chapterIndex) {
+      return;
+    }
+    _requestToken++;
+    setState(() {
+      _busy = false;
+      _streaming = '';
+      _error = null;
+      _speakingIndex = null;
+      _thread = null;
+      _history.clear();
+      _autoTitlePending = false;
+    });
+    unawaited(_tts.stop());
+    unawaited(_loadLatestThread());
+  }
+
+  Future<void> _loadLatestThread() async {
+    final token = _requestToken;
+    final thread = await _chats.latestThreadForChapter(
+      widget.bookId,
+      widget.chapterIndex,
+    );
+    final messages = thread == null
+        ? const <CompanionMessage>[]
+        : await _chats.messagesForThread(thread.id);
+    if (!mounted || token != _requestToken) return;
+    setState(() {
+      _thread = thread;
+      _history
+        ..clear()
+        ..addAll(
+          messages.map(
+            (message) => ChatMessage(
+              role: message.role == CompanionRole.user
+                  ? ChatRole.user
+                  : ChatRole.assistant,
+              content: message.content,
+            ),
+          ),
+        );
+      _autoTitlePending = false;
+    });
+  }
+
+  Future<CompanionThread> _ensureThread({
+    required String firstMessage,
+    String? titleIfNew,
+  }) async {
+    final existing = _thread;
+    if (existing != null) {
+      if (_autoTitlePending) {
+        _autoTitlePending = false;
+        final title = companionThreadTitle(firstMessage);
+        await _chats.renameThread(existing.id, title);
+        final renamed = existing.copyWith(title: title);
+        _thread = renamed;
+        return renamed;
+      }
+      return existing;
+    }
+    final thread = await _chats.createThread(
+      bookId: widget.bookId,
+      chapterIndex: widget.chapterIndex,
+      chapterTitle: widget.chapterTitle,
+      title: titleIfNew ?? companionThreadTitle(firstMessage),
+    );
+    _thread = thread;
+    return thread;
   }
 
   @override
@@ -111,8 +195,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       );
 
   Future<void> _stream(
-    Stream<String> Function(AssistantService service) start,
-  ) async {
+    Stream<String> Function(AssistantService service) start, {
+    required int token,
+    Future<void> Function(String reply)? onComplete,
+  }) async {
     if (_busy) return;
     setState(() {
       _busy = true;
@@ -121,6 +207,7 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     });
     try {
       final service = await ref.read(assistantServiceProvider.future);
+      if (!mounted || token != _requestToken) return;
       if (!service.isConfigured) {
         setState(() => _error = '未配置 AI 服务，请到设置页填写');
         return;
@@ -128,12 +215,16 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       final buffer = StringBuffer();
       await for (final chunk in start(service)) {
         buffer.write(chunk);
-        if (!mounted) return;
+        if (!mounted || token != _requestToken) break;
         setState(() => _streaming = buffer.toString());
         _scrollToEnd();
       }
-      if (!mounted) return;
+      if (!mounted || token != _requestToken) return;
       final reply = buffer.toString();
+      if (reply.isNotEmpty) {
+        await onComplete?.call(reply);
+        if (!mounted || token != _requestToken) return;
+      }
       setState(() {
         if (reply.isNotEmpty) {
           _history.add(
@@ -146,22 +237,94 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         unawaited(_speak(reply, _history.length - 1));
       }
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = '出错了：$error');
+      if (!mounted || token != _requestToken) return;
+      setState(() {
+        _error = '出错了：$error';
+        _streaming = '';
+      });
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted && token == _requestToken) setState(() => _busy = false);
     }
   }
 
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty || _busy) return;
+    final service = ref.read(assistantServiceProvider).value;
+    if (service == null || !service.isConfigured) return;
     _input.clear();
-    setState(() => _history.add(ChatMessage(role: ChatRole.user, content: text)));
-    await _stream((service) => service.chat(_context, List.of(_history), text));
+    final token = _requestToken;
+    final thread = await _ensureThread(firstMessage: text);
+    await _chats.appendMessage(
+      threadId: thread.id,
+      role: CompanionRole.user,
+      content: text,
+    );
+    if (!mounted || token != _requestToken) return;
+    setState(
+      () => _history.add(ChatMessage(role: ChatRole.user, content: text)),
+    );
+
+    final priorCount = _history.length - 1;
+    final start = priorCount > 8 ? priorCount - 8 : 0;
+    final prior = _history.sublist(start, priorCount);
+    final memory = await _chats.memoryDigest(
+      bookId: widget.bookId,
+      beforeChapterIndex: widget.chapterIndex,
+    );
+    if (!mounted || token != _requestToken) return;
+
+    await _stream(
+      (service) => service.chat(
+        _context.copyWith(companionMemory: memory),
+        prior,
+        text,
+      ),
+      token: token,
+      onComplete: (reply) => _chats.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.assistant,
+        content: reply,
+      ),
+    );
   }
 
-  Future<void> _summarize() => _stream((service) => service.summarizeChapter(_context));
+  Future<void> _summarize() async {
+    if (_busy) return;
+    final token = _requestToken;
+    final thread = await _ensureThread(
+      firstMessage: '总结本章',
+      titleIfNew: '总结本章',
+    );
+    await _chats.appendMessage(
+      threadId: thread.id,
+      role: CompanionRole.user,
+      content: '总结本章',
+    );
+    if (!mounted || token != _requestToken) return;
+    setState(
+      () => _history.add(
+        const ChatMessage(role: ChatRole.user, content: '总结本章'),
+      ),
+    );
+    final memory = await _chats.memoryDigest(
+      bookId: widget.bookId,
+      beforeChapterIndex: widget.chapterIndex,
+    );
+    if (!mounted || token != _requestToken) return;
+
+    await _stream(
+      (service) => service.summarizeChapter(
+        _context.copyWith(companionMemory: memory),
+      ),
+      token: token,
+      onComplete: (reply) => _chats.appendMessage(
+        threadId: thread.id,
+        role: CompanionRole.assistant,
+        content: reply,
+      ),
+    );
+  }
 
   /// Enter sends the question, shift+enter keeps it for a second line, and
   /// enter that belongs to an input method (picking a character) stays with it.
@@ -263,6 +426,26 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                   controller: _scroll,
                   padding: const EdgeInsets.all(16),
                   children: [
+                    Container(
+                      key: const Key('companion-memory-chip'),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        widget.chapterIndex == 0
+                            ? '暂无前序章节对话'
+                            : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                     for (var index = 0; index < _history.length; index++)
                       _Bubble(
                         text: _history[index].content,
