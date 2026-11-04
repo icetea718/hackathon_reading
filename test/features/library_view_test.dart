@@ -80,10 +80,43 @@ void main() {
       'b2': {'c1', 'c2'},
     };
 
-    final summaries = buildCategorySummaries(categories, memberships);
+    final summaries = buildCategorySummaries(
+      categories,
+      memberships,
+      existingBookIds: {'b1', 'b2'},
+    );
 
     expect(summaries.map((s) => s.category.id), ['c1', 'c2']);
     expect(summaries.map((s) => s.bookCount), [2, 1]);
+  });
+
+  test('buildCategorySummaries ignores memberships for missing books', () {
+    final categories = [
+      Category(
+        id: 'c1',
+        name: '科幻',
+        sortOrder: 0,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+      Category(
+        id: 'c2',
+        name: '历史',
+        sortOrder: 1,
+        createdAt: DateTime(2026, 1, 2),
+      ),
+    ];
+    final memberships = <String, Set<String>>{
+      'b1': {'c1'},
+      'ghost': {'c1', 'c2'},
+    };
+
+    final summaries = buildCategorySummaries(
+      categories,
+      memberships,
+      existingBookIds: {'b1'},
+    );
+
+    expect(summaries.map((s) => s.bookCount), [1, 0]);
   });
 
   test('countUncategorized only counts books with no memberships', () {

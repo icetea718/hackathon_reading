@@ -66,11 +66,13 @@ List<Book> sortBooks(List<Book> books) {
 
 List<CategorySummary> buildCategorySummaries(
   List<Category> categories,
-  Map<String, Set<String>> categoryIdsByBook,
-) {
+  Map<String, Set<String>> categoryIdsByBook, {
+  required Set<String> existingBookIds,
+}) {
   final counts = <String, int>{};
-  for (final ids in categoryIdsByBook.values) {
-    for (final id in ids) {
+  for (final entry in categoryIdsByBook.entries) {
+    if (!existingBookIds.contains(entry.key)) continue;
+    for (final id in entry.value) {
       counts[id] = (counts[id] ?? 0) + 1;
     }
   }

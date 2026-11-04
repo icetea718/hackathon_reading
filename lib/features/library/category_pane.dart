@@ -199,6 +199,17 @@ class CategoryPane extends ConsumerWidget {
                             data.effectiveCategoryId == uncategorizedCategoryId,
                         onTap: () => select(uncategorizedCategoryId),
                       ),
+                      if (data.categories.isEmpty)
+                        Padding(
+                          key: const Key('category-empty-hint'),
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                          child: Text(
+                            '还没有分类，可拖拽书籍到这里，或点击下方新建',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       DragTarget<String>(
                         key: const Key('category-drop-new'),
                         onAcceptWithDetails: (details) =>
