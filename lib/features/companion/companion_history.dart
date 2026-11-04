@@ -97,29 +97,32 @@ class _CompanionHistoryViewState extends State<CompanionHistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '对话历史',
-                  style: Theme.of(context).textTheme.titleSmall,
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '对话历史',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                 ),
-              ),
-              TextButton.icon(
-                key: const Key('companion-new-thread'),
-                onPressed: widget.onNewThread,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('新建'),
-              ),
-            ],
+                TextButton.icon(
+                  key: const Key('companion-new-thread'),
+                  onPressed: widget.onNewThread,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('新建'),
+                ),
+              ],
+            ),
           ),
-        ),
-        Expanded(child: _body(context)),
-      ],
+          Expanded(child: _body(context)),
+        ],
+      ),
     );
   }
 

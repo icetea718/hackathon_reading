@@ -30,6 +30,7 @@ class CompanionPanel extends ConsumerStatefulWidget {
     this.author = '',
     this.docked = false,
     this.onClose,
+    this.onGoToChapter,
   });
 
   final String bookId;
@@ -45,6 +46,9 @@ class CompanionPanel extends ConsumerStatefulWidget {
 
   /// Shown as a close button in the header when non-null.
   final VoidCallback? onClose;
+
+  /// Called when the reader should follow a read-only thread to its chapter.
+  final ValueChanged<int>? onGoToChapter;
 
   @override
   ConsumerState<CompanionPanel> createState() => _CompanionPanelState();
@@ -70,6 +74,10 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
   /// Thread from an earlier chapter being viewed; the composer is hidden.
   CompanionThread? _readOnlyThread;
 
+  /// Thread to reopen once the reader lands on its chapter.
+  String? _pendingThreadId;
+  int? _pendingChapterIndex;
+
   late final TtsService _tts;
   StreamSubscription<TtsStatus>? _ttsSubscription;
   TtsStatus _ttsStatus = const TtsStatus();
@@ -93,6 +101,12 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
         oldWidget.chapterIndex == widget.chapterIndex) {
       return;
     }
+    final pendingId = _pendingThreadId;
+    final followPending = pendingId != null &&
+        oldWidget.bookId == widget.bookId &&
+        widget.chapterIndex == _pendingChapterIndex;
+    _pendingThreadId = null;
+    _pendingChapterIndex = null;
     _requestToken++;
     setState(() {
       _busy = false;
@@ -108,7 +122,30 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
       _readOnlyThread = null;
     });
     unawaited(_tts.stop());
-    unawaited(_loadLatestThread());
+    if (followPending) {
+      unawaited(_loadThreadById(pendingId));
+    } else {
+      unawaited(_loadLatestThread());
+    }
+  }
+
+  Future<void> _loadThreadById(String id) async {
+    final token = _requestToken;
+    final thread = await _chats.threadById(id);
+    if (thread == null) {
+      if (mounted && token == _requestToken) await _loadLatestThread();
+      return;
+    }
+    final messages = await _chats.messagesForThread(thread.id);
+    if (!mounted || token != _requestToken) return;
+    setState(() {
+      _thread = thread;
+      _history
+        ..clear()
+        ..addAll(messages.map(_toChatMessage));
+      _autoTitlePending = false;
+      _readOnlyThread = null;
+    });
   }
 
   Future<void> _loadLatestThread() async {
@@ -581,7 +618,9 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               onPressed: _hush,
             ),
           TextButton(
-            onPressed: configured && !_busy ? _summarize : null,
+            onPressed: configured && !_busy && _readOnlyThread == null
+                ? _summarize
+                : null,
             child: const Text('总结本章'),
           ),
           if (widget.onClose != null)
@@ -674,31 +713,47 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        if (_readOnlyThread == null) _composer(),
+        if (_readOnlyThread == null) _composer() else _jumpButton(),
       ],
     );
   }
 
   Widget _messageList(BuildContext context) {
+    final readOnly = _readOnlyThread;
     return ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(16),
       children: [
-        Container(
-          key: const Key('companion-memory-chip'),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8),
+        if (readOnly != null)
+          Container(
+            key: const Key('companion-readonly-banner'),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '保存在第 ${readOnly.chapterIndex + 1} 章，当前为只读',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          )
+        else
+          Container(
+            key: const Key('companion-memory-chip'),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              widget.chapterIndex == 0
+                  ? '暂无前序章节对话'
+                  : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
-          child: Text(
-            widget.chapterIndex == 0
-                ? '暂无前序章节对话'
-                : '引用之前章节的对话纪要（≤400 字），不读取后面的章节',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
         for (var index = 0; index < _history.length; index++)
           _Bubble(
             text: _history[index].content,
@@ -717,6 +772,26 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
             child: LinearProgressIndicator(),
           ),
       ],
+    );
+  }
+
+  Widget _jumpButton() {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          key: const Key('companion-go-to-chapter'),
+          onPressed: () {
+            final thread = _readOnlyThread;
+            if (thread == null) return;
+            _pendingThreadId = thread.id;
+            _pendingChapterIndex = thread.chapterIndex;
+            widget.onGoToChapter?.call(thread.chapterIndex);
+          },
+          child: const Text('前往该章'),
+        ),
+      ),
     );
   }
 

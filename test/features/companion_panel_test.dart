@@ -129,6 +129,8 @@ Widget _host(
   Duration speechLength = const Duration(milliseconds: 20),
   AppDatabase? db,
   ValueNotifier<int>? chapter,
+  int chapterIndex = 1,
+  ValueChanged<int>? onGoToChapter,
 }) {
   final voice = client ?? FakeTtsClient();
   final speaker = output ?? FakeAudioOutput();
@@ -139,7 +141,14 @@ Widget _host(
     tempDirectory: () async => Directory.systemTemp,
     durationOf: (_) => speechLength,
   );
-  return _wrap(service, tts, db: db, chapter: chapter);
+  return _wrap(
+    service,
+    tts,
+    db: db,
+    chapter: chapter,
+    chapterIndex: chapterIndex,
+    onGoToChapter: onGoToChapter,
+  );
 }
 
 Widget _wrap(
@@ -147,11 +156,13 @@ Widget _wrap(
   TtsService tts, {
   AppDatabase? db,
   ValueNotifier<int>? chapter,
+  int chapterIndex = 1,
+  ValueChanged<int>? onGoToChapter,
 }) {
   final database = db ?? AppDatabase(NativeDatabase.memory());
   if (db == null) addTearDown(database.close);
-  final chapterIndex = chapter ?? ValueNotifier<int>(1);
-  if (chapter == null) addTearDown(chapterIndex.dispose);
+  final chapterNotifier = chapter ?? ValueNotifier<int>(chapterIndex);
+  if (chapter == null) addTearDown(chapterNotifier.dispose);
   return ProviderScope(
     overrides: [
       assistantServiceProvider.overrideWith((ref) async => service),
@@ -162,13 +173,14 @@ Widget _wrap(
     child: MaterialApp(
       home: Scaffold(
         body: ValueListenableBuilder<int>(
-          valueListenable: chapterIndex,
+          valueListenable: chapterNotifier,
           builder: (context, index, _) => CompanionPanel(
             bookId: 'book-1',
             chapterIndex: index,
             chapterTitle: '第${index + 1}章',
             chapterText: '福贵牵着老牛走在田埂上。',
             chapterCharOffset: 4,
+            onGoToChapter: onGoToChapter,
           ),
         ),
       ),
@@ -716,6 +728,62 @@ void main() {
       () => CompanionChatRepository(db).messagesForThread(oldId),
     );
     expect(messages, isEmpty);
+  });
+
+  testWidgets('an old chapter thread opens read-only with a jump button',
+      (tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await tester.runAsync(() async {
+      var ids = 0;
+      final repo = CompanionChatRepository(db, newId: () => 'id-${ids++}');
+      final old = await repo.createThread(
+        bookId: 'book-1',
+        chapterIndex: 1,
+        chapterTitle: '第二章',
+        title: '旧对话',
+      );
+      await repo.appendMessage(
+        threadId: old.id,
+        role: CompanionRole.user,
+        content: '旧问题',
+      );
+      await repo.appendMessage(
+        threadId: old.id,
+        role: CompanionRole.assistant,
+        content: '旧回答',
+      );
+    });
+    int? jumped;
+
+    await tester.pumpWidget(
+      _host(
+        _FakeAssistant(),
+        db: db,
+        chapterIndex: 2,
+        onGoToChapter: (index) => jumped = index,
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('companion-tab-history')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('companion-thread-id-0')));
+    await _settle(tester);
+
+    expect(find.text('保存在第 2 章，当前为只读'), findsOneWidget);
+    expect(find.text('旧问题'), findsOneWidget);
+    expect(find.text('旧回答'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('总结本章'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, '总结本章'))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('companion-go-to-chapter')));
+    expect(jumped, 1);
   });
 
   testWidgets('an unconfigured panel still browses saved history',

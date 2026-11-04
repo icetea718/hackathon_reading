@@ -943,6 +943,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
           chapterCharOffset: offset < 0 ? 0 : offset,
           bookTitle: data.book?.title ?? '',
           author: data.book?.author ?? '',
+          onGoToChapter: (index) {
+            Navigator.of(context).pop();
+            _goToChapter(index);
+          },
         ),
       );
       return;
@@ -1030,6 +1034,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         author: data.book?.author ?? '',
         docked: true,
         onClose: _closeCompanion,
+        onGoToChapter: _goToChapter,
       ),
     );
   }
