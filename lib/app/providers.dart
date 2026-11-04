@@ -14,6 +14,7 @@ import '../data/repositories/annotation_repository.dart';
 import '../data/repositories/book_repository.dart';
 import '../data/repositories/category_repository.dart';
 import '../data/repositories/chapter_repository.dart';
+import '../data/repositories/chat_repository.dart';
 import '../data/repositories/distill_artifact_repository.dart';
 import '../data/repositories/distill_job_repository.dart';
 import '../data/repositories/distill_unit_repository.dart';
@@ -265,4 +266,16 @@ final bookCategoryMembershipsProvider =
 
 final progressPercentsProvider = StreamProvider<Map<String, double>>(
   (ref) => ref.watch(progressRepositoryProvider).watchPercents(),
+);
+
+final chatThreadRepositoryProvider = Provider<ChatThreadRepository>(
+  (ref) => ChatThreadRepository(ref.watch(appDatabaseProvider)),
+);
+
+final chatMessageRepositoryProvider = Provider<ChatMessageRepository>(
+  (ref) => ChatMessageRepository(ref.watch(appDatabaseProvider)),
+);
+
+final chatThreadsProvider = StreamProvider<List<ChatThreadRow>>(
+  (ref) => ref.watch(chatThreadRepositoryProvider).watchAll(),
 );

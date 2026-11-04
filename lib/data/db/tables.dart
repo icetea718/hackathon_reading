@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import 'converters.dart';
+
 @DataClassName('BookRow')
 @TableIndex(name: 'books_content_hash', columns: {#contentHash})
 class Books extends Table {
@@ -145,6 +147,33 @@ class DistillArtifacts extends Table {
   IntColumn get chapterEnd => integer().nullable()();
   BoolColumn get stale => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ChatThreadRow')
+@TableIndex(name: 'chat_threads_updated', columns: {#updatedAt})
+class ChatThreads extends Table {
+  TextColumn get id => text()();
+  TextColumn get title => text().withDefault(const Constant(''))();
+  TextColumn get createdAt => text().map(const IsoDateTimeConverter())();
+  TextColumn get updatedAt => text().map(const IsoDateTimeConverter())();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('ChatMessageRow')
+@TableIndex(name: 'chat_messages_thread', columns: {#threadId, #createdAt})
+class ChatMessages extends Table {
+  TextColumn get id => text()();
+  TextColumn get threadId => text()();
+  TextColumn get role => text()();
+  TextColumn get content => text()();
+  TextColumn get sourcesJson => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('complete'))();
+  TextColumn get createdAt => text().map(const IsoDateTimeConverter())();
 
   @override
   Set<Column> get primaryKey => {id};

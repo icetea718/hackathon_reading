@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'converters.dart';
 import 'tables.dart';
 
 part 'app_database.g.dart';
@@ -17,6 +18,8 @@ part 'app_database.g.dart';
     DistillArtifacts,
     Categories,
     BookCategories,
+    ChatThreads,
+    ChatMessages,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -25,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -58,6 +61,12 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 8) {
             await m.addColumn(chapters, chapters.level);
+          }
+          if (from < 9) {
+            await m.createTable(chatThreads);
+            await m.createTable(chatMessages);
+            await m.create(chatThreadsUpdated);
+            await m.create(chatMessagesThread);
           }
         },
       );

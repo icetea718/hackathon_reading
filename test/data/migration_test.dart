@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/data/db/app_database.dart';
 
 void main() {
-  test('upgrades a v5 database through v8', () async {
+  test('upgrades a v5 database through v9', () async {
     final db = AppDatabase(NativeDatabase.memory(
       setup: (raw) {
         raw.execute('PRAGMA user_version = 5;');
@@ -38,12 +38,20 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 8);
+    expect(db.schemaVersion, 9);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
     final names = rows.map((row) => row.read<String>('name')).toSet();
-    expect(names, containsAll(['categories', 'book_categories']));
+    expect(
+      names,
+      containsAll([
+        'categories',
+        'book_categories',
+        'chat_threads',
+        'chat_messages',
+      ]),
+    );
 
     final indexes = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
@@ -51,7 +59,12 @@ void main() {
     final indexNames = indexes.map((row) => row.read<String>('name')).toSet();
     expect(
       indexNames,
-      containsAll(['categories_name', 'book_categories_category']),
+      containsAll([
+        'categories_name',
+        'book_categories_category',
+        'chat_threads_updated',
+        'chat_messages_thread',
+      ]),
     );
 
     await db.customStatement(
