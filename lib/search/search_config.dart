@@ -2,17 +2,23 @@ import '../data/repositories/settings_repository.dart';
 
 /// Web-search settings, stored in the same `settings` table as the LLM config.
 ///
-/// [provider] is `'off'` or `'tavily'`; an empty key also counts as off.
+/// [provider] is `'off'` | `'free'` | `'tavily'`; an empty key also counts as
+/// off for providers that need one.
 class SearchConfig {
   const SearchConfig({this.provider = off, this.apiKey = ''});
 
   static const off = 'off';
+  static const free = 'free';
   static const tavily = 'tavily';
 
   final String provider;
   final String apiKey;
 
-  bool get isConfigured => provider != off && apiKey.trim().isNotEmpty;
+  /// Tavily 需要一个 Key；免 Key 的源返回 false。
+  bool get requiresApiKey => provider == tavily;
+
+  bool get isConfigured =>
+      provider != off && (!requiresApiKey || apiKey.trim().isNotEmpty);
 
   /// Whether the 搜 shell should attempt retrieval for a question.
   bool get isEnabled => isConfigured;

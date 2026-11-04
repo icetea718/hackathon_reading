@@ -328,6 +328,25 @@ void main() {
     expect(saved.isEnabled, isTrue);
   });
 
+  testWidgets('选免费搜索时隐藏 Tavily Key 并保存为 free', (tester) async {
+    await pumpPage(tester, _FakeClient());
+
+    await reveal(tester, find.byKey(const Key('search-provider')));
+    await tester.tap(find.byKey(const Key('search-provider')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('免费搜索（免 Key）').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('search-api-key')), findsNothing);
+
+    await tapAt(tester, find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final saved = await SearchConfigStore(SettingsRepository(db)).load();
+    expect(saved.provider, SearchConfig.free);
+    expect(saved.isEnabled, isTrue);
+  });
+
   testWidgets('the search probe reports a failure', (tester) async {
     await pumpPage(
       tester,

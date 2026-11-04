@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../domain/models/book.dart';
 import '../../search/search_book.dart';
+import '../../search/search_config.dart';
 import '../root/app_mode.dart';
 import '../root/mode_switch.dart';
 import '../settings/settings_page.dart';
@@ -13,6 +14,7 @@ import 'chat_composer.dart';
 import 'chat_controller.dart';
 import 'conversation_sidebar.dart';
 import 'message_list.dart';
+import 'search_source_sheet.dart';
 
 /// The 搜 shell: one agent conversation plus its history.
 class SearchShell extends ConsumerStatefulWidget {
@@ -27,7 +29,6 @@ class SearchShell extends ConsumerStatefulWidget {
 
 class _SearchShellState extends ConsumerState<SearchShell> {
   String _threadKey = ChatController.newThreadKey;
-  bool _webSearch = false;
 
   @override
   void initState() {
@@ -114,13 +115,33 @@ class _SearchShellState extends ConsumerState<SearchShell> {
     setState(() => _threadKey = latest?.id ?? ChatController.newThreadKey);
   }
 
+  /// Lets the user switch the retrieval source; the config is the only state.
+  Future<void> _pickWebSource() async {
+    final current = ref.read(searchConfigProvider).asData?.value ??
+        const SearchConfig();
+    final picked = await showSearchSourceSheet(context, config: current);
+    if (!mounted || picked == null) return;
+    if (picked == SearchSource.tavily &&
+        !current.copyWith(provider: SearchConfig.tavily).isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('先在设置里填 Tavily API Key')),
+      );
+      return;
+    }
+    final store = ref.read(searchConfigStoreProvider);
+    await store.save(current.copyWith(provider: picked.searchProvider));
+    if (!mounted) return;
+    ref.invalidate(searchConfigProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     final configured = ref.watch(llmConfigProvider).asData?.value
             .isConfigured ??
         false;
-    final webConfigured =
-        ref.watch(searchConfigProvider).asData?.value.isEnabled ?? false;
+    final search =
+        ref.watch(searchConfigProvider).asData?.value ?? const SearchConfig();
+    final webEnabled = search.isEnabled;
 
     final chat = ref.watch(chatControllerProvider(_threadKey));
 
@@ -171,14 +192,13 @@ class _SearchShellState extends ConsumerState<SearchShell> {
             ChatComposer(
               enabled: configured,
               streaming: chat.streaming,
-              webEnabled: _webSearch,
-              webConfigured: webConfigured,
-              onWebChanged: (value) => setState(() => _webSearch = value),
+              webSource: search.provider,
+              onPickWebSource: _pickWebSource,
               bookTitle: bookTitle,
               onPickBook: _pickBook,
               onClearBook: () => _switchScope(null),
               onStop: _stop,
-              onSend: (text) => _send(text, webSearch: _webSearch && webConfigured),
+              onSend: (text) => _send(text, webSearch: webEnabled),
             ),
           ],
         );
@@ -211,8 +231,12 @@ class _SearchShellState extends ConsumerState<SearchShell> {
   Future<void> _send(String text, {required bool webSearch}) =>
       _controller.send(text, webSearch: webSearch);
 
+  /// A retry must honour the same gate as the first send: a source that is not
+  /// configured means no retrieval, even if the failed turn was searched.
   void _retry() {
-    _controller.retry(webSearch: _webSearch);
+    final enabled =
+        ref.read(searchConfigProvider).asData?.value.isEnabled ?? false;
+    _controller.retry(webSearch: enabled);
   }
 }
 

@@ -43,10 +43,10 @@ import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
 import '../search/book_context.dart';
 import '../search/book_memory.dart';
+import '../search/routing_search_provider.dart';
 import '../search/search_book.dart';
 import '../search/search_config.dart';
 import '../search/search_provider.dart';
-import '../search/tavily_search_provider.dart';
 import '../tts/audio_output.dart';
 import '../tts/tts_client.dart';
 import '../tts/tts_config.dart';
@@ -222,7 +222,7 @@ final searchConfigSourceProvider = Provider<SearchConfigSource>((ref) {
 /// The retrieval implementation behind the 搜 shell.
 final webSearchProvider = Provider<SearchProvider>((ref) {
   final source = ref.watch(searchConfigSourceProvider);
-  return TavilySearchProvider(config: () => source.value);
+  return RoutingSearchProvider(config: () => source.value);
 });
 
 /// Builds a throwaway provider from explicit settings, for the "test search"
@@ -230,7 +230,7 @@ final webSearchProvider = Provider<SearchProvider>((ref) {
 typedef SearchProviderFactory = SearchProvider Function(SearchConfig config);
 
 final searchProviderFactoryProvider = Provider<SearchProviderFactory>((ref) {
-  return (config) => TavilySearchProvider(config: () => config);
+  return (config) => RoutingSearchProvider(config: () => config);
 });
 
 final ttsConfigStoreProvider = Provider<TtsConfigStore>((ref) {

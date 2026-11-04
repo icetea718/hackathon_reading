@@ -125,6 +125,20 @@ class FakeSearch implements SearchProvider {
   }
 }
 
+/// In-memory stand-in for the settings-backed search config, so a test can
+/// switch sources the way the source sheet does.
+class FakeSearchConfigStore implements SearchConfigStore {
+  FakeSearchConfigStore([this.value = const SearchConfig()]);
+
+  SearchConfig value;
+
+  @override
+  Future<SearchConfig> load() async => value;
+
+  @override
+  Future<void> save(SearchConfig config) async => value = config;
+}
+
 /// Fails after optionally yielding [partial], to exercise the error path.
 class FailingClient implements LlmClient {
   FailingClient({this.partial = '', this.message = '模型炸了'});
@@ -261,15 +275,19 @@ void main() {
     ),
     SearchProvider? search,
     BookContextBuilder? book,
+    FakeSearchConfigStore? searchStore,
   }) async {
+    // The product default is "not online yet"; cases that want retrieval say so.
+    final store = searchStore ?? FakeSearchConfigStore(const SearchConfig());
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           llmClientProvider.overrideWithValue(client),
           llmConfigProvider.overrideWith((ref) => config),
+          searchConfigStoreProvider.overrideWithValue(store),
           searchConfigProvider.overrideWith(
-            (ref) => const SearchConfig(provider: 'tavily', apiKey: 'tv-key'),
+            (ref) => ref.watch(searchConfigStoreProvider).load(),
           ),
           if (search != null) webSearchProvider.overrideWithValue(search),
           if (book != null) bookContextBuilderProvider.overrideWithValue(book),
@@ -412,10 +430,15 @@ void main() {
         ),
       ],
     );
-    await pumpShell(tester, client: client, search: search);
+    await pumpShell(
+      tester,
+      client: client,
+      search: search,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
+    );
 
-    await tester.tap(find.byKey(const Key('chat-web-toggle')));
-    await tester.pumpAndSettle();
     await send(tester, 'flutter 是什么');
 
     expect(search.queries, ['flutter 是什么']);
@@ -432,10 +455,15 @@ void main() {
       (tester) async {
     final client = InstantClient('ok');
     final search = FakeSearch(failWith: SearchException('boom'));
-    await pumpShell(tester, client: client, search: search);
+    await pumpShell(
+      tester,
+      client: client,
+      search: search,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
+    );
 
-    await tester.tap(find.byKey(const Key('chat-web-toggle')));
-    await tester.pumpAndSettle();
     await send(tester, '最近的新闻');
 
     expect(find.text('ok'), findsOneWidget);
@@ -896,10 +924,11 @@ void main() {
       tester,
       client: InstantClient('ok'),
       search: search,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
     );
 
-    await tester.tap(find.byKey(const Key('chat-web-toggle')));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('chat-input')), '新闻');
     await tester.tap(find.byKey(const Key('chat-send')));
     await tester.pump(const Duration(milliseconds: 50));
@@ -959,9 +988,14 @@ void main() {
         url: 'https://old.test/a',
       ),
     ]);
-    await pumpShell(tester, client: InstantClient('ok'), search: search);
-    await tester.tap(find.byKey(const Key('chat-web-toggle')));
-    await tester.pumpAndSettle();
+    await pumpShell(
+      tester,
+      client: InstantClient('ok'),
+      search: search,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
+    );
     await send(tester, '旧新闻');
 
     expect(find.byKey(const Key('chat-sources')), findsOneWidget);
@@ -1028,6 +1062,56 @@ void main() {
     expect(find.text('回车发送'), findsOneWidget);
     expect(await threadRows(tester), hasLength(1));
     expect(client.calls, hasLength(1));
+    await disposeShell(tester);
+  });
+
+  testWidgets('点联网弹出面板，选免费源后发送会走检索', (tester) async {
+    final search = FakeSearch();
+    final store = FakeSearchConfigStore(const SearchConfig());
+    await pumpShell(tester, client: InstantClient('ok'), search: search, searchStore: store);
+
+    await tester.tap(find.byKey(const Key('chat-web-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('search-source-sheet')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('search-source-free')));
+    await tester.pumpAndSettle();
+
+    expect(store.value.provider, SearchConfig.free);
+    expect(tester.widget<FilterChip>(find.byKey(const Key('chat-web-toggle'))).selected, isTrue);
+
+    await send(tester, 'AI 新闻');
+    expect(search.queries, ['AI 新闻']);
+    await disposeShell(tester);
+  });
+
+  testWidgets('没填 Key 选 Tavily 只提示、不切换', (tester) async {
+    final store = FakeSearchConfigStore(const SearchConfig());
+    await pumpShell(tester, client: InstantClient('ok'), search: FakeSearch(), searchStore: store);
+
+    await tester.tap(find.byKey(const Key('chat-web-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('search-source-tavily')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('先在设置里填 Tavily API Key'), findsOneWidget);
+    expect(store.value.provider, SearchConfig.off);
+    await disposeShell(tester);
+  });
+
+  testWidgets('选关闭后发送不再检索', (tester) async {
+    final search = FakeSearch();
+    final store = FakeSearchConfigStore(const SearchConfig(provider: SearchConfig.free));
+    await pumpShell(tester, client: InstantClient('ok'), search: search, searchStore: store);
+
+    await tester.tap(find.byKey(const Key('chat-web-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('search-source-off')));
+    await tester.pumpAndSettle();
+
+    expect(store.value.provider, SearchConfig.off);
+    await send(tester, '随便问问');
+    expect(search.queries, isEmpty);
     await disposeShell(tester);
   });
 }

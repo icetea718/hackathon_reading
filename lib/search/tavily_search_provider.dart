@@ -5,6 +5,7 @@ import '../distill/llm/llm_client.dart';
 import 'search_config.dart';
 import 'search_hit.dart';
 import 'search_provider.dart';
+import 'url_host.dart';
 
 class TavilyRequest {
   const TavilyRequest({
@@ -107,16 +108,10 @@ class TavilySearchProvider implements SearchProvider {
     return SearchHit(
       title: (result['title'] as String? ?? '').trim(),
       snippet: (result['content'] as String? ?? '').trim(),
-      source: _hostOf(url),
+      source: hostOf(url),
       url: url == null || url.isEmpty ? null : url,
       publishedAt: result['published_date'] as String?,
     );
-  }
-
-  static String _hostOf(String? url) {
-    if (url == null || url.isEmpty) return '';
-    final host = Uri.tryParse(url)?.host ?? '';
-    return host.startsWith('www.') ? host.substring(4) : host;
   }
 
   static String _snippet(String body) {

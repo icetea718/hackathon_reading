@@ -332,6 +332,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: Text('关闭（不联网）'),
                     ),
                     DropdownMenuItem(
+                      value: SearchConfig.free,
+                      child: Text('免费搜索（免 Key）'),
+                    ),
+                    DropdownMenuItem(
                       value: SearchConfig.tavily,
                       child: Text('Tavily'),
                     ),
@@ -340,16 +344,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     () => _searchProvider = value ?? SearchConfig.off,
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('search-api-key'),
-                  controller: _searchKey,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Tavily API Key',
-                    helperText: '没填就只靠模型自己回答，不联网检索',
+                if (_searchProvider == SearchConfig.tavily) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('search-api-key'),
+                    controller: _searchKey,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Tavily API Key',
+                      helperText: '没填就只靠模型自己回答，不联网检索',
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
