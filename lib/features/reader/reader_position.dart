@@ -1,4 +1,5 @@
 import '../../domain/models/chapter.dart';
+import 'chapter_paginator.dart';
 
 class ResumeLocation {
   const ResumeLocation({required this.chapterIndex, required this.fraction});
@@ -11,7 +12,7 @@ ResumeLocation locateAnchor(List<Chapter> chapters, int charOffset) {
   if (chapters.isEmpty) {
     return const ResumeLocation(chapterIndex: 0, fraction: 0);
   }
-  if (charOffset <= chapters.first.startOffset) {
+  if (charOffset < chapters.first.startOffset) {
     return const ResumeLocation(chapterIndex: 0, fraction: 0);
   }
   if (charOffset >= chapters.last.endOffset) {
@@ -23,17 +24,25 @@ ResumeLocation locateAnchor(List<Chapter> chapters, int charOffset) {
 
   for (var i = 0; i < chapters.length; i++) {
     final chapter = chapters[i];
-    if (charOffset >= chapter.startOffset &&
-        charOffset <= chapter.endOffset) {
+    if (chapter.endOffset <= chapter.startOffset) continue;
+    if (charOffset >= chapter.startOffset && charOffset < chapter.endOffset) {
       final length = chapter.endOffset - chapter.startOffset;
-      final fraction = length <= 0
-          ? 0.0
-          : ((charOffset - chapter.startOffset) / length).clamp(0.0, 1.0);
-      return ResumeLocation(chapterIndex: i, fraction: fraction.toDouble());
+      final fraction = ((charOffset - chapter.startOffset) / length)
+          .clamp(0.0, 1.0)
+          .toDouble();
+      return ResumeLocation(chapterIndex: i, fraction: fraction);
     }
   }
 
   return ResumeLocation(chapterIndex: chapters.length - 1, fraction: 1);
+}
+
+int absoluteOffsetForPageSelection(
+  Chapter chapter,
+  PageSlice page,
+  int localOffset,
+) {
+  return chapter.startOffset + page.start + localOffset;
 }
 
 int offsetForPosition(Chapter chapter, double fraction) {

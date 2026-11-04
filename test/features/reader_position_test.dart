@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
+import 'package:hackathon_reading/features/reader/chapter_paginator.dart';
 import 'package:hackathon_reading/features/reader/reader_position.dart';
 
 Chapter _chapter(int index, int start, String text) {
@@ -43,10 +44,22 @@ void main() {
     expect(location.fraction, 0.0);
   });
 
-  test('maps an offset at a chapter end to that chapter', () {
+  test('maps a boundary offset to the start of the next chapter', () {
     final location = locateAnchor(chapters, 6);
-    expect(location.chapterIndex, 0);
-    expect(location.fraction, 1.0);
+    expect(location.chapterIndex, 1);
+    expect(location.fraction, 0.0);
+  });
+
+  test('shifts a page-local selection into the book', () {
+    final chapter = _chapter(1, 6, 'ghij');
+    expect(
+      absoluteOffsetForPageSelection(
+        chapter,
+        const PageSlice(start: 2, end: 4),
+        1,
+      ),
+      9,
+    );
   });
 
   test('uses offsets when chapter content is not loaded', () {

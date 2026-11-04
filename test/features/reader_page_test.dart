@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/app/providers.dart';
@@ -185,6 +186,7 @@ void main() {
 
   Future<void> seedHighlight({
     String id = 'hl1',
+    String bookId = 'b1',
     required String chapterId,
     required int anchorStart,
     required int anchorEnd,
@@ -196,7 +198,7 @@ void main() {
     await AnnotationRepository(db).upsert(
       Annotation(
         id: id,
-        bookId: 'b1',
+        bookId: bookId,
         chapterId: chapterId,
         type: type,
         anchorStart: anchorStart,
@@ -280,40 +282,186 @@ void main() {
     return text0.length + text1.length ~/ 2;
   }
 
-  ScrollController readerController(WidgetTester tester) {
-    return tester
-        .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
-        .controller!;
+  String pageText(WidgetTester tester) =>
+      renderedSpans(tester).map((span) => span.text ?? '').join();
+
+  String footerText(WidgetTester tester) =>
+      tester.widget<Text>(find.textContaining(RegExp(r'^第 \d+ / '))).data!;
+
+  Future<void> tapNextZone(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('reader-next-zone')));
+    await tester.pumpAndSettle();
   }
 
-  String footerText(WidgetTester tester) {
-    final matcher = find.textContaining(RegExp(r'^第 \d+ / \d+ 章 · \d+%$'));
-    return tester.widget<Text>(matcher).data!;
+  Future<void> tapPrevZone(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('reader-prev-zone')));
+    await tester.pumpAndSettle();
   }
 
-  testWidgets('keeps the reading position when the font size changes', (
+  testWidgets('flips pages with tap zones, keys, and footer buttons', (
     tester,
   ) async {
     await seedLongBook();
     await pumpReader(tester, 'long');
-    final controller = readerController(tester);
-    expect(controller.position.maxScrollExtent, greaterThan(0));
 
-    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
-    await tester.pump();
-    final before = controller.offset / controller.position.maxScrollExtent;
-    final beforeOffset = controller.offset;
-    final beforeMax = controller.position.maxScrollExtent;
+    expect(footerText(tester), startsWith('第 1 / '));
+    final firstPage = pageText(tester);
 
-    await tester.tap(find.byTooltip('设置'));
+    await tapNextZone(tester);
+    expect(footerText(tester), matches(RegExp(r'^第 2 / \d+ 页 · ')));
+    expect(pageText(tester), isNot(firstPage));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(Slider).first, const Offset(150, 0));
+    expect(footerText(tester), matches(RegExp(r'^第 3 / \d+ 页 · ')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageUp);
     await tester.pumpAndSettle();
+    expect(footerText(tester), matches(RegExp(r'^第 2 / \d+ 页 · ')));
 
-    final after = controller.offset / controller.position.maxScrollExtent;
-    expect(controller.position.maxScrollExtent, greaterThan(beforeMax));
-    expect(controller.offset, greaterThan(beforeOffset));
-    expect(after, closeTo(before, 0.02));
+    await tester.tap(find.widgetWithText(TextButton, '下一页'));
+    await tester.pumpAndSettle();
+    expect(footerText(tester), matches(RegExp(r'^第 3 / \d+ 页 · ')));
+    await tester.tap(find.widgetWithText(TextButton, '上一页'));
+    await tester.pumpAndSettle();
+    expect(footerText(tester), matches(RegExp(r'^第 2 / \d+ 页 · ')));
+
+    await disposeApp(tester);
+  });
+
+  testWidgets('ignores taps in the middle and the rail hotzone', (
+    tester,
+  ) async {
+    await seedLongBook();
+    await pumpReader(tester, 'long');
+    final before = footerText(tester);
+    final rect = tester.getRect(find.byKey(const Key('reader-page')));
+
+    await tester.tapAt(rect.center);
+    await tester.pumpAndSettle();
+    expect(footerText(tester), before);
+
+    await tester.tapAt(Offset(rect.left + 6, rect.center.dy));
+    await tester.pumpAndSettle();
+    expect(footerText(tester), before);
+
+    await disposeApp(tester);
+  });
+
+  testWidgets('starts on the page containing saved progress', (tester) async {
+    await seedLongBook();
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final marker = text.indexOf('第40段');
+    await ProgressRepository(db).save(
+      ReadingProgress(
+        bookId: 'long',
+        anchor: ReadingAnchor(charOffset: marker),
+        percent: marker / text.length,
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
+    await pumpReader(tester, 'long');
+
+    expect(find.textContaining('第40段'), findsOneWidget);
+    expect(footerText(tester), isNot(startsWith('第 1 /')));
+
+    await disposeApp(tester);
+  });
+
+  testWidgets('crosses into the next chapter and back at the boundaries', (
+    tester,
+  ) async {
+    await seedTwoChapterBook();
+    await pumpReader(tester, 'jb');
+
+    final firstChapterPages = int.parse(
+      RegExp(r'^第 \d+ / (\d+) 页').firstMatch(footerText(tester))!.group(1)!,
+    );
+    for (var i = 1; i < firstChapterPages; i++) {
+      await tapNextZone(tester);
+    }
+    expect(
+      footerText(tester),
+      startsWith('第 $firstChapterPages / $firstChapterPages 页'),
+    );
+    expect(find.textContaining('跳转测试 · 第一章'), findsOneWidget);
+
+    await tapNextZone(tester);
+    expect(find.textContaining('跳转测试 · 第二章'), findsOneWidget);
+    expect(footerText(tester), matches(RegExp(r'^第 1 / \d+ 页 · ')));
+
+    await tapPrevZone(tester);
+    expect(find.textContaining('跳转测试 · 第一章'), findsOneWidget);
+    expect(
+      footerText(tester),
+      startsWith('第 $firstChapterPages / $firstChapterPages 页'),
+    );
+
+    await disposeApp(tester);
+  });
+
+  testWidgets('renders a stored highlight on a later page', (tester) async {
+    await seedLongBook();
+    final text = (await ChapterRepository(db).getContent('long', 0))!;
+    final marker = text.indexOf('第40段');
+    await ProgressRepository(db).save(
+      ReadingProgress(
+        bookId: 'long',
+        anchor: ReadingAnchor(charOffset: marker),
+        percent: marker / text.length,
+        updatedAt: DateTime(2026, 1, 1),
+      ),
+    );
+    await seedHighlight(
+      bookId: 'long',
+      chapterId: 'long-c0',
+      anchorStart: marker,
+      anchorEnd: marker + 4,
+      color: 'green',
+    );
+    await pumpReader(tester, 'long');
+
+    expect(footerText(tester), isNot(startsWith('第 1 /')));
+    final highlighted = renderedSpans(tester)
+        .where((span) => span.style?.backgroundColor == highlightColorFor('green'))
+        .toList();
+    expect(highlighted, isNotEmpty);
+    expect(highlighted.first.text, '第40段');
+    expect(pageText(tester), contains(highlighted.first.text!));
+
+    await disposeApp(tester);
+  });
+
+  testWidgets('navigates an empty chapter and disables the book edges', (
+    tester,
+  ) async {
+    await seedHeadingBook(
+      id: 'empty',
+      titles: ['空章', '有字'],
+      levels: [1, 1],
+      texts: ['', '有字的内容。'],
+    );
+    await pumpReader(tester, 'empty');
+
+    expect(find.textContaining('层级书 · 空章'), findsOneWidget);
+    expect(footerText(tester), matches(RegExp(r'^第 1 / 1 页 · ')));
+    expect(
+      tester.widget<TextButton>(find.widgetWithText(TextButton, '上一页')).onPressed,
+      isNull,
+    );
+
+    await tapNextZone(tester);
+    expect(find.textContaining('有字的内容。'), findsOneWidget);
+    expect(footerText(tester), matches(RegExp(r'^第 1 / 1 页 · ')));
+
+    await tapNextZone(tester);
+    expect(footerText(tester), matches(RegExp(r'^第 1 / 1 页 · ')));
+    expect(
+      tester.widget<TextButton>(find.widgetWithText(TextButton, '下一页')).onPressed,
+      isNull,
+    );
+
+    await tapPrevZone(tester);
+    expect(find.textContaining('层级书 · 空章'), findsOneWidget);
     await disposeApp(tester);
   });
 
@@ -381,34 +529,6 @@ void main() {
 
     expect(first.style?.fontSize, 18);
     expect(first.style?.height, 2.0);
-    await disposeApp(tester);
-  });
-
-  testWidgets('keeps the reading position when the window is resized', (
-    tester,
-  ) async {
-    await seedLongBook();
-    await pumpReader(tester, 'long');
-    final controller = readerController(tester);
-    expect(controller.position.maxScrollExtent, greaterThan(0));
-
-    controller.jumpTo(controller.position.maxScrollExtent * 0.5);
-    await tester.pump();
-    final before = controller.offset / controller.position.maxScrollExtent;
-    final beforeMax = controller.position.maxScrollExtent;
-
-    addTearDown(tester.view.reset);
-    final view = tester.view;
-    view.physicalSize = Size(
-      view.physicalSize.width,
-      view.physicalSize.height * 1.2,
-    );
-    tester.binding.handleMetricsChanged();
-    await tester.pumpAndSettle();
-
-    expect(controller.position.maxScrollExtent, isNot(closeTo(beforeMax, 1)));
-    final after = controller.offset / controller.position.maxScrollExtent;
-    expect(after, closeTo(before, 0.02));
     await disposeApp(tester);
   });
 
@@ -690,12 +810,8 @@ void main() {
       await tester.pumpAndSettle();
       await settleAfterIo(tester);
 
-      final controller = readerController(tester);
-      expect(controller.position.maxScrollExtent, greaterThan(0));
-      expect(
-        controller.offset / controller.position.maxScrollExtent,
-        closeTo(0.5, 0.05),
-      );
+      expect(find.textContaining('乙第'), findsWidgets);
+      expect(footerText(tester), isNot(startsWith('第 1 /')));
       await disposeApp(tester);
     },
   );
@@ -854,27 +970,14 @@ void main() {
     await disposeApp(tester);
   });
 
-  testWidgets(
-    'shows the book and chapter in the title and the chapter percentage below',
-    (tester) async {
-      await pumpReader(tester, 'b1');
-      expect(find.textContaining('测试小说 · 第2章'), findsOneWidget);
-      expect(find.textContaining('第 2 / 3 章'), findsOneWidget);
-      await disposeApp(tester);
-
-      await seedLongBook();
-      await pumpReader(tester, 'long');
-      final before = footerText(tester);
-      expect(before, contains('第 1 / 1 章'));
-
-      final controller = readerController(tester);
-      controller.jumpTo(controller.position.maxScrollExtent);
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(footerText(tester), isNot(before));
-      await disposeApp(tester);
-    },
-  );
+  testWidgets('shows the book title and the footer page counter', (
+    tester,
+  ) async {
+    await pumpReader(tester, 'b1');
+    expect(find.textContaining('测试小说 · 第2章'), findsOneWidget);
+    expect(footerText(tester), startsWith('第 1 / '));
+    await disposeApp(tester);
+  });
 
   group('comic reader', () {
     late Directory temp;
