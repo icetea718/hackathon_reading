@@ -127,6 +127,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   ReaderSpread _spread = ReaderSpread.double;
   bool _doubleSpread = false;
   int? _pageEndIndex;
+  int? _doubleAnchorOffset;
   bool _railPinned = false;
   bool _railVisible = false;
   bool _suppressHotzone = false;
@@ -244,6 +245,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void didChangeMetrics() {
     if (!_restored) return;
     final chapters = _cachedData?.chapters ?? const <Chapter>[];
+    final view = View.of(context);
+    final width = view.physicalSize.width / view.devicePixelRatio;
+    if (spreadApplies(_spread, width) && !_doubleSpread) {
+      _pendingOffset ??= _doubleAnchorOffset;
+    }
     _pendingOffset ??= _currentPageStartOffset(chapters);
   }
 
@@ -403,6 +409,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     setState(() {
       _chapterIndex = index;
       _pageIndex = 0;
+      _doubleAnchorOffset = null;
       _pendingOffset = chapter.startOffset;
     });
     _scheduleProgressSave();
@@ -414,6 +421,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     final location = locateAnchor(data.chapters, charOffset);
     setState(() {
       _chapterIndex = location.chapterIndex;
+      _doubleAnchorOffset = null;
       _pendingOffset = charOffset;
     });
     _scheduleProgressSave();
@@ -426,6 +434,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (pagination == null) return;
     final step = _doubleSpread ? 2 : 1;
     if (_pageIndex + step <= pagination.pageCount - 1) {
+      if (!_doubleSpread) _doubleAnchorOffset = null;
       setState(() => _pageIndex += step);
       _scheduleProgressSave();
       return;
@@ -441,6 +450,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
     if (_validPagination(data.chapters) == null) return;
     final step = _doubleSpread ? 2 : 1;
     if (_pageIndex > 0) {
+      if (!_doubleSpread) _doubleAnchorOffset = null;
       setState(
         () => _pageIndex = (_pageIndex - step).clamp(0, _pageIndex - 1),
       );
@@ -455,6 +465,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         : previous.startOffset;
     setState(() {
       _chapterIndex = previousIndex;
+      _doubleAnchorOffset = null;
       _pendingOffset = offset;
     });
     _scheduleProgressSave();
@@ -866,6 +877,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 final anchor = _currentPageStartOffset(chapters);
                 setState(() {
                   if (anchor != null) _pendingOffset = anchor;
+                  _doubleAnchorOffset = null;
                   _fontSize = fontSize;
                   _lineHeight = lineHeight;
                   _background = background;
@@ -1019,6 +1031,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                 pageIndex = pageIndex.clamp(0, pagination.pageCount - 1);
                 if (doubleSpread) pageIndex = spreadPageIndex(pageIndex);
                 final page = pagination.pageAt(pageIndex);
+                if (doubleSpread) {
+                  _doubleAnchorOffset = currentChapter.startOffset + page.start;
+                }
                 _pageIndex = pageIndex;
                 final nextPageEndIndex = doubleSpread
                     ? spreadLastPageIndex(pageIndex, pagination.pageCount)
@@ -1380,6 +1395,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         final index = _comicDouble
             ? spreadPageIndex(_comicPageIndex)
             : _comicPageIndex.clamp(0, total - 1);
+        _comicPageIndex = index;
         final percent = (index + 1) / total;
         final bookmarks =
             ref.watch(bookmarkListProvider(widget.bookId)).value ??

@@ -1376,6 +1376,31 @@ void main() {
     await disposeApp(tester);
   });
 
+  testWidgets('shrinking and widening keeps the spread position', (
+    tester,
+  ) async {
+    await seedLongBook(lines: 200);
+    useWideWindow(tester);
+    await pumpReader(tester, 'long');
+
+    await tapNextZone(tester);
+    await tapNextZone(tester);
+    final anchor = spreadPageText(tester).substring(0, 10);
+    final footer = spreadFooterText(tester);
+
+    tester.view.physicalSize = const Size(800, 600);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.binding.handleMetricsChanged();
+    await tester.pumpAndSettle();
+
+    expect(spreadFooterText(tester), footer);
+    expect(spreadPageText(tester), contains(anchor));
+    await disposeApp(tester);
+  });
+
   testWidgets('a one-page chapter leaves the right pane blank', (tester) async {
     await seedHeadingBook(
       id: 'spread-empty',
@@ -1869,6 +1894,10 @@ void main() {
 
       expect(find.text('测试漫画 · 第 1 / 3 页'), findsOneWidget);
       expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '下一页'));
+      await tester.pumpAndSettle();
+      expect(find.text('测试漫画 · 第 3 / 3 页'), findsOneWidget);
       await disposeApp(tester);
     });
 
@@ -1894,6 +1923,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('reader-rail-pinned')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
+      expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
+
+      await tester.tap(find.byTooltip('固定左栏'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reader-rail-pinned')), findsNothing);
       expect(find.byKey(const Key('comic-page-0')), findsOneWidget);
       expect(find.byKey(const Key('comic-page-1')), findsOneWidget);
       await disposeApp(tester);
