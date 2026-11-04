@@ -168,6 +168,32 @@ void main() {
     expect(speaker.played, isNotEmpty, reason: 'status=${tts.status}');
   });
 
+  testWidgets('the speaker button reads even when auto read is switched off',
+      (tester) async {
+    final voice = FakeTtsClient();
+    final speaker = FakeAudioOutput();
+    final tts = TtsService(
+      client: voice,
+      output: speaker,
+      config: () => _ttsConfig.copyWith(enabled: false),
+      tempDirectory: () async => Directory.systemTemp,
+      durationOf: (_) => const Duration(milliseconds: 20),
+    );
+    await tester.pumpWidget(_wrap(_FakeAssistant(), tts));
+    await tester.pumpAndSettle();
+
+    await _ask(tester);
+    await tester.runAsync(() async {
+      await tester.tap(find.byTooltip('朗读'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    });
+    await tester.pumpAndSettle();
+
+    expect(voice.texts, isNotEmpty);
+    expect(speaker.played, isNotEmpty, reason: 'status=${tts.status}');
+  });
+
   testWidgets('a hush button appears while reading and stops playback',
       (tester) async {
     final speaker = FakeAudioOutput();

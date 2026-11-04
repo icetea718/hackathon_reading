@@ -71,6 +71,24 @@ void main() {
     expect(service.status.error, isNull);
   });
 
+  test('sends the tail of a reply as one longer request', () async {
+    final client = FakeTtsClient();
+    final output = FakeAudioOutput();
+    final service = build(
+      client,
+      output,
+      durationOf: (_) => const Duration(milliseconds: 20),
+    );
+    addTearDown(service.dispose);
+
+    await service.speak('第一句。第二句。第三句。第四句。');
+
+    // The first sentence starts fast; the rest travels as one request, so the
+    // reply has a single seam instead of one per sentence.
+    expect(client.texts, ['第一句。', '第二句。第三句。第四句。']);
+    expect(output.played, hasLength(2));
+  });
+
   test('reports synthesizing then playing then idle', () async {
     final service = build(FakeTtsClient(), FakeAudioOutput());
     addTearDown(service.dispose);
@@ -111,6 +129,20 @@ void main() {
     await service.speak('福贵输了钱。');
 
     expect(client.texts, isEmpty);
+  });
+
+  test('reads on request even when the switch is off', () async {
+    final client = FakeTtsClient();
+    final service = build(
+      client,
+      FakeAudioOutput(),
+      config: () => _config.copyWith(enabled: false),
+    );
+    addTearDown(service.dispose);
+
+    await service.speak('福贵输了钱。', force: true);
+
+    expect(client.texts, ['福贵输了钱。']);
   });
 
   test('retries once without punctuation', () async {
@@ -230,7 +262,7 @@ void main() {
     addTearDown(service.dispose);
 
     // Four sentences too long to be merged into one request each pair.
-    final reply = ['甲', '乙', '丙', '丁'].map((c) => '${c * 40}。').join();
+    final reply = ['甲', '乙', '丙', '丁'].map((c) => '${c * 80}。').join();
     await service.speak(reply);
 
     expect(client.texts, hasLength(4));

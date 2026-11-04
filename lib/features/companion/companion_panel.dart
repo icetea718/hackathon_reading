@@ -79,9 +79,9 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
     }
   }
 
-  Future<void> _speak(String text, int? index) async {
+  Future<void> _speak(String text, int? index, {bool force = false}) async {
     setState(() => _speakingIndex = index);
-    await _tts.speak(text);
+    await _tts.speak(text, force: force);
     if (mounted) setState(() => _speakingIndex = null);
   }
 
@@ -247,7 +247,8 @@ class _CompanionPanelState extends ConsumerState<CompanionPanel> {
                         onSpeak: _history[index].role == ChatRole.user
                             ? null
                             : () => unawaited(
-                                  _speak(_history[index].content, index),
+                                  _speak(_history[index].content, index,
+                                      force: true),
                                 ),
                       ),
                     if (_streaming.isNotEmpty)

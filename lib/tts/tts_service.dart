@@ -49,7 +49,18 @@ class TtsService {
   static const int _prefetch = 2;
 
   /// Silence left between two lines once the engine padding is trimmed.
-  static const Duration _lineGap = Duration(milliseconds: 80);
+  ///
+  /// The player needs a beat to release the previous file; anything longer is
+  /// audible as a seam between two sentences of the same reply.
+  static const Duration _lineGap = Duration(milliseconds: 20);
+
+  /// Characters per request once the first sentence is already playing.
+  ///
+  /// A line costs one request and one player start, and the seam is audible
+  /// whatever the engine does, so ask for as much text as the engine can turn
+  /// around in the time the previous line plays. The first sentence is always
+  /// sent alone, so the reply still starts within a second.
+  static const int _mergeChars = 150;
 
   final TtsClient client;
   final AudioOutput output;
@@ -71,11 +82,14 @@ class TtsService {
   TtsStatus get status => _status;
 
   /// Speaks [reply], replacing any line already playing or being synthesized.
-  Future<void> speak(String reply) async {
+  ///
+  /// [force] ignores the "朗读" switch: the switch decides whether replies are
+  /// read out on their own, not whether the user may tap a speaker icon.
+  Future<void> speak(String reply, {bool force = false}) async {
     final settings = config();
     final chunks = _chunksFor(reply);
     await _halt();
-    if (!settings.enabled || chunks.isEmpty) return;
+    if (chunks.isEmpty || (!force && !settings.enabled)) return;
 
     final generation = _generation;
     final pending = <Future<Uint8List?>>[];
@@ -211,7 +225,7 @@ class TtsService {
   List<String> _chunksFor(String reply) {
     final spoken = speechText(reply);
     if (spoken.isEmpty) return const [];
-    return speechChunks(spoken)
+    return speechChunks(spoken, maxChars: _mergeChars)
         .where((chunk) => ttsSafe(chunk).isNotEmpty)
         .toList(growable: false);
   }

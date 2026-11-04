@@ -117,8 +117,8 @@ bool _tagAt(Uint8List bytes, int offset, String ascii) {
 Uint8List trimSilence(
   Uint8List wav, {
   int threshold = 320,
-  int keepHeadMs = 30,
-  int keepTailMs = 60,
+  int keepHeadMs = 10,
+  int keepTailMs = 30,
   int windowMs = 10,
 }) {
   final info = tryParseWavHeader(wav);
