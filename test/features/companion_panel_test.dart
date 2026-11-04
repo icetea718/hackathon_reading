@@ -104,6 +104,19 @@ Future<void> _ask(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Taps the speaker and waits on the real event loop until playback starts.
+/// Synthesis writes temp files, so a fixed sleep races on a loaded machine.
+Future<void> _tapSpeak(WidgetTester tester, FakeAudioOutput speaker) async {
+  await tester.runAsync(() async {
+    await tester.tap(find.byTooltip('朗读'));
+    for (var i = 0; i < 80 && speaker.played.isEmpty; i++) {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+  });
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('an unconfigured panel points at the settings page',
       (tester) async {
@@ -153,14 +166,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _ask(tester);
-    // The service writes each line to a temp file, so run the tap on the real
-    // event loop where file IO can actually complete.
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('朗读'));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    });
-    await tester.pumpAndSettle();
+    await _tapSpeak(tester, speaker);
 
     expect(voice.texts, isNotEmpty);
     expect(voice.texts.first, contains('赌博'));
@@ -183,12 +189,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _ask(tester);
-    await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('朗读'));
-      await tester.pump();
-      await Future<void>.delayed(const Duration(milliseconds: 150));
-    });
-    await tester.pumpAndSettle();
+    await _tapSpeak(tester, speaker);
 
     expect(voice.texts, isNotEmpty);
     expect(speaker.played, isNotEmpty, reason: 'status=${tts.status}');
