@@ -177,7 +177,7 @@ class _IllustrationComposerPageState
               ),
               const SizedBox(height: 6),
               Text(
-                '插画需要火山方舟 Ark 的接口和图像模型。到设置里填写一次即可，'
+                '插画需要一个支持生图的接口和图像模型。到设置里填写一次即可，'
                 '可以复用上面的 API Key。',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onErrorContainer,
@@ -202,7 +202,7 @@ class _IllustrationComposerPageState
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            '当前插画接口是 DeepSeek，它没有绘图接口。请到设置里把插画接口改成火山方舟 Ark。',
+            '当前插画接口是 DeepSeek，它没有生图接口。请到设置里换一个支持生图的接口。',
             style: TextStyle(color: theme.colorScheme.onErrorContainer),
           ),
         ),
@@ -372,7 +372,7 @@ class _IllustrationComposerPageState
       final effective = config.resolve(llm);
       if (!effective.isConfigured) {
         throw IllustrationException(
-          '还没有配置插画服务。请到设置里填写 Ark 接口、API Key 和图像模型。',
+          '还没有配置插画服务。请到设置里填写生图接口、API Key 和图像模型。',
         );
       }
       service = IllustrationService(effective: effective);

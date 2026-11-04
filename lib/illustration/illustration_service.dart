@@ -47,12 +47,12 @@ class IllustrationService {
     }
     if (!effective.isConfigured) {
       throw IllustrationException(
-        '还没有配置插画服务。请到「设置 → 插画」填写 Ark 接口地址、API Key 和图像模型。',
+        '还没有配置插画服务。请到「设置 → 插画」填写生图接口地址、API Key 和图像模型。',
       );
     }
     if (effective.isDeepSeek) {
       throw IllustrationException(
-        '当前插画接口是 DeepSeek，它不支持绘图。请把插画接口改成火山方舟 Ark 地址。',
+        '当前插画接口是 DeepSeek，它不支持生图。请把插画接口改成支持生图的接口地址。',
       );
     }
 
