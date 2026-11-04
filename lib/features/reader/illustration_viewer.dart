@@ -41,9 +41,9 @@ class _IllustrationViewerState extends State<IllustrationViewer> {
     final applied = target / current;
     if (applied == 1) return;
     final matrix = Matrix4.identity()
-      ..translate(focal.dx, focal.dy)
-      ..scale(applied)
-      ..translate(-focal.dx, -focal.dy);
+      ..translateByDouble(focal.dx, focal.dy, 0, 1)
+      ..scaleByDouble(applied, applied, 1, 1)
+      ..translateByDouble(-focal.dx, -focal.dy, 0, 1);
     _controller.value = matrix * _controller.value;
   }
 
