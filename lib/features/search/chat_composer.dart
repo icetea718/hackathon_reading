@@ -33,19 +33,12 @@ class ChatComposer extends StatefulWidget {
   final VoidCallback? onClearBook;
 
   @override
-  State<ChatComposer> createState() => ChatComposerState();
+  State<ChatComposer> createState() => _ChatComposerState();
 }
 
-class ChatComposerState extends State<ChatComposer> {
+class _ChatComposerState extends State<ChatComposer> {
   final _controller = TextEditingController();
   final _focus = FocusNode();
-
-  /// Fills the input from a suggestion chip without sending it.
-  void fill(String text) {
-    _controller.text = text;
-    _controller.selection = TextSelection.collapsed(offset: text.length);
-    _focus.requestFocus();
-  }
 
   @override
   void dispose() {

@@ -25,7 +25,6 @@ class SearchShell extends ConsumerStatefulWidget {
 }
 
 class _SearchShellState extends ConsumerState<SearchShell> {
-  final _composerKey = GlobalKey<ChatComposerState>();
   String _threadKey = ChatController.newThreadKey;
   bool _webSearch = false;
 
@@ -119,10 +118,7 @@ class _SearchShellState extends ConsumerState<SearchShell> {
               child: !configured
                   ? _Unconfigured(onSettings: _openSettings)
                   : chat.messages.isEmpty
-                      ? _EmptyState(
-                          onSuggestion: (text) =>
-                              _composerKey.currentState?.fill(text),
-                        )
+                      ? const _EmptyState()
                       : MessageList(
                           messages: chat.messages,
                           streaming: chat.streaming,
@@ -134,7 +130,6 @@ class _SearchShellState extends ConsumerState<SearchShell> {
                         ),
             ),
             ChatComposer(
-              key: _composerKey,
               enabled: configured,
               streaming: chat.streaming,
               webEnabled: _webSearch,
@@ -186,7 +181,6 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Row(
@@ -208,7 +202,6 @@ class _Header extends StatelessWidget {
                 icon: const Icon(Icons.menu),
               ),
             ),
-          Text('搜', style: theme.textTheme.titleMedium),
           const Spacer(),
           IconButton(
             key: const Key('chat-settings'),
@@ -257,15 +250,7 @@ class _Unconfigured extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onSuggestion});
-
-  final ValueChanged<String> onSuggestion;
-
-  static const _suggestions = [
-    '最近 AI 领域有什么值得关注的事？',
-    '帮我对比一下 Flutter 和 React Native',
-    '解释一下什么是向量数据库',
-  ];
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
@@ -289,19 +274,6 @@ class _EmptyState extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
               textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                for (final text in _suggestions)
-                  ActionChip(
-                    label: Text(text),
-                    onPressed: () => onSuggestion(text),
-                  ),
-              ],
             ),
           ],
         ),

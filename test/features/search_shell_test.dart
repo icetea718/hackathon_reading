@@ -815,19 +815,22 @@ void main() {
     await disposeShell(tester);
   });
 
-  testWidgets('a suggestion fills the composer without sending',
-      (tester) async {
+  testWidgets('the search header shows a single 搜 label', (tester) async {
     await pumpShell(tester, client: InstantClient('ok'));
-    const suggestion = '解释一下什么是向量数据库';
 
-    await tester.tap(find.text(suggestion));
-    await tester.pump();
+    expect(find.text('搜'), findsOneWidget);
+    expect(find.byKey(const Key('search-mode-search')), findsOneWidget);
+    await disposeShell(tester);
+  });
 
-    final input = tester.widget<TextField>(
-      find.byKey(const Key('chat-input')),
-    );
-    expect(input.controller?.text, suggestion);
-    expect(await threadRows(tester), isEmpty);
+  testWidgets('the empty state offers no canned prompts', (tester) async {
+    await pumpShell(tester, client: InstantClient('ok'));
+
+    expect(find.text('今天想查点什么？'), findsOneWidget);
+    expect(find.byType(ActionChip), findsNothing);
+    expect(find.text('最近 AI 领域有什么值得关注的事？'), findsNothing);
+    expect(find.text('帮我对比一下 Flutter 和 React Native'), findsNothing);
+    expect(find.text('解释一下什么是向量数据库'), findsNothing);
     await disposeShell(tester);
   });
 
