@@ -17,7 +17,7 @@
 - 目标平台 Windows + Android，代码不得只用其中一端的 API。
 - 存储键不变（`search.provider` / `search.apiKey`），不做数据迁移。
 - 提交时只 git add 本任务涉及的路径，**禁止 git add -A**：本分支底座已含 companion/TTS 的 WIP 快照，那些文件不属于本计划，不要改、不要重置。
-- 本环境的 lutter 必须全权限运行（它要写工作区外的 SDK 缓存 D:\dev\flutter\bin\cache）：每条 flutter 命令都带 sandbox_permissions: danger-full-access，否则会静默卡死。
+- 本环境的 `flutter` 必须全权限运行（它要写工作区外的 SDK 缓存 `D:\dev\flutter\bin\cache`）：每条 flutter 命令都带 `sandbox_permissions: danger-full-access`，否则会静默卡死。
 - 异常文案与 Tavily 保持一致：`联网搜索超时` / `网络错误：…` / `已取消` / `未配置联网搜索` / `HTTP {code}: …`。
 - **Spec 偏差（已定，按此执行）**：spec §8.2 想在 `SearchProvider` 上加 `needsApiKey`。不这样做——接口加成员会波及 `test/` 里 4 个既有 fake 实现，而 `SearchConfig.requiresApiKey` 已能表达同一件事。Task 1 顺手把 spec 这段改掉。
 
