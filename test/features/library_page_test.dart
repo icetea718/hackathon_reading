@@ -186,7 +186,16 @@ void main() {
     await flushIo(tester, () => tester.tap(find.byTooltip('导入')));
     expect(find.text('novel'), findsWidgets);
 
-    await flushIo(tester, () => tester.tap(find.byType(BookCard)));
+    // Opening an EPUB now reads its illustration manifest from disk, so
+    // alternate fake frames with real-time slices until that IO resolves.
+    await tester.runAsync(() => tester.tap(find.byType(BookCard)));
+    for (var round = 0; round < 16; round++) {
+      await tester.pump();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+    }
+    await tester.pump();
     expect(find.byType(ReaderPage), findsOneWidget);
     await disposeApp(tester);
   });
