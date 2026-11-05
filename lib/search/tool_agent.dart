@@ -255,16 +255,21 @@ class SearchToolAgent {
     }
 
     final copy = Map<String, Object?>.from(decoded);
+    // The truncation marker costs room too, so anything that gets trimmed is
+    // fitted against what is left after the marker is accounted for.
+    final fitRoom = room - _truncatedTag.length;
+    var trimmed = false;
+
     final hits = copy['hits'];
     if (hits is List) {
       final kept = List<Object?>.from(hits);
       while (kept.isNotEmpty &&
-          jsonEncode({...copy, 'hits': kept}).length > room) {
+          jsonEncode({...copy, 'hits': kept}).length > fitRoom) {
         kept.removeLast();
       }
       if (kept.length != hits.length) {
         copy['hits'] = kept;
-        copy['truncated'] = true;
+        trimmed = true;
       }
     }
 
@@ -283,18 +288,28 @@ class SearchToolAgent {
         while (keep > 0) {
           keep = keep ~/ 2;
           holder['text'] = keep == 0 ? '' : '${original.substring(0, keep)}…';
+          trimmed = true;
           encoded = jsonEncode(copy);
-          if (encoded.length <= room) break;
+          if (encoded.length <= fitRoom) break;
         }
       }
     }
 
-    if (encoded.length <= room) return encoded;
-    return jsonEncode({
-      'error': 'budget',
-      'note': '这次结果超出字数预算，已丢弃；请缩小范围再查',
-    });
+    if (encoded.length > room) {
+      return jsonEncode({
+        'error': 'budget',
+        'note': '这次结果超出字数预算，已丢弃；请缩小范围再查',
+      });
+    }
+    if (!trimmed) return encoded;
+
+    // A shortened answer must say so, or the model will quote the slice as if
+    // the chapter had ended there.
+    final tagged = jsonEncode({...copy, 'truncated': true});
+    return tagged.length <= room ? tagged : encoded;
   }
+
+  static const String _truncatedTag = ',"truncated":true';
 
   /// Every executed call leaves a trace, failed ones included: a reader who
   /// watched "检索「雨」" appear should not see it vanish because the tool
@@ -315,9 +330,14 @@ class SearchToolAgent {
     if (call.name == 'get_chapter') {
       final chapter = map['chapter'] ?? _chapterOf(call.arguments);
       final label = chapter is int ? '第 $chapter 章' : '这一章';
+      final trimmed = map['truncated'] == true;
       return SearchStep(
         tool: call.name,
-        summary: failed ? '读$label失败' : '读$label',
+        summary: failed
+            ? '读$label失败'
+            : trimmed
+                ? '读$label（已截断）'
+                : '读$label',
         chapters: [if (chapter is int) chapter],
         hits: 0,
         ms: ms,
@@ -344,9 +364,11 @@ class SearchToolAgent {
         if (hit is Map && hit['chapter'] is int) chapters.add(hit['chapter'] as int);
       }
     }
+    final trimmed = map['truncated'] == true;
+    final label = query.isEmpty ? '检索原文' : '检索「$query」';
     return SearchStep(
       tool: call.name,
-      summary: query.isEmpty ? '检索原文' : '检索「$query」',
+      summary: trimmed ? '$label（超出预算，已截断）' : label,
       chapters: chapters.toList()..sort(),
       hits: count,
       ms: ms,

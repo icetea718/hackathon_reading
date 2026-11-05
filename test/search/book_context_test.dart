@@ -201,6 +201,68 @@ void main() {
     expect(context.brief, contains('要点0'));
     expect(context.brief.length, lessThanOrEqualTo(2400));
   });
+
+  test('每章 gist 都顶到上限时，要点卡片仍然完整保留', () async {
+    final longest = DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {for (var i = 0; i < 40; i++) i: '要' * 60},
+      cards: [
+        for (var i = 0; i < 6; i++)
+          DistillDigestCard(
+            slug: 'c$i',
+            title: '要点$i',
+            definition: '解' * 160,
+            sourceChapters: [i],
+          ),
+      ],
+    );
+
+    for (final budget in const [2400, 3600]) {
+      final context = await builder(
+        bookOverride: book,
+        digestOverride: longest,
+        chapters: manyChapters(300),
+      ).build('b1', briefChars: budget);
+
+      final brief = context!.brief;
+      expect(brief.length, lessThanOrEqualTo(budget), reason: 'budget $budget');
+      expect(brief, contains('共 300 章'), reason: 'budget $budget');
+      expect(brief, contains('要点：'), reason: 'budget $budget');
+
+      // 卡片按顺序写，预算不够时只从尾部断掉，不会中间缺一张。
+      final seen = [for (var i = 0; i < 6; i++) brief.contains('要点$i')];
+      expect(seen.first, isTrue, reason: 'budget $budget');
+      final firstMissing = seen.indexOf(false);
+      if (firstMissing != -1) {
+        expect(
+          seen.skip(firstMissing).every((present) => !present),
+          isTrue,
+          reason: 'budget $budget',
+        );
+      }
+
+      // 标注出来的章数必须等于真正列出来的行数，且每一行都是完整的。
+      final rows = RegExp('^第 \\d+ 章 ', multiLine: true).allMatches(brief);
+      for (final row in rows) {
+        final line = brief.substring(row.start).split('\n').first;
+        expect(
+          RegExp('^第 \\d+ 章 章\\d+(：.*)?\$').hasMatch(line),
+          isTrue,
+          reason: '这一行被截断了：$line',
+        );
+      }
+      final listed = RegExp('此处只列 (\\d+) 章').firstMatch(brief);
+      if (listed != null) {
+        expect(
+          rows.length,
+          int.parse(listed.group(1)!),
+          reason: 'budget $budget',
+        );
+      }
+    }
+  });
 }
 
 List<Chapter> manyChapters(int count) => [

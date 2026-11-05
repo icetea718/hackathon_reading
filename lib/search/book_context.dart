@@ -133,55 +133,95 @@ class BookContextBuilder {
       buffer.writeln('（这本书还没有蒸馏，只有章节标题可用。）');
     }
 
-    if (chapters.isNotEmpty) {
+    if (chapters.isEmpty) {
+      if (digest != null && digest.cards.isNotEmpty) {
+        buffer.writeln('要点：');
+        for (final card in digest.cards.take(6)) {
+          buffer.writeln(_cardLine(card));
+        }
+      }
+      return _clip(buffer.toString(), maxChars);
+    }
+
+    // The marker is reserved before anything else is written: without it the
+    // model cannot tell a partial map from a short book, which is exactly what
+    // makes it answer "没有写到" wrongly. Quotas then keep the gist rows from
+    // eating the digest cards — gists get half of the room, cards the next 40%,
+    // and the title-only rows whatever survives after that.
+    final reserve = _markerLength(chapters.length) + 1;
+    var room = maxChars - reserve - buffer.length;
+    if (room < 0) room = 0;
+    var listed = 0;
+    var titleOnly = 0;
+
+    if (room >= _minMapRoom) {
+      // The cards are reserved before the gist rows are written, so a book whose
+      // per-chapter gists are long cannot push the key points out of the map.
+      final cardLines = digest == null
+          ? const <String>[]
+          : [for (final card in digest.cards.take(6)) _cardLine(card)];
+      var cardNeed = 0;
+      for (final line in cardLines) {
+        cardNeed += line.length + 1;
+      }
+      final cardCap = room * 45 ~/ 100;
+      final gistStop =
+          buffer.length + room - (cardNeed > cardCap ? cardCap : cardNeed);
+
       buffer.writeln('章节目录：');
       for (final chapter in chapters.take(maxGists)) {
+        if (buffer.length >= gistStop) break;
         final gist = digest?.gists[chapter.index] ?? '';
         final tail = gist.isEmpty ? '' : '：${_clip(gist, 60)}';
         buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}$tail');
+        listed++;
       }
-    }
 
-    if (digest != null && digest.cards.isNotEmpty) {
-      buffer.writeln('要点：');
-      for (final card in digest.cards.take(6)) {
-        final chaptersLabel = card.sourceChapters.isEmpty
-            ? ''
-            : '（第 ${card.sourceChapters.map((i) => i + 1).join('、')} 章）';
-        final quote = card.quote == null ? '' : '｜原文：${_clip(card.quote!, 60)}';
-        buffer.writeln(
-          '- ${card.title}：${_clip(card.definition, 160)}$quote$chaptersLabel',
-        );
+      if (cardLines.isNotEmpty) {
+        buffer.writeln('要点：');
+        for (final line in cardLines) {
+          if (buffer.length + line.length + 1 + reserve > maxChars) break;
+          buffer.writeln(line);
+        }
       }
-    }
 
-    if (chapters.isEmpty) return _clip(buffer.toString(), maxChars);
-
-    // Title-only chapters are the cheapest part of the map, so they are what
-    // gives way when the budget is tight: they are appended only while they fit
-    // next to a marker whose room is reserved up front. The marker itself is
-    // never clipped — without it the model cannot tell a partial map from a
-    // short book, which is exactly what makes it answer "没有写到" wrongly.
-    final listed = chapters.take(maxGists).length;
-    var titleOnly = 0;
-    for (final chapter in chapters.skip(listed)) {
-      if (titleOnly >= maxTitleOnlyChapters) break;
-      if (buffer.length + _markerLength(chapters.length) > maxChars) break;
-      if (titleOnly == 0) buffer.writeln('其余章节（仅标题）：');
-      buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}');
-      titleOnly++;
+      for (final chapter in chapters.skip(listed)) {
+        if (titleOnly >= maxTitleOnlyChapters) break;
+        final header = titleOnly == 0 ? _titleOnlyHeader.length + 1 : 0;
+        final line = '第 ${chapter.index + 1} 章 ${chapter.title}\n';
+        if (buffer.length + header + line.length + reserve > maxChars) break;
+        if (titleOnly == 0) buffer.writeln(_titleOnlyHeader.trimRight());
+        buffer.write(line);
+        titleOnly++;
+      }
     }
 
     final shown = listed + titleOnly;
     final marker = shown < chapters.length
         ? '（共 ${chapters.length} 章，此处只列 $shown 章）'
         : '（共 ${chapters.length} 章）';
-    final room = maxChars - marker.length - 1;
+    if (maxChars <= marker.length + 1) return _clip(marker, maxChars);
+
+    final headRoom = maxChars - marker.length - 1;
     final body = buffer.toString();
-    final head = body.length <= room
+    final head = body.length <= headRoom
         ? body
-        : '${body.substring(0, room > 1 ? room - 1 : 0)}…';
+        : '${body.substring(0, headRoom > 1 ? headRoom - 1 : 0)}…';
     return '$head\n$marker';
+  }
+
+  static const String _titleOnlyHeader = '其余章节（仅标题）：';
+
+  /// Below this many characters the map is not worth writing at all; the
+  /// marker alone still tells the model how much it is missing.
+  static const int _minMapRoom = 40;
+
+  static String _cardLine(DistillDigestCard card) {
+    final chaptersLabel = card.sourceChapters.isEmpty
+        ? ''
+        : '（第 ${card.sourceChapters.map((i) => i + 1).join('、')} 章）';
+    final quote = card.quote == null ? '' : '｜原文：${_clip(card.quote!, 60)}';
+    return '- ${card.title}：${_clip(card.definition, 160)}$quote$chaptersLabel';
   }
 
   /// Longest marker this book could produce, used to reserve room for it.

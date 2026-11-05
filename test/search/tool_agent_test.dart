@@ -369,6 +369,49 @@ void main() {
     expect(jsonDecode(tool.content), isA<Map<String, Object?>>());
   });
 
+  test('被预算裁短的章正文会带上 truncated，步骤也如实标注', () async {
+    final client = _ScriptedClient([
+      const LlmTurn(toolCalls: [
+        LlmToolCall(id: 'call_2', name: 'get_chapter', arguments: '{"chapter":7}'),
+      ]),
+      const LlmTurn(),
+    ]);
+    final steps = <SearchStep>[];
+
+    await _run(
+      client,
+      steps: steps,
+      toolbox: _FakeToolbox(
+        payloads: ['{"chapter":7,"offset":0,"text":"${'雨' * 300}"}'],
+      ),
+      maxToolChars: 200,
+    );
+
+    final tool = client.seen.last.lastWhere((m) => m.role == LlmRole.tool);
+    final decoded = jsonDecode(tool.content) as Map<String, Object?>;
+    expect(decoded['truncated'], isTrue);
+    expect((decoded['text'] as String).length, lessThan(300));
+    expect(steps.single.summary, contains('已截断'));
+  });
+
+  test('搜索结果被裁掉命中项时，步骤里说明了截断', () async {
+    final client = _ScriptedClient([
+      const LlmTurn(toolCalls: [_searchCall]),
+      const LlmTurn(),
+    ]);
+    final steps = <SearchStep>[];
+    final hit = '{"chapter":1,"title":"第一章","text":"${'雨' * 40}"}';
+
+    await _run(
+      client,
+      steps: steps,
+      toolbox: _FakeToolbox(payloads: ['{"hits":[$hit,$hit,$hit]}']),
+      maxToolChars: 210,
+    );
+
+    expect(steps.single.summary, contains('已截断'));
+  });
+
   test('剩余预算不足 minRoomForCall 时直接跳过', () async {
     final client = _ScriptedClient([
       const LlmTurn(toolCalls: [_searchCall]),
