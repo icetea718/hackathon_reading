@@ -171,6 +171,7 @@ class ChatMessageRepository {
     required String status,
     String? sourcesJson,
     bool clearSources = false,
+    String? stepsJson,
   }) {
     return (_db.update(_db.chatMessages)..where((row) => row.id.equals(id)))
         .write(
@@ -182,6 +183,8 @@ class ChatMessageRepository {
                 : sourcesJson == null
                     ? const Value.absent()
                     : Value(sourcesJson),
+            stepsJson:
+                stepsJson == null ? const Value.absent() : Value(stepsJson),
           ),
         );
   }

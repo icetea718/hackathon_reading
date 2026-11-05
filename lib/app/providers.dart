@@ -43,6 +43,8 @@ import '../domain/services/file_picker_service.dart';
 import '../features/companion/companion_skin.dart';
 import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
+import '../search/book_searcher.dart';
+import '../search/tool_agent.dart';
 import '../search/book_context.dart';
 import '../search/book_memory.dart';
 import '../search/routing_search_provider.dart';
@@ -476,6 +478,23 @@ final bookContextBuilderProvider = Provider<BookContextBuilder>(
         ref.read(chapterRepositoryProvider).getContent(id, index),
     digests: ref.read(distillDigestSourceProvider),
   ),
+);
+
+/// Reads the book's chapters and text for in-book search, over the same
+/// repository the prompt builders use.
+final bookSearcherProvider = Provider<BookSearcher>(
+  (ref) => BookSearcher(
+    loadChapters: (id) =>
+        ref.read(chapterRepositoryProvider).getSummariesForBook(id),
+    loadChapterText: (id, index) =>
+        ref.read(chapterRepositoryProvider).getContent(id, index),
+    digests: ref.read(distillDigestSourceProvider),
+  ),
+);
+
+/// The tool loop behind a book-bound question.
+final searchToolAgentProvider = Provider<SearchToolAgent>(
+  (ref) => SearchToolAgent(client: ref.watch(llmClientProvider)),
 );
 
 /// Loads the reader's own material for a book: annotations, companion threads,
