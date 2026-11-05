@@ -16,7 +16,7 @@ import 'package:coread/tts/tts_config.dart';
 
 import '../support/fake_tts.dart';
 
-class _FakeClient implements LlmClient {
+class _FakeClient extends LlmClient {
   _FakeClient({this.failWith});
 
   final String? failWith;

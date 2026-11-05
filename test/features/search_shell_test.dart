@@ -25,7 +25,7 @@ import 'package:coread/search/search_hit.dart';
 import 'package:coread/search/search_provider.dart';
 
 /// Streams [chunks] and honours cancellation, so the stop button is testable.
-class SlowClient implements LlmClient {
+class SlowClient extends LlmClient {
   SlowClient(this.chunks, {this.gap = const Duration(milliseconds: 50)});
 
   final List<String> chunks;
@@ -68,7 +68,7 @@ class SlowClient implements LlmClient {
   void dispose() {}
 }
 
-class InstantClient implements LlmClient {
+class InstantClient extends LlmClient {
   InstantClient(this.reply);
 
   final String reply;
@@ -140,7 +140,7 @@ class FakeSearchConfigStore implements SearchConfigStore {
 }
 
 /// Fails after optionally yielding [partial], to exercise the error path.
-class FailingClient implements LlmClient {
+class FailingClient extends LlmClient {
   FailingClient({this.partial = '', this.message = '模型炸了'});
 
   final String partial;
@@ -173,7 +173,7 @@ class FailingClient implements LlmClient {
 }
 
 /// Fails the first request and succeeds on the retry.
-class FlakyClient implements LlmClient {
+class FlakyClient extends LlmClient {
   FlakyClient({this.reply = '重试成功'});
 
   final String reply;

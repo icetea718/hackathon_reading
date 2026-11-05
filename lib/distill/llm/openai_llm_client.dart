@@ -10,7 +10,7 @@ import 'sse.dart';
 ///
 /// The config is read through [config] on every call so settings changes take
 /// effect immediately without rebuilding the client.
-class OpenAiLlmClient implements LlmClient {
+class OpenAiLlmClient extends LlmClient {
   OpenAiLlmClient({
     required this.config,
     HttpClient? httpClient,

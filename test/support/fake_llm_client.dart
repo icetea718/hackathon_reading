@@ -1,7 +1,7 @@
 import 'package:coread/distill/llm/llm_client.dart';
 
 /// Records every request and replays a canned answer.
-class FakeLlmClient implements LlmClient {
+class FakeLlmClient extends LlmClient {
   FakeLlmClient({this.reply = 'ok', this.jsonReply = '{}'});
 
   String reply;
