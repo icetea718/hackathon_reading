@@ -15,6 +15,7 @@ class CompanionChatPanel extends StatefulWidget {
     required this.busy,
     required this.onSend,
     required this.onClose,
+    this.onChangeSkin,
   });
 
   /// Chapter the thread belongs to, e.g. `陪读 · 第一部分`.
@@ -28,6 +29,9 @@ class CompanionChatPanel extends StatefulWidget {
   final bool busy;
   final ValueChanged<String> onSend;
   final VoidCallback onClose;
+
+  /// Opens the skin picker; hidden when the host cannot swap characters.
+  final VoidCallback? onChangeSkin;
 
   @override
   State<CompanionChatPanel> createState() => _CompanionChatPanelState();
@@ -98,6 +102,14 @@ class _CompanionChatPanelState extends State<CompanionChatPanel> {
                     ),
                   ),
                 ),
+                if (widget.onChangeSkin != null)
+                  IconButton(
+                    key: const Key('companion-skin-open'),
+                    icon: const Icon(Icons.pets, size: 18),
+                    visualDensity: VisualDensity.compact,
+                    tooltip: '换形象',
+                    onPressed: widget.onChangeSkin,
+                  ),
                 IconButton(
                   key: const Key('companion-chat-close'),
                   icon: const Icon(Icons.close, size: 18),

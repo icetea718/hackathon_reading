@@ -103,4 +103,40 @@ void main() {
 
     expect(closed, 1);
   });
+
+  testWidgets('offers the skin picker only when the host can swap', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        CompanionChatPanel(
+          title: '陪读',
+          messages: const [],
+          streaming: '',
+          busy: false,
+          onSend: (_) {},
+          onClose: () {},
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('companion-skin-open')), findsNothing);
+
+    var opened = 0;
+    await tester.pumpWidget(
+      _host(
+        CompanionChatPanel(
+          title: '陪读',
+          messages: const [],
+          streaming: '',
+          busy: false,
+          onSend: (_) {},
+          onClose: () {},
+          onChangeSkin: () => opened++,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('companion-skin-open')));
+    await tester.pump();
+    expect(opened, 1);
+  });
 }

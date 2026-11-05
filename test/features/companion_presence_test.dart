@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:coread/features/companion/companion_clip.dart';
 import 'package:coread/features/companion/companion_presence.dart';
+import 'package:coread/features/companion/companion_skin.dart';
 
 Widget _host(Widget child) =>
     MaterialApp(home: Scaffold(body: Center(child: child)));
@@ -308,5 +309,39 @@ void main() {
 
     expect(opened, 1);
     expect(find.byKey(const Key('companion-bubble')), findsNothing);
+  });
+
+  testWidgets('the imported skin answers page turns and taps', (
+    tester,
+  ) async {
+    final turns = ValueNotifier<int>(0);
+    addTearDown(turns.dispose);
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          skin: companionWriterSkin,
+          pageTurns: turns,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final stage = tester.state<CompanionClipStageState>(
+      find.byType(CompanionClipStage),
+    );
+    expect(stage.clip, companionWriterIdleClip);
+
+    // The imported pack is a reaction: turning the page and tapping both play
+    // it. The ticker is off in tests, so the stage holds the clip it was given.
+    turns.value = 1;
+    await tester.pump();
+    expect(stage.clip, companionWriterActionClip);
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pump();
+    expect(stage.clip, companionWriterActionClip);
+    expect(find.byKey(const Key('companion-bubble')), findsOneWidget);
   });
 }

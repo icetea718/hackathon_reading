@@ -78,6 +78,13 @@ class EdgeVoices {
       voice: 'zh-CN-XiaoxiaoNeural',
       rate: -5,
     ),
+    EdgeVoice(
+      id: 'laopai',
+      label: '老派读书人 · 云扬',
+      voice: 'zh-CN-YunyangNeural',
+      rate: -12,
+      pitch: -6,
+    ),
   ];
 
   /// The catalog entry for [id], or null when the id belongs to another engine.

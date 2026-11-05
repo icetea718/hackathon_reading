@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'companion_avatar.dart';
-import 'companion_clip.dart';
+import 'companion_skin.dart';
 
 /// The reader-facing companion: a 2D character with a speech bubble above it.
 ///
@@ -22,10 +22,14 @@ class CompanionPresence extends StatefulWidget {
     this.onSpokenLine,
     this.onOpenChat,
     this.pageTurns,
+    this.skin = companionDefaultSkin,
   });
 
   /// Optional sprite asset, forwarded to [CompanionAvatar].
   final String? assetPath;
+
+  /// Which character stands here; swapping it keeps every behaviour.
+  final CompanionSkin skin;
 
   /// Height of the character in logical pixels.
   final double height;
@@ -150,13 +154,17 @@ class _CompanionPresenceState extends State<CompanionPresence>
     if (spoken != _thinkingLine) widget.onSpokenLine?.call(spoken);
     // A little hop, so the line lands with a body language of its own.
     _avatarKey.currentState?.cheer();
-    _avatarKey.currentState?.playClip(companionWaveClip);
+    _avatarKey.currentState?.playClip(
+      widget.skin.clipFor(CompanionAction.wave),
+    );
     _hideTimer = Timer(_lingerFor, _close);
   }
 
   /// The reader turned the page: the companion is startled for a moment.
   void _handlePageTurn() {
-    _avatarKey.currentState?.playClip(companionSurpriseClip);
+    _avatarKey.currentState?.playClip(
+      widget.skin.clipFor(CompanionAction.surprise),
+    );
   }
 
   void _close() {
@@ -271,6 +279,7 @@ class _CompanionPresenceState extends State<CompanionPresence>
             key: _avatarKey,
             assetPath: widget.assetPath,
             height: widget.height,
+            skin: widget.skin,
             onTap: _handleAvatarTap,
             onSecondaryTap: _handleSecondaryTap,
           ),

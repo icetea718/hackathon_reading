@@ -110,22 +110,61 @@ void main() {
   }
 
   /// The form is taller than the viewport, so reach for widgets by scrolling.
+  ///
+  /// The page keeps growing (model, illustration, voice, search) and it swaps
+  /// its body while a setting loads, so a single `scrollUntilVisible` can land
+  /// on a frame with no scrollable at all. Drag in small steps — down first,
+  /// then back up, since the caller may already sit past the section.
   Future<void> reveal(WidgetTester tester, Finder finder) async {
-    final scrollable = find.byType(Scrollable).first;
-    // The helper is reused for targets above the last one, so rewind first:
-    // ListView disposes children scrolled out of its cache extent.
-    final position = tester.state<ScrollableState>(scrollable).position;
-    if (position.pixels > 0) {
-      position.jumpTo(0);
-      await tester.pumpAndSettle();
+    Future<void> rewind() async {
+      final scrollables = find.byType(Scrollable);
+      if (scrollables.evaluate().isEmpty) return;
+      // The helper is reused for targets above the last one, so rewind first:
+      // ListView disposes children scrolled out of its cache extent.
+      final position = tester.state<ScrollableState>(scrollables.first).position;
+      if (position.pixels > 0) {
+        position.jumpTo(0);
+        await tester.pumpAndSettle();
+      }
     }
-    await tester.scrollUntilVisible(finder, 120, scrollable: scrollable);
+
+    Future<bool> dragUntil(Offset step) async {
+      for (var i = 0; i < 40; i++) {
+        if (finder.evaluate().isNotEmpty) return true;
+        final scrollables = find.byType(Scrollable);
+        if (scrollables.evaluate().isEmpty) {
+          await tester.pump(const Duration(milliseconds: 50));
+          continue;
+        }
+        await tester.drag(scrollables.first, step);
+        await tester.pumpAndSettle();
+      }
+      return finder.evaluate().isNotEmpty;
+    }
+
+    await rewind();
+    if (!await dragUntil(const Offset(0, -160))) {
+      await dragUntil(const Offset(0, 160));
+    }
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
   }
 
   Future<void> tapAt(WidgetTester tester, Finder finder) async {
     await reveal(tester, finder);
+    // A lazy list builds a row slightly before it is fully on screen; nudge
+    // until the centre of the target sits inside the window, otherwise the tap
+    // lands on the bare render view and silently does nothing.
+    final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+    for (var i = 0; i < 6; i++) {
+      final y = tester.getRect(finder).center.dy;
+      if (y > 24 && y < view.height - 24) break;
+      await tester.drag(
+        find.byType(Scrollable).first,
+        Offset(0, y >= view.height - 24 ? -120 : 120),
+      );
+      await tester.pumpAndSettle();
+    }
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
@@ -290,7 +329,9 @@ void main() {
 
     await tapAt(tester, find.byKey(const Key('tts-test')));
 
-    expect(find.textContaining('连不上'), findsOneWidget);
+    // The page shows the probe's own sentence, so an online voice that works
+    // without a local service is not labelled a blanket failure.
+    expect(find.textContaining('连不上 http://127.0.0.1:8766'), findsOneWidget);
     expect(find.textContaining('先启动 chino-tts'), findsOneWidget);
   });
 

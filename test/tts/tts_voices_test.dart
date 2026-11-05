@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:coread/tts/edge/edge_voices.dart';
 import 'package:coread/tts/routing_tts_client.dart';
 import 'package:coread/tts/tts_client.dart';
 import 'package:coread/tts/tts_config.dart';
@@ -51,8 +52,21 @@ void main() {
       expect(voices.first.builtIn, isTrue);
       expect(
         voices.where((v) => v.builtIn).map((v) => v.id),
-        <String>['zhino', 'zhino-quiet', 'xiaoyi', 'xiaoxiao'],
+        <String>['zhino', 'zhino-quiet', 'xiaoyi', 'xiaoxiao', 'laopai'],
       );
+    });
+
+    test('offers a male reader, not only the assistant girl', () {
+      final laopai = EdgeVoices.resolve('laopai');
+
+      expect(laopai.id, 'laopai');
+      expect(laopai.voice, 'zh-CN-YunyangNeural');
+      expect(laopai.locale, 'zh-CN');
+      expect(TtsVoices.isBuiltIn('laopai'), isTrue);
+      // Slower and lower than the assistant voice: a man reading aloud, not a
+      // news anchor at broadcast speed.
+      expect(laopai.rate, lessThan(0));
+      expect(laopai.pitch, lessThan(0));
     });
 
     test('no longer offers names the service never had', () {
@@ -160,6 +174,21 @@ void main() {
       await client.synthesize('你好。', voice: 'zhino', speed: 1);
 
       expect(builtIn.spoken, <String>['zhino']);
+      expect(service.spoken, isEmpty);
+    });
+
+    test('the male reader also speaks without the local service', () async {
+      final builtIn = _FakeTtsClient();
+      final service = _FakeTtsClient();
+      final client = RoutingTtsClient(
+        config: () => _configWith('laopai'),
+        builtIn: builtIn,
+        service: service,
+      );
+
+      await client.synthesize('你好。', voice: 'laopai', speed: 1);
+
+      expect(builtIn.spoken, <String>['laopai']);
       expect(service.spoken, isEmpty);
     });
 
