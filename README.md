@@ -80,11 +80,13 @@ flutter run -d <android-device-id>
 ## 测试
 
 ```bash
-flutter analyze
+dart analyze lib test
 flutter test
 ```
 
-当前状态：`flutter analyze` 无问题；`flutter test` 608 个测试全部通过（Windows）。
+静态检查不要用 `flutter analyze`：本仓库路径含非 ASCII 字符（`。git`），它的 LSP 握手会截断并抛 `FormatException: Unexpected end of input`。`dart analyze` 走的是同一套分析器，结论一致。
+
+当前状态：`dart analyze lib test` 无问题；`flutter test` 937 个测试全部通过（Windows）。
 
 构建验证（2026-11-03）：
 
