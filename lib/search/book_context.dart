@@ -1,6 +1,7 @@
 import '../distill/distill_digest.dart';
 import '../domain/models/book.dart';
 import '../domain/models/chapter.dart';
+import 'bigrams.dart';
 
 typedef BookLoader = Future<Book?> Function(String bookId);
 typedef ChapterLoader = Future<List<Chapter>> Function(String bookId);
@@ -150,13 +151,13 @@ class BookContextBuilder {
     DistillDigest digest,
     String question,
   ) async {
-    final terms = _bigrams(question);
+    final terms = bigrams(question);
     if (terms.isEmpty || chapters.isEmpty) return const [];
 
     final ranked = chapters
         .map((chapter) {
           final haystack = '${chapter.title}${digest.gists[chapter.index] ?? ''}';
-          final score = _bigrams(haystack).intersection(terms).length;
+          final score = bigrams(haystack).intersection(terms).length;
           return (chapter: chapter, score: score);
         })
         .where((entry) => entry.score > 0)
@@ -184,17 +185,4 @@ class BookContextBuilder {
 
   static String _clip(String text, int max) =>
       text.length <= max ? text : '${text.substring(0, max)}…';
-
-  static Set<String> _bigrams(String text) {
-    final chars = text
-        .replaceAll(RegExp(r'[^\u4e00-\u9fa5A-Za-z0-9]'), '')
-        .toLowerCase()
-        .runes
-        .toList();
-    final grams = <String>{};
-    for (var i = 0; i + 1 < chars.length; i++) {
-      grams.add(String.fromCharCodes([chars[i], chars[i + 1]]));
-    }
-    return grams;
-  }
 }
