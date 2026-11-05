@@ -38,7 +38,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 12);
+    expect(db.schemaVersion, 13);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -119,7 +119,7 @@ void main() {
     expect(chapter.read<int>('level'), 2);
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
 
     await db.close();
   });
@@ -153,7 +153,7 @@ void main() {
       },
     ));
 
-    expect(db.schemaVersion, 12);
+    expect(db.schemaVersion, 13);
     final rows = await db
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'table'")
         .get();
@@ -229,7 +229,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
     await db.close();
   });
 
@@ -315,7 +315,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
     await db.close();
   });
 
@@ -375,7 +375,7 @@ void main() {
     );
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
     await db.close();
   });
 
@@ -422,7 +422,7 @@ void main() {
     expect(indexNames, contains('chat_threads_book'));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
     await db.close();
   });
 
@@ -448,7 +448,36 @@ void main() {
     ));
 
     final version = await db.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 12);
+    expect(version.read<int>('user_version'), 13);
+    await db.close();
+  });
+
+  test('upgrades a v12 database and keeps old rows readable', () async {
+    final db = AppDatabase(NativeDatabase.memory(
+      setup: (raw) {
+        raw.execute('PRAGMA user_version = 12;');
+        raw.execute(
+          'CREATE TABLE chat_messages ('
+          'id TEXT NOT NULL PRIMARY KEY, '
+          'thread_id TEXT NOT NULL, '
+          'role TEXT NOT NULL, '
+          'content TEXT NOT NULL, '
+          'sources_json TEXT, '
+          "status TEXT NOT NULL DEFAULT 'complete', "
+          'created_at TEXT NOT NULL)',
+        );
+        raw.execute(
+          'INSERT INTO chat_messages VALUES '
+          "('m1','t1','assistant','旧回答',NULL,'complete','2026-01-01T00:00:00.000Z')",
+        );
+      },
+    ));
+
+    final columns = await db.customSelect('PRAGMA table_info(chat_messages)').get();
+    expect(columns.map((r) => r.read<String>('name')), contains('steps_json'));
+    final row = await db.select(db.chatMessages).getSingle();
+    expect(row.stepsJson, null);
+    expect(row.content, '旧回答');
     await db.close();
   });
 }

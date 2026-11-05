@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.defaults() : super(driftDatabase(name: 'reader'));
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -138,6 +138,22 @@ class AppDatabase extends _$AppDatabase {
             }
             if (!await hasIndex('chat_threads_book')) {
               await m.create(chatThreadsBook);
+            }
+          }
+          if (from < 13) {
+            // The v11 block creates chat_messages from the current definition,
+            // so a table upgraded through it already has the column. A database
+            // that never had the table (some fixtures) gets an empty PRAGMA
+            // result, and the table definition covers it on creation.
+            final columns = await m.database
+                .customSelect('PRAGMA table_info(chat_messages)')
+                .get();
+            if (columns.isNotEmpty) {
+              final hasSteps = columns
+                  .any((row) => row.read<String>('name') == 'steps_json');
+              if (!hasSteps) {
+                await m.addColumn(chatMessages, chatMessages.stepsJson);
+              }
             }
           }
         },

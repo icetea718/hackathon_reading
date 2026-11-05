@@ -176,6 +176,7 @@ class ChatMessages extends Table {
   TextColumn get role => text()();
   TextColumn get content => text()();
   TextColumn get sourcesJson => text().nullable()();
+  TextColumn get stepsJson => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('complete'))();
   TextColumn get createdAt => text().map(const IsoDateTimeConverter())();
 

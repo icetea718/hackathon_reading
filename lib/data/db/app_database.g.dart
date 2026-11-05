@@ -5139,6 +5139,17 @@ class $ChatMessagesTable extends ChatMessages
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _stepsJsonMeta = const VerificationMeta(
+    'stepsJson',
+  );
+  @override
+  late final GeneratedColumn<String> stepsJson = GeneratedColumn<String>(
+    'steps_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -5165,6 +5176,7 @@ class $ChatMessagesTable extends ChatMessages
     role,
     content,
     sourcesJson,
+    stepsJson,
     status,
     createdAt,
   ];
@@ -5218,6 +5230,12 @@ class $ChatMessagesTable extends ChatMessages
         ),
       );
     }
+    if (data.containsKey('steps_json')) {
+      context.handle(
+        _stepsJsonMeta,
+        stepsJson.isAcceptableOrUnknown(data['steps_json']!, _stepsJsonMeta),
+      );
+    }
     if (data.containsKey('status')) {
       context.handle(
         _statusMeta,
@@ -5253,6 +5271,10 @@ class $ChatMessagesTable extends ChatMessages
         DriftSqlType.string,
         data['${effectivePrefix}sources_json'],
       ),
+      stepsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}steps_json'],
+      ),
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -5281,6 +5303,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
   final String role;
   final String content;
   final String? sourcesJson;
+  final String? stepsJson;
   final String status;
   final DateTime createdAt;
   const ChatMessageRow({
@@ -5289,6 +5312,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
     required this.role,
     required this.content,
     this.sourcesJson,
+    this.stepsJson,
     required this.status,
     required this.createdAt,
   });
@@ -5301,6 +5325,9 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
     map['content'] = Variable<String>(content);
     if (!nullToAbsent || sourcesJson != null) {
       map['sources_json'] = Variable<String>(sourcesJson);
+    }
+    if (!nullToAbsent || stepsJson != null) {
+      map['steps_json'] = Variable<String>(stepsJson);
     }
     map['status'] = Variable<String>(status);
     {
@@ -5320,6 +5347,9 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
       sourcesJson: sourcesJson == null && nullToAbsent
           ? const Value.absent()
           : Value(sourcesJson),
+      stepsJson: stepsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stepsJson),
       status: Value(status),
       createdAt: Value(createdAt),
     );
@@ -5336,6 +5366,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
       role: serializer.fromJson<String>(json['role']),
       content: serializer.fromJson<String>(json['content']),
       sourcesJson: serializer.fromJson<String?>(json['sourcesJson']),
+      stepsJson: serializer.fromJson<String?>(json['stepsJson']),
       status: serializer.fromJson<String>(json['status']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -5349,6 +5380,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
       'role': serializer.toJson<String>(role),
       'content': serializer.toJson<String>(content),
       'sourcesJson': serializer.toJson<String?>(sourcesJson),
+      'stepsJson': serializer.toJson<String?>(stepsJson),
       'status': serializer.toJson<String>(status),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -5360,6 +5392,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
     String? role,
     String? content,
     Value<String?> sourcesJson = const Value.absent(),
+    Value<String?> stepsJson = const Value.absent(),
     String? status,
     DateTime? createdAt,
   }) => ChatMessageRow(
@@ -5368,6 +5401,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
     role: role ?? this.role,
     content: content ?? this.content,
     sourcesJson: sourcesJson.present ? sourcesJson.value : this.sourcesJson,
+    stepsJson: stepsJson.present ? stepsJson.value : this.stepsJson,
     status: status ?? this.status,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -5380,6 +5414,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
       sourcesJson: data.sourcesJson.present
           ? data.sourcesJson.value
           : this.sourcesJson,
+      stepsJson: data.stepsJson.present ? data.stepsJson.value : this.stepsJson,
       status: data.status.present ? data.status.value : this.status,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
@@ -5393,6 +5428,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
           ..write('role: $role, ')
           ..write('content: $content, ')
           ..write('sourcesJson: $sourcesJson, ')
+          ..write('stepsJson: $stepsJson, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -5400,8 +5436,16 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, threadId, role, content, sourcesJson, status, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    threadId,
+    role,
+    content,
+    sourcesJson,
+    stepsJson,
+    status,
+    createdAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5411,6 +5455,7 @@ class ChatMessageRow extends DataClass implements Insertable<ChatMessageRow> {
           other.role == this.role &&
           other.content == this.content &&
           other.sourcesJson == this.sourcesJson &&
+          other.stepsJson == this.stepsJson &&
           other.status == this.status &&
           other.createdAt == this.createdAt);
 }
@@ -5421,6 +5466,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
   final Value<String> role;
   final Value<String> content;
   final Value<String?> sourcesJson;
+  final Value<String?> stepsJson;
   final Value<String> status;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
@@ -5430,6 +5476,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
     this.role = const Value.absent(),
     this.content = const Value.absent(),
     this.sourcesJson = const Value.absent(),
+    this.stepsJson = const Value.absent(),
     this.status = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -5440,6 +5487,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
     required String role,
     required String content,
     this.sourcesJson = const Value.absent(),
+    this.stepsJson = const Value.absent(),
     this.status = const Value.absent(),
     required DateTime createdAt,
     this.rowid = const Value.absent(),
@@ -5454,6 +5502,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
     Expression<String>? role,
     Expression<String>? content,
     Expression<String>? sourcesJson,
+    Expression<String>? stepsJson,
     Expression<String>? status,
     Expression<String>? createdAt,
     Expression<int>? rowid,
@@ -5464,6 +5513,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
       if (role != null) 'role': role,
       if (content != null) 'content': content,
       if (sourcesJson != null) 'sources_json': sourcesJson,
+      if (stepsJson != null) 'steps_json': stepsJson,
       if (status != null) 'status': status,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
@@ -5476,6 +5526,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
     Value<String>? role,
     Value<String>? content,
     Value<String?>? sourcesJson,
+    Value<String?>? stepsJson,
     Value<String>? status,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
@@ -5486,6 +5537,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
       role: role ?? this.role,
       content: content ?? this.content,
       sourcesJson: sourcesJson ?? this.sourcesJson,
+      stepsJson: stepsJson ?? this.stepsJson,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
@@ -5510,6 +5562,9 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
     if (sourcesJson.present) {
       map['sources_json'] = Variable<String>(sourcesJson.value);
     }
+    if (stepsJson.present) {
+      map['steps_json'] = Variable<String>(stepsJson.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -5532,6 +5587,7 @@ class ChatMessagesCompanion extends UpdateCompanion<ChatMessageRow> {
           ..write('role: $role, ')
           ..write('content: $content, ')
           ..write('sourcesJson: $sourcesJson, ')
+          ..write('stepsJson: $stepsJson, ')
           ..write('status: $status, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
@@ -9634,6 +9690,7 @@ typedef $$ChatMessagesTableCreateCompanionBuilder =
       required String role,
       required String content,
       Value<String?> sourcesJson,
+      Value<String?> stepsJson,
       Value<String> status,
       required DateTime createdAt,
       Value<int> rowid,
@@ -9645,6 +9702,7 @@ typedef $$ChatMessagesTableUpdateCompanionBuilder =
       Value<String> role,
       Value<String> content,
       Value<String?> sourcesJson,
+      Value<String?> stepsJson,
       Value<String> status,
       Value<DateTime> createdAt,
       Value<int> rowid,
@@ -9681,6 +9739,11 @@ class $$ChatMessagesTableFilterComposer
 
   ColumnFilters<String> get sourcesJson => $composableBuilder(
     column: $table.sourcesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stepsJson => $composableBuilder(
+    column: $table.stepsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9730,6 +9793,11 @@ class $$ChatMessagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get stepsJson => $composableBuilder(
+    column: $table.stepsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -9766,6 +9834,9 @@ class $$ChatMessagesTableAnnotationComposer
     column: $table.sourcesJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get stepsJson =>
+      $composableBuilder(column: $table.stepsJson, builder: (column) => column);
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
@@ -9810,6 +9881,7 @@ class $$ChatMessagesTableTableManager
                 Value<String> role = const Value.absent(),
                 Value<String> content = const Value.absent(),
                 Value<String?> sourcesJson = const Value.absent(),
+                Value<String?> stepsJson = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -9819,6 +9891,7 @@ class $$ChatMessagesTableTableManager
                 role: role,
                 content: content,
                 sourcesJson: sourcesJson,
+                stepsJson: stepsJson,
                 status: status,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -9830,6 +9903,7 @@ class $$ChatMessagesTableTableManager
                 required String role,
                 required String content,
                 Value<String?> sourcesJson = const Value.absent(),
+                Value<String?> stepsJson = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 required DateTime createdAt,
                 Value<int> rowid = const Value.absent(),
@@ -9839,6 +9913,7 @@ class $$ChatMessagesTableTableManager
                 role: role,
                 content: content,
                 sourcesJson: sourcesJson,
+                stepsJson: stepsJson,
                 status: status,
                 createdAt: createdAt,
                 rowid: rowid,
