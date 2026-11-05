@@ -7,8 +7,10 @@ import 'package:flutter/services.dart';
 
 /// A short animation baked from the companion's motion library.
 ///
-/// Every clip is a sheet with [companionClipColumns] columns; the frames read
-/// left to right, top to bottom, and each cell is [companionClipCell] big.
+/// Every clip is a sheet; the frames read left to right, top to bottom, and
+/// each cell is [cell] big. Baked clips default to [companionClipColumns]
+/// columns and [companionClipCell] cells; an imported atlas can bring its own
+/// grid without changing the player.
 @immutable
 class CompanionClip {
   const CompanionClip({
@@ -16,12 +18,16 @@ class CompanionClip {
     required this.frameCount,
     required this.fps,
     this.loop = false,
+    this.columns = companionClipColumns,
+    this.cell = companionClipCell,
   });
 
   final String asset;
   final int frameCount;
   final double fps;
   final bool loop;
+  final int columns;
+  final Size cell;
 }
 
 const int companionClipColumns = 8;
@@ -69,11 +75,18 @@ const CompanionClip companionWaveClip = CompanionClip(
 /// one-shot clip runs out, which keeps the companion alive without any extra
 /// choreography in the caller.
 class CompanionClipStage extends StatefulWidget {
-  const CompanionClipStage({super.key, this.animate = true});
+  const CompanionClipStage({
+    super.key,
+    this.animate = true,
+    this.idleClip = companionIdleClip,
+  });
 
   /// Tests pass false so the stage stays on one frame and never keeps a frame
   /// callback pending.
   final bool animate;
+
+  /// The loop to sit on when nothing else is playing; a skin swaps this out.
+  final CompanionClip idleClip;
 
   @override
   State<CompanionClipStage> createState() => CompanionClipStageState();
@@ -83,7 +96,7 @@ class CompanionClipStageState extends State<CompanionClipStage>
     with SingleTickerProviderStateMixin {
   final Map<String, ui.Image> _sheets = {};
   late final Ticker _ticker;
-  CompanionClip _clip = companionIdleClip;
+  late CompanionClip _clip;
   ui.Image? _sheet;
   int _frame = 0;
 
@@ -97,6 +110,7 @@ class CompanionClipStageState extends State<CompanionClipStage>
   @override
   void initState() {
     super.initState();
+    _clip = widget.idleClip;
     _ticker = createTicker(_onTick);
     unawaited(_load(_clip));
     if (widget.animate) {
@@ -107,6 +121,10 @@ class CompanionClipStageState extends State<CompanionClipStage>
   @override
   void didUpdateWidget(CompanionClipStage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(widget.idleClip, oldWidget.idleClip) &&
+        identical(_clip, oldWidget.idleClip)) {
+      play(widget.idleClip);
+    }
     if (widget.animate == oldWidget.animate) return;
     if (widget.animate) {
       _ticker.start();
@@ -136,7 +154,7 @@ class CompanionClipStageState extends State<CompanionClipStage>
   }
 
   /// Convenience for the physics layer: fall back to the breathing loop.
-  void playIdle() => play(companionIdleClip);
+  void playIdle() => play(widget.idleClip);
 
   Future<void> _load(CompanionClip clip) async {
     final cached = _sheets[clip.asset];
@@ -205,13 +223,13 @@ class _ClipPainter extends CustomPainter {
     final image = sheet;
     if (image == null) return;
 
-    final column = frame % companionClipColumns;
-    final row = frame ~/ companionClipColumns;
+    final column = frame % clip.columns;
+    final row = frame ~/ clip.columns;
     final source = Rect.fromLTWH(
-      column * companionClipCell.width,
-      row * companionClipCell.height,
-      companionClipCell.width,
-      companionClipCell.height,
+      column * clip.cell.width,
+      row * clip.cell.height,
+      clip.cell.width,
+      clip.cell.height,
     );
 
     // Contain the cell in the box, feet on the bottom edge.

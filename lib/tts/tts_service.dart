@@ -38,8 +38,17 @@ class TtsService {
     required this.config,
     required this.tempDirectory,
     Duration Function(Uint8List wav)? durationOf,
+    this.muted = false,
   }) : durationOf = durationOf ??
             ((wav) => Duration(milliseconds: wavDurationMs(wav)));
+
+  /// True when nothing may reach the network or the player.
+  ///
+  /// A widget test renders the same pet as the app, so every bubble would try
+  /// to synthesize; the test binding answers HTTP with a stub that throws into
+  /// the zone, which fails whichever test happened to be running. Tests that
+  /// assert speech build their own service with [muted] off.
+  final bool muted;
 
   /// Requests kept in flight so a slow engine does not starve the speaker.
   ///
@@ -90,6 +99,7 @@ class TtsService {
     final settings = config();
     final chunks = _chunksFor(reply);
     await _halt();
+    if (muted) return;
     if (chunks.isEmpty) return;
 
     final generation = _generation;
@@ -98,7 +108,14 @@ class TtsService {
 
     void fill() {
       while (pending.length < _prefetch && next < chunks.length) {
-        pending.add(_synthesize(chunks[next++], settings, generation));
+        // A sentence that is still in flight when the next reply starts is
+        // dropped below, so its failure must never surface as an unhandled
+        // error in whoever happens to be running.
+        pending.add(
+          _synthesize(chunks[next++], settings, generation).catchError(
+            (Object _) => null,
+          ),
+        );
       }
     }
 
@@ -165,6 +182,12 @@ class TtsService {
         }
       }
       _fail(error.message, generation);
+      return null;
+    } catch (error) {
+      // A crashing client (a refused socket in a widget test, a malformed
+      // response) must not escape as an unhandled error: reading continues
+      // silently and the status line carries what went wrong.
+      _fail('语音合成失败：$error', generation);
       return null;
     }
   }

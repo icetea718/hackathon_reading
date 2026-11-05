@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +16,10 @@ import 'package:hackathon_reading/data/repositories/companion_chat_repository.da
 import 'package:hackathon_reading/domain/models/book.dart';
 import 'package:hackathon_reading/domain/models/chapter.dart';
 import 'package:hackathon_reading/domain/models/companion_chat.dart';
+import 'package:hackathon_reading/data/repositories/settings_repository.dart';
+import 'package:hackathon_reading/features/companion/companion_clip.dart';
 import 'package:hackathon_reading/features/companion/companion_panel.dart';
+import 'package:hackathon_reading/features/companion/companion_skin.dart';
 import 'package:hackathon_reading/features/reader/reader_page.dart';
 import 'package:hackathon_reading/tts/audio_output.dart';
 import 'package:hackathon_reading/tts/tts_config.dart';
@@ -305,5 +309,34 @@ void main() {
     await flush(tester);
     expect(find.textContaining('陪读 · 第二章'), findsOneWidget);
     expect(find.text('旧回答'), findsOneWidget);
+  });
+
+  testWidgets('the reader can swap the character and it sticks', (
+    tester,
+  ) async {
+    await pumpReader(tester);
+
+    // Right click opens the chat, and the header carries the skin picker.
+    await tester.tap(
+      find.byKey(const Key('companion-avatar')),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('companion-skin-open')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('companion-skin-sheet')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('companion-skin-writer')));
+    await tester.pumpAndSettle();
+
+    final stage = tester.state<CompanionClipStageState>(
+      find.byType(CompanionClipStage),
+    );
+    expect(stage.clip, companionWriterIdleClip);
+
+    final stored = await tester.runAsync(
+      () => SettingsRepository(db).get(CompanionSkinStore.key),
+    );
+    expect(stored, 'writer');
   });
 }

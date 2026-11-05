@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hackathon_reading/features/companion/companion_clip.dart';
 import 'package:hackathon_reading/features/companion/companion_presence.dart';
+import 'package:hackathon_reading/features/companion/companion_skin.dart';
 
 Widget _host(Widget child) =>
     MaterialApp(home: Scaffold(body: Center(child: child)));
@@ -308,5 +309,37 @@ void main() {
 
     expect(opened, 1);
     expect(find.byKey(const Key('companion-bubble')), findsNothing);
+  });
+
+  testWidgets('a single-motion skin keeps reacting without extra clips', (
+    tester,
+  ) async {
+    final turns = ValueNotifier<int>(0);
+    addTearDown(turns.dispose);
+    await tester.pumpWidget(
+      _host(
+        CompanionPresence(
+          height: 160,
+          autoGreet: false,
+          skin: companionWriterSkin,
+          pageTurns: turns,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final stage = tester.state<CompanionClipStageState>(
+      find.byType(CompanionClipStage),
+    );
+    expect(stage.clip, companionWriterIdleClip);
+
+    turns.value = 1;
+    await tester.pumpAndSettle();
+    expect(stage.clip, companionWriterIdleClip);
+
+    await tester.tap(find.byKey(const Key('companion-avatar')));
+    await tester.pumpAndSettle();
+    expect(stage.clip, companionWriterIdleClip);
+    expect(find.byKey(const Key('companion-bubble')), findsOneWidget);
   });
 }

@@ -6,6 +6,7 @@ import 'companion_body.dart';
 import 'companion_clip.dart';
 import 'companion_fish.dart';
 import 'companion_idle_sprite.dart';
+import 'companion_skin.dart';
 
 /// The bundled sprite the reader shows next to the page.
 const companionSprite = 'assets/companion/chibi.png';
@@ -30,10 +31,11 @@ class CompanionAvatar extends StatefulWidget {
     this.onTap,
     this.onSecondaryTap,
     this.idleMotion = true,
+    this.skin = companionDefaultSkin,
   });
 
   /// Optional image asset. When null (or when the asset fails to load) the
-  /// built-in painter is used instead.
+  /// skin's clips play instead.
   final String? assetPath;
 
   /// Rendered height in logical pixels; the width follows a 3:4 ratio.
@@ -47,6 +49,9 @@ class CompanionAvatar extends StatefulWidget {
 
   /// Breathing and idle nudges. Tests pass false so nothing keeps ticking.
   final bool idleMotion;
+
+  /// Which character to draw and which reactions it plays.
+  final CompanionSkin skin;
 
   @override
   State<CompanionAvatar> createState() => CompanionAvatarState();
@@ -114,8 +119,12 @@ class CompanionAvatarState extends State<CompanionAvatar>
           idleMotion: widget.idleMotion && !_runningInTests,
           onTap: widget.onTap,
           onSecondaryTap: widget.onSecondaryTap,
-          onPress: () => _stageKey.currentState?.play(companionPokeClip),
-          onGrabbed: () => _stageKey.currentState?.play(companionDragClip),
+          onPress: () => _stageKey.currentState?.play(
+            widget.skin.clipFor(CompanionAction.tap),
+          ),
+          onGrabbed: () => _stageKey.currentState?.play(
+            widget.skin.clipFor(CompanionAction.drag),
+          ),
           onReleased: () => _stageKey.currentState?.playIdle(),
           motion: _motion,
           look: _look,
@@ -131,6 +140,7 @@ class CompanionAvatarState extends State<CompanionAvatar>
                 )
               : CompanionClipStage(
                   key: _stageKey,
+                  idleClip: widget.skin.idleClip,
                   animate: widget.idleMotion && !_runningInTests,
                 ),
         ),

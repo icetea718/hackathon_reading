@@ -40,6 +40,7 @@ import '../domain/models/distill.dart';
 import '../domain/services/annotation_service.dart';
 import '../domain/services/book_service.dart';
 import '../domain/services/file_picker_service.dart';
+import '../features/companion/companion_skin.dart';
 import '../features/search/chat_controller.dart';
 import '../search/agent_service.dart';
 import '../search/book_context.dart';
@@ -348,6 +349,12 @@ final audioOutputProvider = Provider<AudioOutput>((ref) {
 });
 
 /// Speaks assistant replies; one instance serves every companion panel.
+///
+/// Under `flutter test` the default service is muted: the pet greets a reader
+/// the same way in a widget test, and a real voice request there ends in the
+/// test binding's stub HTTP client, which throws into the zone and fails the
+/// test that happened to be running. Tests that assert what is spoken override
+/// this provider with their own service.
 final ttsServiceProvider = Provider<TtsService>((ref) {
   final service = TtsService(
     client: ref.watch(ttsClientProvider),
@@ -359,6 +366,7 @@ final ttsServiceProvider = Provider<TtsService>((ref) {
       if (!await dir.exists()) await dir.create(recursive: true);
       return dir;
     },
+    muted: Platform.environment['FLUTTER_TEST'] == 'true',
   );
   ref.onDispose(service.dispose);
   return service;
@@ -498,4 +506,55 @@ final bookMemoryProvider =
 final chatControllerProvider =
     NotifierProvider.family<ChatController, ChatState, String>(
   ChatController.new,
+);
+
+final companionSkinStoreProvider = Provider<CompanionSkinStore>((ref) {
+  return CompanionSkinStore(ref.watch(settingsRepositoryProvider));
+});
+
+/// Which character sits beside the page.
+///
+/// Reads synchronously on purpose: the reader must draw a companion on the
+/// first frame, so the stored choice is restored right after the default.
+class CompanionSkinNotifier extends Notifier<CompanionSkin> {
+  bool _disposed = false;
+
+  @override
+  CompanionSkin build() {
+    ref.onDispose(() => _disposed = true);
+    unawaited(_restore());
+    return companionDefaultSkin;
+  }
+
+  Future<void> _restore() async {
+    final CompanionSkin stored;
+    try {
+      stored = await ref.read(companionSkinStoreProvider).load();
+    } catch (_) {
+      // No settings table yet: the bundled character is a fine answer.
+      return;
+    }
+    if (_disposed || stored.id == state.id) return;
+    state = stored;
+  }
+
+  /// Remembers the reader's pick, then swaps the character right away.
+  void choose(CompanionSkin skin) {
+    if (skin.id == state.id) return;
+    state = skin;
+    unawaited(_persist(skin));
+  }
+
+  Future<void> _persist(CompanionSkin skin) async {
+    try {
+      await ref.read(companionSkinStoreProvider).save(skin);
+    } catch (_) {
+      // A failed write only costs the choice on the next launch.
+    }
+  }
+}
+
+final companionSkinProvider =
+    NotifierProvider<CompanionSkinNotifier, CompanionSkin>(
+  CompanionSkinNotifier.new,
 );

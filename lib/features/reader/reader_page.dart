@@ -24,6 +24,7 @@ import '../../domain/models/reading_progress.dart';
 import '../annotations/annotations_page.dart';
 import '../companion/companion_chat.dart';
 import '../companion/companion_chat_controller.dart';
+import '../companion/companion_skin_sheet.dart';
 import '../companion/companion_greeting.dart';
 import '../companion/companion_panel.dart';
 import '../companion/companion_presence.dart';
@@ -2223,7 +2224,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
   void _readBubbleAloud(String line) {
     final trimmed = line.trim();
     if (trimmed.isEmpty) return;
-    unawaited(ref.read(ttsServiceProvider).speak(trimmed));
+    unawaited(
+      ref.read(ttsServiceProvider).speak(trimmed).catchError((Object _) {}),
+    );
   }
 
   /// A fresh line for every click; unlike the greeting it is never cached.
@@ -2384,6 +2387,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
               child: CompanionPresence(
                 key: const Key('companion-presence'),
                 height: height,
+                skin: ref.watch(companionSkinProvider),
                 greetingLoader: companion?.greetingLoader,
                 onSpeak: companion?.onSpeak,
                 onSpokenLine: companion?.onSpokenLine,
@@ -2407,6 +2411,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
                     busy: _chatController.busy,
                     onSend: companion?.onChatSend ?? (_) {},
                     onClose: _toggleChat,
+                    onChangeSkin: _pickCompanionSkin,
                   ),
                 ),
               ),
@@ -2414,6 +2419,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage>
         );
       },
     );
+  }
+
+  /// Opens the skin picker and remembers what the reader chose.
+  Future<void> _pickCompanionSkin() async {
+    final chosen = await showCompanionSkinSheet(
+      context,
+      selected: ref.read(companionSkinProvider),
+    );
+    if (chosen == null || !mounted) return;
+    ref.read(companionSkinProvider.notifier).choose(chosen);
   }
 
   /// One line about the page being read, cached per chapter so that paging
