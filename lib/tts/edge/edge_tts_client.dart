@@ -243,6 +243,12 @@ class EdgeTtsClient implements TtsClient {
       if (message.contains('not upgraded')) {
         throw const TtsException('微软朗读接口拒绝了握手：网络被拦，或接口规则又变了');
       }
+      // A burst of requests (repeated 测试语音, fast clicking through a reply)
+      // gets a plain 429 from the endpoint; it clears itself in a minute or two,
+      // so say that instead of "连不上".
+      if (message.contains('429')) {
+        throw const TtsException('微软朗读服务限流了（429）：过一两分钟再试，或先换一个音色');
+      }
       throw TtsException('连不上微软朗读服务：$message');
     } on SocketException catch (error) {
       throw TtsException('连不上微软朗读服务：${error.message}');
