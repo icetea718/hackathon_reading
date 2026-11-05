@@ -22,10 +22,16 @@ import 'package:coread/search/book_context.dart';
 import 'package:coread/search/companion_selection.dart';
 import 'package:coread/search/search_config.dart';
 import 'package:coread/search/search_hit.dart';
+import 'package:coread/data/repositories/chapter_repository.dart';
+import 'package:coread/data/repositories/settings_repository.dart';
+import 'package:coread/search/book_memory.dart';
+import 'package:coread/search/book_toolbox.dart';
+import 'package:coread/search/search_step.dart';
+import 'package:coread/search/tool_agent.dart';
 import 'package:coread/search/search_provider.dart';
 
 /// Streams [chunks] and honours cancellation, so the stop button is testable.
-class SlowClient implements LlmClient {
+class SlowClient extends LlmClient {
   SlowClient(this.chunks, {this.gap = const Duration(milliseconds: 50)});
 
   final List<String> chunks;
@@ -68,7 +74,7 @@ class SlowClient implements LlmClient {
   void dispose() {}
 }
 
-class InstantClient implements LlmClient {
+class InstantClient extends LlmClient {
   InstantClient(this.reply);
 
   final String reply;
@@ -131,16 +137,36 @@ class FakeSearchConfigStore implements SearchConfigStore {
   FakeSearchConfigStore([this.value = const SearchConfig()]);
 
   SearchConfig value;
+  bool tools = true;
+  final Set<String> unsupported = {};
 
   @override
   Future<SearchConfig> load() async => value;
 
   @override
   Future<void> save(SearchConfig config) async => value = config;
+
+  @override
+  Future<bool> toolsEnabled() async => tools;
+
+  @override
+  Future<void> setToolsEnabled(bool enabled) async => tools = enabled;
+
+  @override
+  Future<bool> isToolsUnsupported(String model) async =>
+      unsupported.contains(model);
+
+  @override
+  Future<void> markToolsUnsupported(String model) async =>
+      unsupported.add(model);
+
+  @override
+  Future<void> clearToolsUnsupported(String model) async =>
+      unsupported.remove(model);
 }
 
 /// Fails after optionally yielding [partial], to exercise the error path.
-class FailingClient implements LlmClient {
+class FailingClient extends LlmClient {
   FailingClient({this.partial = '', this.message = '模型炸了'});
 
   final String partial;
@@ -173,7 +199,7 @@ class FailingClient implements LlmClient {
 }
 
 /// Fails the first request and succeeds on the retry.
-class FlakyClient implements LlmClient {
+class FlakyClient extends LlmClient {
   FlakyClient({this.reply = '重试成功'});
 
   final String reply;
@@ -276,6 +302,8 @@ void main() {
     SearchProvider? search,
     BookContextBuilder? book,
     FakeSearchConfigStore? searchStore,
+    SearchToolAgent? tools,
+    bool realSearchStore = false,
   }) async {
     // The product default is "not online yet"; cases that want retrieval say so.
     final store = searchStore ?? FakeSearchConfigStore(const SearchConfig());
@@ -285,12 +313,15 @@ void main() {
           appDatabaseProvider.overrideWithValue(db),
           llmClientProvider.overrideWithValue(client),
           llmConfigProvider.overrideWith((ref) => config),
-          searchConfigStoreProvider.overrideWithValue(store),
+          if (!realSearchStore)
+            searchConfigStoreProvider.overrideWithValue(store),
           searchConfigProvider.overrideWith(
             (ref) => ref.watch(searchConfigStoreProvider).load(),
           ),
           if (search != null) webSearchProvider.overrideWithValue(search),
           if (book != null) bookContextBuilderProvider.overrideWithValue(book),
+          if (tools != null)
+            searchToolAgentProvider.overrideWithValue(tools),
         ],
         child: const MaterialApp(home: SearchShell()),
       ),
@@ -329,6 +360,33 @@ void main() {
       () => ChatMessageRepository(db).list(threadId),
     );
     return rows!;
+  }
+
+  /// A book in the library, optionally with chapter text to search.
+  Future<void> seedBook(WidgetTester tester, {bool withText = true}) async {
+    final book = Book(
+      id: 'b1',
+      title: '瓦尔登湖',
+      author: '梭罗',
+      format: BookFormat.epub,
+      sourcePath: '/books/walden.epub',
+      addedAt: DateTime(2026, 1, 1),
+    );
+    await tester.runAsync(() => BookRepository(db).upsert(book));
+    if (!withText) return;
+    await tester.runAsync(
+      () => ChapterRepository(db).replaceForBook('b1', const [
+        Chapter(
+          id: 'c0',
+          bookId: 'b1',
+          index: 0,
+          title: '经济',
+          startOffset: 0,
+          endOffset: 24,
+          contentText: '冬天的湖结了二十二英寸厚的冰。',
+        ),
+      ]),
+    );
   }
 
   testWidgets('sends a question and persists both sides of the exchange',
@@ -1114,6 +1172,315 @@ void main() {
     expect(search.queries, isEmpty);
     await disposeShell(tester);
   });
+  testWidgets('绑书且开着工具时走工具路径，步骤写进 stepsJson', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('不该出现'),
+      book: builder,
+      tools: agent,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '冬天湖上的冰有多厚？');
+
+    expect(agent.calls, 1);
+    expect(builder.includeExcerpts, [isFalse]);
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '答案');
+    expect(rows.last.status, 'complete');
+    expect(rows.last.stepsJson, contains('search_in_book'));
+    expect(rows.last.stepsJson, contains('get_chapter'));
+    await disposeShell(tester);
+  });
+
+  testWidgets('端点报告不支持工具时降级，记下按模型的不支持标记', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent(unsupported: true);
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('旧答案'),
+      book: builder,
+      tools: agent,
+      realSearchStore: true,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '冬天湖上的冰有多厚？');
+
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '旧答案');
+    expect(rows.last.status, 'complete');
+    expect(rows.last.stepsJson, contains('notice'));
+    // The fallback rebuilt the context the classic way, excerpts included.
+    expect(builder.includeExcerpts, [isFalse, isTrue]);
+    final flag = await tester.runAsync(
+      () => SettingsRepository(db)
+          .get(SearchConfig.toolsUnsupportedKey('test-model')),
+    );
+    expect(flag, 'true');
+    await disposeShell(tester);
+  });
+
+  testWidgets('工具步骤在流式过程中就显示出来', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final gate = Completer<void>();
+    final agent = _GatedToolAgent(gate.future);
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('不该出现'),
+      book: builder,
+      tools: agent,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await tester.enterText(
+      find.byKey(const Key('chat-input')),
+      '冬天湖上的冰有多厚？',
+    );
+    await tester.tap(find.byKey(const Key('chat-send')));
+    await tester.pump();
+    await tester.pump();
+
+    // The step is on screen while the loop is still running.
+    expect(find.textContaining('检索「冬天的湖」'), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('答案'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
+  testWidgets('没有章节正文的书不进工具路径', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    await seedBook(tester, withText: false);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      book: builder,
+      tools: agent,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '这本书讲了什么？');
+
+    expect(agent.calls, 0);
+    expect(builder.includeExcerpts, [isTrue]);
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '摘要答案');
+    expect(rows.last.stepsJson, null);
+    await disposeShell(tester);
+  });
+
+  testWidgets('关掉书内检索开关就走经典路径', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    final store = FakeSearchConfigStore(const SearchConfig())..tools = false;
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      book: builder,
+      tools: agent,
+      searchStore: store,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '这本书讲了什么？');
+
+    expect(agent.calls, 0);
+    expect(builder.includeExcerpts, [isTrue]);
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '摘要答案');
+    expect(rows.last.stepsJson, null);
+    await disposeShell(tester);
+  });
+
+  testWidgets('这个模型被记为不支持时，不再尝试工具路径', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    final store = FakeSearchConfigStore(const SearchConfig())
+      ..unsupported.add('test-model');
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      book: builder,
+      tools: agent,
+      searchStore: store,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '这本书讲了什么？');
+
+    expect(agent.calls, 0);
+    expect(builder.includeExcerpts, [isTrue]);
+    await disposeShell(tester);
+  });
+
+  testWidgets('重试会清掉上一轮的步骤', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      search: FakeSearch(failWith: SearchException('boom')),
+      book: builder,
+      tools: agent,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '冬天湖上的冰有多厚？');
+    var threads = await threadRows(tester);
+    var rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.stepsJson, contains('search_in_book'));
+
+    agent.withSteps = false;
+    await tester.tap(find.byKey(const Key('chat-retry')));
+    await tester.pumpAndSettle();
+
+    threads = await threadRows(tester);
+    rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '答案');
+    expect(rows.last.stepsJson, null);
+    await disposeShell(tester);
+  });
+}
+
+/// Records the shape of every context build, so a test can tell the tool path
+/// (no excerpts) from the classic one.
+class _RecordingBookBuilder extends BookContextBuilder {
+  _RecordingBookBuilder()
+      : super(
+          loadBook: (id) async => null,
+          loadChapters: (id) async => const [],
+          loadChapterText: (id, index) async => null,
+          digests: _DigestSource(null),
+        );
+
+  final List<bool> includeExcerpts = [];
+
+  @override
+  Future<BookContext?> build(
+    String bookId, {
+    String question = '',
+    bool includeExcerpts = true,
+    int? briefChars,
+  }) async {
+    this.includeExcerpts.add(includeExcerpts);
+    return BookContext(
+      bookId: bookId,
+      title: '瓦尔登湖',
+      author: '梭罗',
+      brief: '一个人在林子里住了两年。',
+      distilled: true,
+    );
+  }
+}
+
+/// Stands in for the ReAct loop: two tool steps then an answer, or the
+/// unsupported-endpoint failure the controller has to fall back from.
+class _FakeToolAgent extends SearchToolAgent {
+  _FakeToolAgent({this.unsupported = false})
+      : super(client: InstantClient('ignored'));
+
+  final bool unsupported;
+  /// Lets a test make the second run of the same question answer without steps.
+  bool withSteps = true;
+  int calls = 0;
+
+  @override
+  Future<ToolRunResult> run({
+    required List<LlmMessage> history,
+    required String userText,
+    required BookContext book,
+    required BookToolbox toolbox,
+    BookMemory? memory,
+    List<SearchHit> hits = const [],
+    required CancelToken cancel,
+    required TextSink onText,
+    required StepSink onStep,
+  }) async {
+    calls++;
+    if (unsupported) throw ToolUnsupportedException('no tools here');
+    const steps = [
+      SearchStep(
+        tool: 'search_in_book',
+        summary: '检索「冬天的湖」',
+        chapters: [1],
+        hits: 2,
+        ms: 12,
+      ),
+      SearchStep(
+        tool: 'get_chapter',
+        summary: '读第 1 章',
+        chapters: [1],
+        hits: 0,
+        ms: 8,
+      ),
+    ];
+    for (final step in steps) {
+      if (withSteps) onStep(step);
+    }
+    onText('答案');
+    return ToolRunResult(
+      steps: withSteps ? steps : const [],
+      toolCalls: withSteps ? steps.length : 0,
+    );
+  }
+}
+
+/// Emits one step, then waits for the test to open the gate, so the streaming
+/// state can be inspected before the answer arrives.
+class _GatedToolAgent extends SearchToolAgent {
+  _GatedToolAgent(this.gate) : super(client: InstantClient('ignored'));
+
+  final Future<void> gate;
+
+  @override
+  Future<ToolRunResult> run({
+    required List<LlmMessage> history,
+    required String userText,
+    required BookContext book,
+    required BookToolbox toolbox,
+    BookMemory? memory,
+    List<SearchHit> hits = const [],
+    required CancelToken cancel,
+    required TextSink onText,
+    required StepSink onStep,
+  }) async {
+    const step = SearchStep(
+      tool: 'search_in_book',
+      summary: '检索「冬天的湖」',
+      chapters: [1],
+      hits: 2,
+      ms: 12,
+    );
+    onStep(step);
+    await gate;
+    onText('答案');
+    return const ToolRunResult(steps: [step], toolCalls: 1);
+  }
 }
 
 class _DigestSource implements DistillDigestSource {

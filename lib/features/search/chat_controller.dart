@@ -9,9 +9,16 @@ import '../../data/repositories/chat_repository.dart';
 import '../../distill/llm/llm_client.dart';
 import '../../search/book_context.dart';
 import '../../search/book_memory.dart';
+import '../../search/book_toolbox.dart';
 import '../../search/companion_selection.dart';
 import '../../search/search_book.dart';
 import '../../search/search_hit.dart';
+import '../../search/search_step.dart';
+import '../../search/tool_agent.dart';
+
+/// A wider chapter map for the tool path: the model can afford every title
+/// when it is able to fetch chapter text itself.
+const int toolBriefChars = 3600;
 
 /// Everything the 搜 shell needs to paint one conversation.
 class ChatState {
@@ -238,6 +245,9 @@ class ChatController extends Notifier<ChatState> {
           status: 'streaming',
           clearSources: true,
         );
+        // A retry can take a different path (tools off, no tools, degraded), so
+        // the previous round's steps must not linger over the new answer.
+        await messageRepo.updateSteps(assistantRow.id, null);
       } catch (error) {
         if (!_disposed) {
           _cancel = null;
@@ -271,6 +281,7 @@ class ChatController extends Notifier<ChatState> {
                 content: '',
                 status: 'streaming',
                 sourcesJson: const Value<String?>(null),
+                stepsJson: const Value<String?>(null),
               )
             else
               row,
@@ -291,6 +302,26 @@ class ChatController extends Notifier<ChatState> {
     }
   }
 
+  /// Whether the book has searchable text at all: a still-importing book or a
+  /// non-text format has nothing for the tools to read. The first few chapters
+  /// are probed because a book may open with an empty cover/title chapter.
+  Future<bool> _hasChapterText(String bookId) async {
+    final chapters = ref.read(chapterRepositoryProvider);
+    try {
+      final summaries = await chapters.getSummariesForBook(bookId);
+      final probe = summaries.isEmpty
+          ? const [0]
+          : summaries.take(3).map((chapter) => chapter.index).toList();
+      for (final index in probe) {
+        final text = await chapters.getContent(bookId, index);
+        if (text != null && text.trim().isNotEmpty) return true;
+      }
+      return false;
+    } on Object {
+      return false;
+    }
+  }
+
   Future<void> _stream({
     required String threadId,
     required String userText,
@@ -302,22 +333,41 @@ class ChatController extends Notifier<ChatState> {
   }) async {
     final messageRepo = ref.read(chatMessageRepositoryProvider);
     final threadRepo = ref.read(chatThreadRepositoryProvider);
+    final store = ref.read(searchConfigStoreProvider);
     final buffer = StringBuffer();
+    final steps = <SearchStep>[];
     var hits = const <SearchHit>[];
     var degraded = false;
     var failed = false;
     String? errorText;
     BookContext? bookContext;
 
+    // Tool calling only pays off when there is text to search, and only when
+    // the reader has not turned it off and this model has not refused it.
+    var model = '';
+    try {
+      model = (await ref.read(llmConfigProvider.future)).model;
+    } on Object {
+      model = '';
+    }
+    var useTools = bookId != null &&
+        await store.toolsEnabled() &&
+        (model.isEmpty || !await store.isToolsUnsupported(model)) &&
+        await _hasChapterText(bookId);
+
     if (!cancel.isCanceled && !_disposed && bookId != null) {
       try {
-        bookContext = await ref
-            .read(bookContextBuilderProvider)
-            .build(bookId, question: userText);
+        bookContext = await ref.read(bookContextBuilderProvider).build(
+              bookId,
+              question: useTools ? '' : userText,
+              includeExcerpts: !useTools,
+              briefChars: useTools ? toolBriefChars : null,
+            );
       } on Object {
         // A missing/broken book should not stop a model-only answer.
         bookContext = null;
       }
+      if (bookContext == null) useTools = false;
     }
 
     BookMemory? memory;
@@ -367,7 +417,18 @@ class ChatController extends Notifier<ChatState> {
         );
       }
 
-      try {
+      Future<void> persistSteps() async {
+        try {
+          await messageRepo.updateSteps(
+            assistantId,
+            SearchStep.listToJson(steps),
+          );
+        } on Object {
+          // Steps are decoration; a vanished thread must not fail the answer.
+        }
+      }
+
+      Future<void> streamClassic() async {
         final agent = ref.read(agentServiceProvider);
         await for (final chunk in agent.send(
           history: history,
@@ -386,6 +447,71 @@ class ChatController extends Notifier<ChatState> {
             if (_disposed) break;
           }
         }
+      }
+
+      try {
+        if (useTools && bookContext != null && bookId != null) {
+          final toolAgent = ref.read(searchToolAgentProvider);
+          try {
+            await toolAgent.run(
+              history: history,
+              userText: userText,
+              book: bookContext,
+              toolbox: BookToolbox(
+                book: bookContext,
+                searcher: ref.read(bookSearcherProvider),
+              ),
+              memory: memory,
+              hits: hits,
+              cancel: cancel,
+              onText: (delta) {
+                if (cancel.isCanceled || _disposed) return;
+                buffer.write(delta);
+                _patchAssistant(assistantId, buffer.toString());
+                final due =
+                    DateTime.now().difference(lastFlushAt) >= flushInterval;
+                if (due || buffer.length - lastFlushed >= flushBytes) {
+                  unawaited(flush('streaming'));
+                }
+              },
+              onStep: (step) {
+                steps.add(step);
+                _patchSteps(assistantId, steps);
+                unawaited(persistSteps());
+              },
+            );
+          } on ToolUnsupportedException {
+            // The endpoint refused `tools`: answer the classic way and stop
+            // offering the loop for this model until it changes.
+            if (model.isNotEmpty) {
+              try {
+                await store.markToolsUnsupported(model);
+              } on Object {
+                // A settings write is best-effort.
+              }
+            }
+            steps.add(
+              const SearchStep(
+                tool: 'notice',
+                summary: '当前模型不支持工具检索，已用摘要回答',
+                chapters: [],
+                hits: 0,
+                ms: 0,
+              ),
+            );
+            await persistSteps();
+            try {
+              bookContext = await ref
+                  .read(bookContextBuilderProvider)
+                  .build(bookId, question: userText);
+            } on Object {
+              bookContext = null;
+            }
+            if (!cancel.isCanceled && !_disposed) await streamClassic();
+          }
+        } else {
+          await streamClassic();
+        }
       } catch (error) {
         if (!cancel.isCanceled && !_disposed) {
           failed = true;
@@ -400,6 +526,7 @@ class ChatController extends Notifier<ChatState> {
             ? 'failed'
             : 'complete';
     final sourcesJson = hits.isEmpty ? null : SearchHit.listToJson(hits);
+    final stepsJson = steps.isEmpty ? null : SearchStep.listToJson(steps);
 
     try {
       await messageRepo.updateContent(
@@ -407,6 +534,7 @@ class ChatController extends Notifier<ChatState> {
         buffer.toString(),
         status: status,
         sourcesJson: sourcesJson,
+        stepsJson: stepsJson,
       );
     } on Object {
       // The row can only vanish if the thread was deleted mid-answer.
@@ -431,6 +559,7 @@ class ChatController extends Notifier<ChatState> {
               content: buffer.toString(),
               status: status,
               sourcesJson: Value(sourcesJson),
+              stepsJson: Value(stepsJson),
             )
           else
             row,
@@ -458,6 +587,18 @@ class ChatController extends Notifier<ChatState> {
       messages: [
         for (final row in state.messages)
           if (row.id == id) row.copyWith(content: content) else row,
+      ],
+    );
+  }
+
+  /// Shows a step as soon as it lands: the reader should see the book being
+  /// searched, not a blank bubble that suddenly fills with an answer.
+  void _patchSteps(String id, List<SearchStep> steps) {
+    final json = steps.isEmpty ? null : SearchStep.listToJson(steps);
+    state = state.copyWith(
+      messages: [
+        for (final row in state.messages)
+          if (row.id == id) row.copyWith(stepsJson: Value(json)) else row,
       ],
     );
   }

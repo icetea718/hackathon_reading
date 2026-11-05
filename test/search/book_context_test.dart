@@ -117,4 +117,175 @@ void main() {
     final context = await builder().build('gone');
     expect(context, isNull);
   });
+
+  test('includeExcerpts: false 时不带原文片段', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digest,
+      texts: {1: '冰层有二十二英寸厚。'},
+    ).build('b1', question: '冰层多厚？', includeExcerpts: false);
+
+    expect(context!.excerpts, isEmpty);
+    expect(context.distilled, isTrue);
+  });
+
+  test('briefChars 覆盖默认 brief 预算', () async {
+    final wide = builder(
+      bookOverride: book,
+      digestOverride: bigDigest(),
+      chapters: manyChapters(300),
+    );
+
+    final narrow = await wide.build('b1');
+    final wideOpen = await wide.build('b1', briefChars: 3600);
+
+    expect(narrow!.brief.length, lessThanOrEqualTo(2400));
+    expect(wideOpen!.brief.length, greaterThan(2400));
+    expect(wideOpen.brief, contains('此处只列'));
+  });
+
+  test('超过 40 章只给标题，并如实标注总数', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digestOf(45),
+      chapters: manyChapters(45),
+    ).build('b1', briefChars: 3600);
+
+    expect(context!.brief, contains('第 41 章 章40'));
+    expect(context.brief, contains('其余章节（仅标题）：'));
+    expect(context.brief, contains('共 45 章'));
+    // 41 章往后没有 gist，标题后面不该跟冒号。
+    expect(context.brief, isNot(contains('第 41 章 章40：')));
+  });
+
+  test('章节远超上限时标注「此处只列」', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digestOf(300),
+      chapters: manyChapters(300),
+    ).build('b1', briefChars: 3600);
+
+    expect(context!.brief, contains('此处只列'));
+    expect(context.brief, contains('共 300 章'));
+    expect(context.brief, contains('只列 240 章'));
+  });
+
+  test('章节地图塞不下时，总数标注和要点都不会被挤掉', () async {
+    final digest = DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {
+        for (var i = 0; i < 40; i++) i: '第$i章的要点' * 3,
+      },
+      cards: [
+        for (var i = 0; i < 6; i++)
+          DistillDigestCard(
+            slug: 'c$i',
+            title: '要点$i',
+            definition: '这里是第$i条要点的解释。' * 3,
+            sourceChapters: [i],
+          ),
+      ],
+    );
+
+    // 经典路径（2400 字）同样会被地图撑满：标注与要点都不能被挤掉。
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digest,
+      chapters: manyChapters(300),
+    ).build('b1');
+
+    expect(context!.brief, contains('共 300 章'));
+    expect(context.brief, contains('要点：'));
+    expect(context.brief, contains('要点0'));
+    expect(context.brief.length, lessThanOrEqualTo(2400));
+  });
+
+  test('每章 gist 都顶到上限时，要点卡片仍然完整保留', () async {
+    final longest = DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {for (var i = 0; i < 40; i++) i: '要' * 60},
+      cards: [
+        for (var i = 0; i < 6; i++)
+          DistillDigestCard(
+            slug: 'c$i',
+            title: '要点$i',
+            definition: '解' * 160,
+            sourceChapters: [i],
+          ),
+      ],
+    );
+
+    for (final budget in const [2400, 3600]) {
+      final context = await builder(
+        bookOverride: book,
+        digestOverride: longest,
+        chapters: manyChapters(300),
+      ).build('b1', briefChars: budget);
+
+      final brief = context!.brief;
+      expect(brief.length, lessThanOrEqualTo(budget), reason: 'budget $budget');
+      expect(brief, contains('共 300 章'), reason: 'budget $budget');
+      expect(brief, contains('要点：'), reason: 'budget $budget');
+
+      // 卡片按顺序写，预算不够时只从尾部断掉，不会中间缺一张。
+      final seen = [for (var i = 0; i < 6; i++) brief.contains('要点$i')];
+      expect(seen.first, isTrue, reason: 'budget $budget');
+      final firstMissing = seen.indexOf(false);
+      if (firstMissing != -1) {
+        expect(
+          seen.skip(firstMissing).every((present) => !present),
+          isTrue,
+          reason: 'budget $budget',
+        );
+      }
+
+      // 标注出来的章数必须等于真正列出来的行数，且每一行都是完整的。
+      final rows = RegExp('^第 \\d+ 章 ', multiLine: true).allMatches(brief);
+      for (final row in rows) {
+        final line = brief.substring(row.start).split('\n').first;
+        expect(
+          RegExp('^第 \\d+ 章 章\\d+(：.*)?\$').hasMatch(line),
+          isTrue,
+          reason: '这一行被截断了：$line',
+        );
+      }
+      final listed = RegExp('此处只列 (\\d+) 章').firstMatch(brief);
+      if (listed != null) {
+        expect(
+          rows.length,
+          int.parse(listed.group(1)!),
+          reason: 'budget $budget',
+        );
+      }
+    }
+  });
 }
+
+List<Chapter> manyChapters(int count) => [
+      for (var i = 0; i < count; i++)
+        Chapter(
+          id: 'c$i',
+          bookId: 'b1',
+          index: i,
+          title: '章$i',
+          startOffset: 0,
+          endOffset: 0,
+          contentText: '',
+        ),
+    ];
+
+DistillDigest digestOf(int chapterCount, {int gists = 40}) => DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {
+        for (var i = 0; i < gists && i < chapterCount; i++) i: '第$i章的要点',
+      },
+      cards: const [],
+    );
+
+DistillDigest bigDigest() => digestOf(300);

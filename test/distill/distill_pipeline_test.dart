@@ -10,7 +10,7 @@ import 'package:coread/distill/llm/llm_client.dart';
 import 'package:coread/domain/models/chapter.dart';
 import 'package:coread/domain/models/distill.dart';
 
-class _ScriptedClient implements LlmClient {
+class _ScriptedClient extends LlmClient {
   _ScriptedClient({this.onCall});
 
   final void Function(int call, CancelToken? token)? onCall;

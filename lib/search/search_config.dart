@@ -26,6 +26,13 @@ class SearchConfig {
   static const providerKey = 'search.provider';
   static const apiKeyKey = 'search.apiKey';
 
+  /// Whether 搜 may let the model call the book tools. On unless turned off.
+  static const toolsEnabledKey = 'search.toolsEnabled';
+
+  /// Set when an endpoint rejected `tools`; the 搜 shell then stays classic.
+  static String toolsUnsupportedKey(String model) =>
+      'search.toolsUnsupported.$model';
+
   SearchConfig copyWith({String? provider, String? apiKey}) => SearchConfig(
         provider: provider ?? this.provider,
         apiKey: apiKey ?? this.apiKey,
@@ -64,5 +71,34 @@ class SearchConfigStore {
   Future<void> save(SearchConfig config) async {
     await _settings.set(SearchConfig.providerKey, config.provider);
     await _settings.set(SearchConfig.apiKeyKey, config.apiKey);
+  }
+
+  /// Tool calling defaults on; only an explicit `'false'` turns it off.
+  Future<bool> toolsEnabled() async {
+    final raw = (await _settings.get(SearchConfig.toolsEnabledKey))
+        ?.trim()
+        .toLowerCase();
+    return raw != 'false';
+  }
+
+  Future<void> setToolsEnabled(bool enabled) => _settings.set(
+        SearchConfig.toolsEnabledKey,
+        enabled ? 'true' : 'false',
+      );
+
+  /// Whether [model] already rejected a `tools` request.
+  Future<bool> isToolsUnsupported(String model) async {
+    final raw = await _settings.get(SearchConfig.toolsUnsupportedKey(model));
+    return raw?.trim() == 'true';
+  }
+
+  Future<void> markToolsUnsupported(String model) =>
+      _settings.set(SearchConfig.toolsUnsupportedKey(model), 'true');
+
+  /// Forgets an earlier "this model has no tools" verdict, so the switch really
+  /// does restore tools even after the model or the endpoint changed.
+  Future<void> clearToolsUnsupported(String model) async {
+    if (model.trim().isEmpty) return;
+    await _settings.set(SearchConfig.toolsUnsupportedKey(model), 'false');
   }
 }

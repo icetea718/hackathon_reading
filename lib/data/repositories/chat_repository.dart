@@ -142,6 +142,7 @@ class ChatMessageRepository {
     required String content,
     String status = 'complete',
     String? sourcesJson,
+    String? stepsJson,
   }) async {
     final id = const Uuid().v4();
     final now = _after(DateTime.now(), await _latestMessageTime(threadId));
@@ -154,6 +155,7 @@ class ChatMessageRepository {
             role: role,
             content: content,
             sourcesJson: Value(sourcesJson),
+            stepsJson: Value(stepsJson),
             status: Value(status),
             createdAt: now,
           ),
@@ -169,6 +171,7 @@ class ChatMessageRepository {
     required String status,
     String? sourcesJson,
     bool clearSources = false,
+    String? stepsJson,
   }) {
     return (_db.update(_db.chatMessages)..where((row) => row.id.equals(id)))
         .write(
@@ -180,13 +183,19 @@ class ChatMessageRepository {
                 : sourcesJson == null
                     ? const Value.absent()
                     : Value(sourcesJson),
+            stepsJson:
+                stepsJson == null ? const Value.absent() : Value(stepsJson),
           ),
         );
   }
 
-  Future<List<ChatMessageRow>> list(String threadId) => _ordered(threadId).get();
+  /// Tool steps shown above the answer; null clears them.
+  Future<void> updateSteps(String id, String? stepsJson) {
+    return (_db.update(_db.chatMessages)..where((row) => row.id.equals(id)))
+        .write(ChatMessagesCompanion(stepsJson: Value(stepsJson)));
+  }
 
-  Stream<List<ChatMessageRow>> watch(String threadId) =>
+  Future<List<ChatMessageRow>> list(String threadId) => _ordered(threadId).get();  Stream<List<ChatMessageRow>> watch(String threadId) =>
       _ordered(threadId).watch();
 
   /// Called once at startup: a row still marked streaming belongs to a request

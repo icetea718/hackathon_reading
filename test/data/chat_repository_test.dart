@@ -160,4 +160,24 @@ void main() {
     expect((await threads.watchForBook('b2').first).single.id, other.id);
     expect((await messages.list(other.id)).single.content, 'yo');
   });
+
+  test('append stores steps, updateSteps rewrites and clears them', () async {
+    final thread = await threads.create();
+
+    final withSteps = await messages.append(
+      threadId: thread.id,
+      role: 'assistant',
+      content: '答案',
+      stepsJson: '[{"tool":"search_in_book"}]',
+    );
+    expect(withSteps.stepsJson, '[{"tool":"search_in_book"}]');
+
+    await messages.updateSteps(withSteps.id, '[{"tool":"get_chapter"}]');
+    expect((await messages.list(thread.id)).single.stepsJson,
+        '[{"tool":"get_chapter"}]');
+
+    await messages.updateSteps(withSteps.id, null);
+    expect((await messages.list(thread.id)).single.stepsJson, isNull);
+    expect((await messages.list(thread.id)).single.content, '答案');
+  });
 }

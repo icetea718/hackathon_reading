@@ -10,7 +10,7 @@ import 'sse.dart';
 ///
 /// The config is read through [config] on every call so settings changes take
 /// effect immediately without rebuilding the client.
-class OpenAiLlmClient implements LlmClient {
+class OpenAiLlmClient extends LlmClient {
   OpenAiLlmClient({
     required this.config,
     HttpClient? httpClient,
@@ -142,6 +142,65 @@ class OpenAiLlmClient implements LlmClient {
   }
 
   @override
+  Future<LlmTurn> completeTurn(
+    List<LlmMessage> messages, {
+    List<LlmToolSpec>? tools,
+    double? temperature,
+    int? maxTokens,
+    CancelToken? cancel,
+  }) async {
+    final settings = config();
+    _requireConfigured(settings);
+
+    HttpClientRequest? request;
+    void abort() => request?.abort();
+    cancel?.addListener(abort);
+
+    try {
+      final pending = () async {
+        request = await _httpClient.postUrl(_chatUri(settings.baseUrl));
+        _writeRequest(
+          request!,
+          settings: settings,
+          messages: messages,
+          stream: false,
+          temperature: temperature,
+          maxTokens: maxTokens,
+          tools: tools,
+        );
+
+        final response = await request!.close();
+        final body = await utf8.decoder.bind(response).join();
+        if (response.statusCode != HttpStatus.ok) {
+          throw LlmException(
+            'HTTP ${response.statusCode}: ${_snippet(body)}',
+            statusCode: response.statusCode,
+          );
+        }
+
+        return _turnOf(body);
+      }();
+
+      return await pending.timeout(
+        requestTimeout,
+        onTimeout: () => throw LlmException('请求超时'),
+      );
+    } on HttpException {
+      if (cancel?.isCanceled ?? false) {
+        throw LlmException('已取消');
+      }
+      rethrow;
+    } on SocketException catch (error) {
+      if (cancel?.isCanceled ?? false) {
+        throw LlmException('已取消');
+      }
+      throw LlmException('网络错误: ${error.message}');
+    } finally {
+      cancel?.removeListener(abort);
+    }
+  }
+
+  @override
   void dispose() {
     _httpClient.close(force: true);
   }
@@ -153,7 +212,9 @@ class OpenAiLlmClient implements LlmClient {
     required bool stream,
     double? temperature,
     int? maxTokens,
+    List<LlmToolSpec>? tools,
   }) {
+    final hasTools = tools != null && tools.isNotEmpty;
     request.headers.contentType =
         ContentType('application', 'json', charset: 'utf-8');
     request.headers.set('authorization', 'Bearer ${settings.apiKey.trim()}');
@@ -168,6 +229,8 @@ class OpenAiLlmClient implements LlmClient {
           'stream': stream,
           'temperature': temperature ?? settings.temperature,
           'max_tokens': ?maxTokens,
+          if (hasTools) 'tools': [for (final tool in tools) tool.toJson()],
+          if (hasTools) 'tool_choice': 'auto',
         }),
       ),
     );
@@ -202,6 +265,55 @@ class OpenAiLlmClient implements LlmClient {
     if (message is! Map) return null;
     final content = message['content'];
     return content is String ? content : null;
+  }
+
+  /// Parses a non-streaming answer that may carry tool calls.
+  static LlmTurn _turnOf(String body) {
+    Object? decoded;
+    try {
+      decoded = jsonDecode(body);
+    } on FormatException {
+      throw LlmException('返回格式异常: ${_snippet(body)}');
+    }
+    final message = _messageOf(decoded);
+    if (message == null) {
+      throw LlmException('返回格式异常: ${_snippet(body)}');
+    }
+    final content = message['content'];
+    final calls = <LlmToolCall>[];
+    final rawCalls = message['tool_calls'];
+    if (rawCalls is List) {
+      for (final raw in rawCalls) {
+        if (raw is! Map) continue;
+        final id = raw['id'];
+        final function = raw['function'];
+        if (id is! String || function is! Map) continue;
+        final name = function['name'];
+        if (name is! String || name.isEmpty) continue;
+        final arguments = function['arguments'];
+        calls.add(
+          LlmToolCall(
+            id: id,
+            name: name,
+            arguments: arguments is String ? arguments : '{}',
+          ),
+        );
+      }
+    }
+    return LlmTurn(
+      content: content is String ? content : '',
+      toolCalls: calls,
+    );
+  }
+
+  static Map? _messageOf(Object? decoded) {
+    if (decoded is! Map) return null;
+    final choices = decoded['choices'];
+    if (choices is! List || choices.isEmpty) return null;
+    final first = choices.first;
+    if (first is! Map) return null;
+    final message = first['message'];
+    return message is Map ? message : null;
   }
 
   static String _snippet(String body) {
