@@ -311,7 +311,7 @@ void main() {
     expect(find.byKey(const Key('companion-bubble')), findsNothing);
   });
 
-  testWidgets('a single-motion skin keeps reacting without extra clips', (
+  testWidgets('the imported skin answers page turns and taps', (
     tester,
   ) async {
     final turns = ValueNotifier<int>(0);
@@ -333,13 +333,15 @@ void main() {
     );
     expect(stage.clip, companionWriterIdleClip);
 
+    // The imported pack is a reaction: turning the page and tapping both play
+    // it. The ticker is off in tests, so the stage holds the clip it was given.
     turns.value = 1;
-    await tester.pumpAndSettle();
-    expect(stage.clip, companionWriterIdleClip);
+    await tester.pump();
+    expect(stage.clip, companionWriterActionClip);
 
     await tester.tap(find.byKey(const Key('companion-avatar')));
-    await tester.pumpAndSettle();
-    expect(stage.clip, companionWriterIdleClip);
+    await tester.pump();
+    expect(stage.clip, companionWriterActionClip);
     expect(find.byKey(const Key('companion-bubble')), findsOneWidget);
   });
 }

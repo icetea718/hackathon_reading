@@ -119,11 +119,11 @@ void main() {
     );
     expect(stage.clip, companionWriterIdleClip);
 
-    // The imported art has a single motion, so a poke keeps the idle loop but
-    // the tap must still reach the host.
+    // The imported art is a reaction, so a poke plays it; the ticker is off in
+    // tests, so the stage holds that clip and the tap still reaches the host.
     await tester.tap(find.byKey(const Key('companion-avatar')));
-    await tester.pumpAndSettle();
-    expect(stage.clip, companionWriterIdleClip);
+    await tester.pump();
+    expect(stage.clip, companionWriterActionClip);
     expect(taps, 1);
   });
 

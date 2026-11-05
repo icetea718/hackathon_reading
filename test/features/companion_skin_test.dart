@@ -32,16 +32,26 @@ void main() {
       expect(companionDefaultSkin, companionDonutSkin);
     });
 
-    test('the imported skin keeps its own grid and falls back to idle', () {
-      final clip = companionWriterSkin.idleClip;
-      expect(clip.asset, 'assets/companion/luxun_idle.png');
-      expect(clip.frameCount, 25);
-      expect(clip.columns, 5);
-      expect(clip.cell, const Size(150, 200));
+    test('the imported skin stands still until the reader touches it', () {
+      final idle = companionWriterSkin.idleClip;
+      expect(idle.asset, 'assets/companion/luxun_idle.png');
+      expect(idle.frameCount, 1);
+      expect(idle.columns, 5);
+      expect(idle.cell, const Size(150, 200));
 
-      for (final action in CompanionAction.values) {
-        expect(companionWriterSkin.clipFor(action), clip);
+      // The supplied pack is the reaction, not the idle: poking him, turning
+      // the page and the bubble popping all play it.
+      for (final action in const [
+        CompanionAction.tap,
+        CompanionAction.surprise,
+        CompanionAction.wave,
+      ]) {
+        expect(companionWriterSkin.clipFor(action), companionWriterActionClip);
       }
+
+      // Dragging is answered by the spring body, so he keeps the standing pose.
+      expect(companionWriterSkin.clipFor(CompanionAction.drag), idle);
+      expect(companionWriterActionClip.frameCount, 25);
     });
 
     test('the donut skin keeps every reaction it was baked with', () {

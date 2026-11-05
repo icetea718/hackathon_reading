@@ -44,21 +44,35 @@ const CompanionSkin companionDonutSkin = CompanionSkin(
 );
 
 /// Imported art: 25 frames of 512x512, 80ms each, packed 5 per row.
+///
+/// The pack is an answer rather than an idle — the artist drew him reacting —
+/// so the standing pose is a single frame and the rest plays on contact.
 const CompanionClip companionWriterIdleClip = CompanionClip(
   asset: 'assets/companion/luxun_idle.png',
-  frameCount: 25,
-  fps: 12.5,
+  frameCount: 1,
+  fps: 1,
   loop: true,
   columns: 5,
   cell: Size(150, 200),
 );
 
-/// A reader-supplied look with a single idle motion.
+const CompanionClip companionWriterActionClip = CompanionClip(
+  asset: 'assets/companion/luxun_idle.png',
+  frameCount: 25,
+  fps: 12.5,
+  columns: 5,
+  cell: Size(150, 200),
+);
+
+/// A reader-supplied look: still while it waits, animated when it answers.
 const CompanionSkin companionWriterSkin = CompanionSkin(
   id: 'writer',
   label: '鲁迅',
   clips: <CompanionAction, CompanionClip>{
     CompanionAction.idle: companionWriterIdleClip,
+    CompanionAction.tap: companionWriterActionClip,
+    CompanionAction.surprise: companionWriterActionClip,
+    CompanionAction.wave: companionWriterActionClip,
   },
 );
 
