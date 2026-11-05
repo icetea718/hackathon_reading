@@ -117,4 +117,81 @@ void main() {
     final context = await builder().build('gone');
     expect(context, isNull);
   });
+
+  test('includeExcerpts: false 时不带原文片段', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digest,
+      texts: {1: '冰层有二十二英寸厚。'},
+    ).build('b1', question: '冰层多厚？', includeExcerpts: false);
+
+    expect(context!.excerpts, isEmpty);
+    expect(context.distilled, isTrue);
+  });
+
+  test('briefChars 覆盖默认 brief 预算', () async {
+    final wide = builder(
+      bookOverride: book,
+      digestOverride: bigDigest(),
+      chapters: manyChapters(300),
+    );
+
+    final narrow = await wide.build('b1');
+    final wideOpen = await wide.build('b1', briefChars: 3600);
+
+    expect(narrow!.brief.length, lessThanOrEqualTo(2401));
+    expect(wideOpen!.brief.length, greaterThan(2400));
+    expect(wideOpen.brief, contains('此处只列'));
+  });
+
+  test('超过 40 章只给标题，并如实标注总数', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digestOf(45),
+      chapters: manyChapters(45),
+    ).build('b1', briefChars: 3600);
+
+    expect(context!.brief, contains('第 41 章 章40'));
+    expect(context.brief, contains('其余章节（仅标题）：'));
+    expect(context.brief, contains('共 45 章'));
+    // 41 章往后没有 gist，标题后面不该跟冒号。
+    expect(context.brief, isNot(contains('第 41 章 章40：')));
+  });
+
+  test('章节远超上限时标注「此处只列」', () async {
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digestOf(300),
+      chapters: manyChapters(300),
+    ).build('b1', briefChars: 3600);
+
+    expect(context!.brief, contains('此处只列'));
+    expect(context.brief, contains('共 300 章'));
+    expect(context.brief, contains('只列 240 章'));
+  });
 }
+
+List<Chapter> manyChapters(int count) => [
+      for (var i = 0; i < count; i++)
+        Chapter(
+          id: 'c$i',
+          bookId: 'b1',
+          index: i,
+          title: '章$i',
+          startOffset: 0,
+          endOffset: 0,
+          contentText: '',
+        ),
+    ];
+
+DistillDigest digestOf(int chapterCount, {int gists = 40}) => DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {
+        for (var i = 0; i < gists && i < chapterCount; i++) i: '第$i章的要点',
+      },
+      cards: const [],
+    );
+
+DistillDigest bigDigest() => digestOf(300);

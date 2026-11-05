@@ -75,8 +75,20 @@ class BookContextBuilder {
   final int maxExcerptChars;
   final int maxGists;
 
+  /// Titles listed after the gist-bearing head of the chapter map.
+  static const int maxTitleOnlyChapters = 200;
+
   /// Null when the book is gone from the shelf.
-  Future<BookContext?> build(String bookId, {String question = ''}) async {
+  ///
+  /// [includeExcerpts] is false for the tool path: the model fetches原文 itself,
+  /// and pre-picked excerpts would let it answer without ever calling a tool.
+  /// [briefChars] widens the book brief so the chapter map can list more titles.
+  Future<BookContext?> build(
+    String bookId, {
+    String question = '',
+    bool includeExcerpts = true,
+    int? briefChars,
+  }) async {
     final book = await loadBook(bookId);
     if (book == null) return null;
 
@@ -84,8 +96,8 @@ class BookContextBuilder {
     final digest = await digests.load(bookId);
     final distilled = digest != null && !digest.isEmpty;
 
-    final brief = _brief(book, chapters, digest);
-    final excerpts = distilled
+    final brief = _brief(book, chapters, digest, briefChars ?? maxBriefChars);
+    final excerpts = includeExcerpts && distilled
         ? await _excerpts(bookId, chapters, digest, question)
         : const <BookExcerpt>[];
 
@@ -99,7 +111,12 @@ class BookContextBuilder {
     );
   }
 
-  String _brief(Book book, List<Chapter> chapters, DistillDigest? digest) {
+  String _brief(
+    Book book,
+    List<Chapter> chapters,
+    DistillDigest? digest,
+    int maxChars,
+  ) {
     final buffer = StringBuffer('《${book.title}》');
     if (book.author.isNotEmpty) buffer.write(' ${book.author}');
     buffer.writeln();
@@ -118,15 +135,28 @@ class BookContextBuilder {
 
     if (chapters.isNotEmpty) {
       buffer.writeln('章节目录：');
-      final shown = chapters.take(maxGists);
-      for (final chapter in shown) {
+      final withGists = chapters.take(maxGists).toList();
+      for (final chapter in withGists) {
         final gist = digest?.gists[chapter.index] ?? '';
         final tail = gist.isEmpty ? '' : '：${_clip(gist, 60)}';
         buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}$tail');
       }
-      if (chapters.length > shown.length) {
-        buffer.writeln('…（共 ${chapters.length} 章）');
+      final titleOnly = chapters
+          .skip(withGists.length)
+          .take(maxTitleOnlyChapters)
+          .toList();
+      if (titleOnly.isNotEmpty) {
+        buffer.writeln('其余章节（仅标题）：');
+        for (final chapter in titleOnly) {
+          buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}');
+        }
       }
+      final shown = withGists.length + titleOnly.length;
+      buffer.writeln(
+        shown < chapters.length
+            ? '（共 ${chapters.length} 章，此处只列 $shown 章）'
+            : '（共 ${chapters.length} 章）',
+      );
     }
 
     if (digest != null && digest.cards.isNotEmpty) {
@@ -142,7 +172,7 @@ class BookContextBuilder {
       }
     }
 
-    return _clip(buffer.toString(), maxBriefChars);
+    return _clip(buffer.toString(), maxChars);
   }
 
   Future<List<BookExcerpt>> _excerpts(
