@@ -159,6 +159,10 @@ class FakeSearchConfigStore implements SearchConfigStore {
   @override
   Future<void> markToolsUnsupported(String model) async =>
       unsupported.add(model);
+
+  @override
+  Future<void> clearToolsUnsupported(String model) async =>
+      unsupported.remove(model);
 }
 
 /// Fails after optionally yielding [partial], to exercise the error path.
@@ -1279,6 +1283,88 @@ void main() {
     expect(rows.last.stepsJson, null);
     await disposeShell(tester);
   });
+
+  testWidgets('关掉书内检索开关就走经典路径', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    final store = FakeSearchConfigStore(const SearchConfig())..tools = false;
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      book: builder,
+      tools: agent,
+      searchStore: store,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '这本书讲了什么？');
+
+    expect(agent.calls, 0);
+    expect(builder.includeExcerpts, [isTrue]);
+    final threads = await threadRows(tester);
+    final rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '摘要答案');
+    expect(rows.last.stepsJson, null);
+    await disposeShell(tester);
+  });
+
+  testWidgets('这个模型被记为不支持时，不再尝试工具路径', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    final store = FakeSearchConfigStore(const SearchConfig())
+      ..unsupported.add('test-model');
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      book: builder,
+      tools: agent,
+      searchStore: store,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '这本书讲了什么？');
+
+    expect(agent.calls, 0);
+    expect(builder.includeExcerpts, [isTrue]);
+    await disposeShell(tester);
+  });
+
+  testWidgets('重试会清掉上一轮的步骤', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final agent = _FakeToolAgent();
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('摘要答案'),
+      search: FakeSearch(failWith: SearchException('boom')),
+      book: builder,
+      tools: agent,
+      searchStore: FakeSearchConfigStore(
+        const SearchConfig(provider: SearchConfig.tavily, apiKey: 'tv-key'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await send(tester, '冬天湖上的冰有多厚？');
+    var threads = await threadRows(tester);
+    var rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.stepsJson, contains('search_in_book'));
+
+    agent.withSteps = false;
+    await tester.tap(find.byKey(const Key('chat-retry')));
+    await tester.pumpAndSettle();
+
+    threads = await threadRows(tester);
+    rows = await messagesOf(tester, threads.single.id);
+    expect(rows.last.content, '答案');
+    expect(rows.last.stepsJson, null);
+    await disposeShell(tester);
+  });
 }
 
 /// Records the shape of every context build, so a test can tell the tool path
@@ -1319,6 +1405,8 @@ class _FakeToolAgent extends SearchToolAgent {
       : super(client: InstantClient('ignored'));
 
   final bool unsupported;
+  /// Lets a test make the second run of the same question answer without steps.
+  bool withSteps = true;
   int calls = 0;
 
   @override
@@ -1352,10 +1440,13 @@ class _FakeToolAgent extends SearchToolAgent {
       ),
     ];
     for (final step in steps) {
-      onStep(step);
+      if (withSteps) onStep(step);
     }
     onText('答案');
-    return ToolRunResult(steps: steps, toolCalls: steps.length);
+    return ToolRunResult(
+      steps: withSteps ? steps : const [],
+      toolCalls: withSteps ? steps.length : 0,
+    );
   }
 }
 

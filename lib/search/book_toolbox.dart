@@ -92,6 +92,13 @@ class BookToolbox {
     final rawLimit = args['limit'];
     final limit = rawLimit is int ? rawLimit.clamp(1, 5) : 3;
 
+    // An out-of-range chapter used to fall through the filter and come back as
+    // "no hits", which reads exactly like "this book never mentions it" — the
+    // model cannot tell a wrong chapter number from a real absence.
+    if (chapterNo != null && _chapterAt(await _loadChapters(), chapterNo) == null) {
+      return _error('第 $chapterNo 章不存在');
+    }
+
     final result = await searcher.search(
       book.bookId,
       query,

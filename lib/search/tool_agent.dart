@@ -73,6 +73,10 @@ class SearchToolAgent {
   /// Wall-clock budget for the whole loop, ending in a closing turn.
   final Duration deadline;
 
+  /// Below this much remaining budget a call is skipped rather than executed:
+  /// a result squeezed into a few dozen characters is not worth the round trip.
+  static const int minRoomForCall = 200;
+
   final DateTime Function() _now;
 
   Future<ToolRunResult> run({
@@ -135,7 +139,12 @@ class SearchToolAgent {
       }
 
       if (!turn.wantsTools) {
-        if (turn.content.trim().isNotEmpty) onText(turn.content);
+        // Keep the answer the model just gave as the opening of its own reply,
+        // so the closing stream continues it instead of starting over.
+        if (turn.content.trim().isNotEmpty) {
+          messages.add(LlmMessage(LlmRole.assistant, turn.content));
+          onText(turn.content);
+        }
         break;
       }
 
@@ -153,7 +162,7 @@ class SearchToolAgent {
           payload = _skipped('step_limit');
         } else if (seenArguments.contains(key)) {
           payload = _skipped('duplicate');
-        } else if (budget >= maxToolChars) {
+        } else if (maxToolChars - budget < minRoomForCall) {
           payload = _skipped('budget');
         } else {
           seenArguments.add(key);
@@ -164,9 +173,12 @@ class SearchToolAgent {
           } catch (error) {
             payload = jsonEncode({'error': '工具执行失败：$error'});
           }
+          // The cap bounds how much the next decision request carries, so a
+          // single oversized answer is fitted to the room that is left instead
+          // of overshooting it.
+          payload = _fitPayload(payload, maxToolChars - budget);
           budget += payload.length;
-          final step = _stepOf(call, payload, startedAt);
-          if (step != null) onStep(step);
+          onStep(_stepOf(call, payload, startedAt));
         }
 
         // Protocol rule: every call id gets an answer, skipped or not.
@@ -185,6 +197,9 @@ class SearchToolAgent {
       }
     }
 
+    if (cancel.isCanceled) {
+      return ToolRunResult(steps: steps, toolCalls: executed);
+    }
     if (haltNotice != null) {
       messages.add(LlmMessage(LlmRole.user, haltNotice));
     }
@@ -200,9 +215,15 @@ class SearchToolAgent {
     return ToolRunResult(steps: steps, toolCalls: executed);
   }
 
+  /// Only the shapes an endpoint uses to say "I don't take `tools`": a bad
+  /// request, an unknown field, an unusable payload, or a server that chokes on
+  /// it. Anything else (429, 503, 401) is a transient or auth problem and must
+  /// not be remembered as "this model cannot do tools".
+  static const Set<int> unsupportedStatuses = {400, 404, 422, 500};
+
   static bool _looksUnsupported(LlmException error) {
     final status = error.statusCode ?? 0;
-    if (status < 400) return false;
+    if (!unsupportedStatuses.contains(status)) return false;
     final message = error.message.toLowerCase();
     return message.contains('tool') || message.contains('function');
   }
@@ -213,29 +234,108 @@ class SearchToolAgent {
   static String _skipped(String reason) =>
       jsonEncode({'error': 'skipped: $reason'});
 
-  SearchStep? _stepOf(LlmToolCall call, String payload, DateTime startedAt) {
-    final Object? decoded;
+  /// Fits [payload] into [room] characters without breaking the JSON the model
+  /// has to parse: hits are dropped from the end first, then the longest `text`
+  /// field is halved until it fits. Only when nothing survives is the answer
+  /// replaced by an error the model can react to.
+  static String _fitPayload(String payload, int room) {
+    if (payload.length <= room) return payload;
+
+    Object? decoded;
     try {
       decoded = jsonDecode(payload);
     } on FormatException {
-      return null;
+      decoded = null;
     }
-    if (decoded is! Map || decoded.containsKey('error')) return null;
+    if (decoded is! Map) {
+      return jsonEncode({
+        'error': 'budget',
+        'note': '这次结果超出字数预算，已丢弃；请缩小范围再查',
+      });
+    }
 
-    final ms = _now().difference(startedAt).inMilliseconds;
+    final copy = Map<String, Object?>.from(decoded);
+    final hits = copy['hits'];
+    if (hits is List) {
+      final kept = List<Object?>.from(hits);
+      while (kept.isNotEmpty &&
+          jsonEncode({...copy, 'hits': kept}).length > room) {
+        kept.removeLast();
+      }
+      if (kept.length != hits.length) {
+        copy['hits'] = kept;
+        copy['truncated'] = true;
+      }
+    }
+
+    var encoded = jsonEncode(copy);
+    if (encoded.length > room) {
+      Map<Object?, Object?>? holder;
+      if (copy['text'] is String) {
+        holder = copy;
+      } else if (copy['hits'] is List && (copy['hits'] as List).isNotEmpty) {
+        final first = (copy['hits'] as List).first;
+        if (first is Map && first['text'] is String) holder = first;
+      }
+      if (holder != null && holder['text'] is String) {
+        final original = holder['text']! as String;
+        var keep = original.length;
+        while (keep > 0) {
+          keep = keep ~/ 2;
+          holder['text'] = keep == 0 ? '' : '${original.substring(0, keep)}…';
+          encoded = jsonEncode(copy);
+          if (encoded.length <= room) break;
+        }
+      }
+    }
+
+    if (encoded.length <= room) return encoded;
+    return jsonEncode({
+      'error': 'budget',
+      'note': '这次结果超出字数预算，已丢弃；请缩小范围再查',
+    });
+  }
+
+  /// Every executed call leaves a trace, failed ones included: a reader who
+  /// watched "检索「雨」" appear should not see it vanish because the tool
+  /// answered with an error. Only skipped calls stay invisible.
+  SearchStep _stepOf(LlmToolCall call, String payload, DateTime startedAt) {
+    final rawMs = _now().difference(startedAt).inMilliseconds;
+    final ms = rawMs < 0 ? 0 : rawMs;
+
+    Object? decoded;
+    try {
+      decoded = jsonDecode(payload);
+    } on FormatException {
+      decoded = null;
+    }
+    final map = decoded is Map ? decoded : const <String, Object?>{};
+    final failed = decoded is! Map || map.containsKey('error');
 
     if (call.name == 'get_chapter') {
-      final chapter = decoded['chapter'];
+      final chapter = map['chapter'] ?? _chapterOf(call.arguments);
+      final label = chapter is int ? '第 $chapter 章' : '这一章';
       return SearchStep(
         tool: call.name,
-        summary: '读第 $chapter 章',
+        summary: failed ? '读$label失败' : '读$label',
         chapters: [if (chapter is int) chapter],
         hits: 0,
-        ms: ms < 0 ? 0 : ms,
+        ms: ms,
       );
     }
 
-    final hits = decoded['hits'];
+    final query = _queryOf(call.arguments);
+    if (failed) {
+      return SearchStep(
+        tool: call.name,
+        summary: query.isEmpty ? '检索原文失败' : '检索「$query」失败',
+        chapters: const [],
+        hits: 0,
+        ms: ms,
+      );
+    }
+
+    final hits = map['hits'];
     final chapters = <int>{};
     var count = 0;
     if (hits is List) {
@@ -244,14 +344,26 @@ class SearchToolAgent {
         if (hit is Map && hit['chapter'] is int) chapters.add(hit['chapter'] as int);
       }
     }
-    final query = _queryOf(call.arguments);
     return SearchStep(
       tool: call.name,
       summary: query.isEmpty ? '检索原文' : '检索「$query」',
       chapters: chapters.toList()..sort(),
       hits: count,
-      ms: ms < 0 ? 0 : ms,
+      ms: ms,
     );
+  }
+
+  static int? _chapterOf(String arguments) {
+    try {
+      final decoded = jsonDecode(arguments);
+      if (decoded is Map) {
+        final chapter = decoded['chapter'];
+        if (chapter is int) return chapter;
+      }
+    } on FormatException {
+      // Malformed arguments: the tool call already reported the error.
+    }
+    return null;
   }
 
   static String _queryOf(String arguments) {

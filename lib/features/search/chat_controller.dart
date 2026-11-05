@@ -245,6 +245,9 @@ class ChatController extends Notifier<ChatState> {
           status: 'streaming',
           clearSources: true,
         );
+        // A retry can take a different path (tools off, no tools, degraded), so
+        // the previous round's steps must not linger over the new answer.
+        await messageRepo.updateSteps(assistantRow.id, null);
       } catch (error) {
         if (!_disposed) {
           _cancel = null;
@@ -278,6 +281,7 @@ class ChatController extends Notifier<ChatState> {
                 content: '',
                 status: 'streaming',
                 sourcesJson: const Value<String?>(null),
+                stepsJson: const Value<String?>(null),
               )
             else
               row,
@@ -299,13 +303,20 @@ class ChatController extends Notifier<ChatState> {
   }
 
   /// Whether the book has searchable text at all: a still-importing book or a
-  /// non-text format has nothing for the tools to read.
+  /// non-text format has nothing for the tools to read. The first few chapters
+  /// are probed because a book may open with an empty cover/title chapter.
   Future<bool> _hasChapterText(String bookId) async {
+    final chapters = ref.read(chapterRepositoryProvider);
     try {
-      final first = await ref
-          .read(chapterRepositoryProvider)
-          .getContent(bookId, 0);
-      return first != null && first.trim().isNotEmpty;
+      final summaries = await chapters.getSummariesForBook(bookId);
+      final probe = summaries.isEmpty
+          ? const [0]
+          : summaries.take(3).map((chapter) => chapter.index).toList();
+      for (final index in probe) {
+        final text = await chapters.getContent(bookId, index);
+        if (text != null && text.trim().isNotEmpty) return true;
+      }
+      return false;
     } on Object {
       return false;
     }

@@ -94,4 +94,11 @@ class SearchConfigStore {
 
   Future<void> markToolsUnsupported(String model) =>
       _settings.set(SearchConfig.toolsUnsupportedKey(model), 'true');
+
+  /// Forgets an earlier "this model has no tools" verdict, so the switch really
+  /// does restore tools even after the model or the endpoint changed.
+  Future<void> clearToolsUnsupported(String model) async {
+    if (model.trim().isEmpty) return;
+    await _settings.set(SearchConfig.toolsUnsupportedKey(model), 'false');
+  }
 }

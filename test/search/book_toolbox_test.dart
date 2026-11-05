@@ -60,6 +60,20 @@ void main() {
     expect(first['text'], isA<String>());
   });
 
+  test('search_in_book 的 chapter 越界时返回 error 而不是空命中', () async {
+    for (final chapter in [0, 99]) {
+      final raw = await makeToolbox().call(
+        'search_in_book',
+        '{"query":"雨","chapter":$chapter}',
+      );
+      expect(
+        jsonDecode(raw),
+        {'error': '第 $chapter 章不存在'},
+        reason: 'chapter=$chapter',
+      );
+    }
+  });
+
   test('参数不是合法 JSON 时返回 error 而不是抛异常', () async {
     final raw = await makeToolbox().call('search_in_book', '查询=雨');
     expect(jsonDecode(raw), {'error': '参数不是合法 JSON'});

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:coread/distill/distill_digest.dart';
 import 'package:coread/distill/llm/llm_client.dart';
@@ -300,5 +302,91 @@ void main() {
       ..throwOnTurn = LlmException('HTTP 400: unknown field tools', statusCode: 400);
 
     await expectLater(_run(client), throwsA(isA<ToolUnsupportedException>()));
+  });
+
+  test('429 / 503 / 401 不算「端点不支持工具」', () async {
+    for (final status in [429, 503, 401]) {
+      final client = _ScriptedClient(const [])
+        ..throwOnTurn = LlmException('tools are not supported', statusCode: status);
+
+      await expectLater(_run(client), throwsA(isA<LlmException>()));
+    }
+  });
+
+  test('决策轮直接作答时，答案成为收尾请求里的 assistant 消息', () async {
+    final client = _ScriptedClient([const LlmTurn(content: '半句答案')]);
+    final text = <String>[];
+
+    await _run(client, text: text);
+
+    final closing = client.seen.last;
+    expect(closing.last.role, LlmRole.assistant);
+    expect(closing.last.content, '半句答案');
+    // 问题只出现一次：答案没有被丢掉重答。
+    expect(
+      closing.where(
+        (m) => m.role == LlmRole.user && m.content.contains('这本书里的雨'),
+      ),
+      hasLength(1),
+    );
+    expect(text.join(), startsWith('半句答案'));
+  });
+
+  test('工具返回错误时仍留下一步，但标注失败', () async {
+    final client = _ScriptedClient([
+      const LlmTurn(toolCalls: [_searchCall]),
+      const LlmTurn(),
+    ]);
+    final steps = <SearchStep>[];
+
+    await _run(
+      client,
+      toolbox: _FakeToolbox(payloads: ['{"error":"缺少 query"}']),
+      steps: steps,
+    );
+
+    expect(steps, hasLength(1));
+    expect(steps.single.summary, contains('失败'));
+    expect(steps.single.hits, 0);
+  });
+
+  test('超预算的结果被裁到预算内且仍是合法 JSON', () async {
+    final client = _ScriptedClient([
+      const LlmTurn(toolCalls: [_searchCall]),
+      const LlmTurn(),
+    ]);
+    final hit = '{"chapter":1,"title":"第一章","text":"${'雨' * 60}"}';
+    final big = '{"hits":[$hit,$hit,$hit]}';
+
+    await _run(
+      client,
+      toolbox: _FakeToolbox(payloads: [big]),
+      maxToolChars: 300,
+    );
+
+    final tool = client.seen.last.lastWhere((m) => m.role == LlmRole.tool);
+    expect(tool.content.length, lessThanOrEqualTo(300));
+    expect(jsonDecode(tool.content), isA<Map<String, Object?>>());
+  });
+
+  test('剩余预算不足 minRoomForCall 时直接跳过', () async {
+    final client = _ScriptedClient([
+      const LlmTurn(toolCalls: [_searchCall]),
+      const LlmTurn(toolCalls: [
+        LlmToolCall(id: 'call_2', name: 'search_in_book', arguments: '{"query":"风"}'),
+      ]),
+      const LlmTurn(),
+    ]);
+
+    await _run(
+      client,
+      toolbox: _FakeToolbox(
+        payloads: ['{"hits":[{"chapter":1,"title":"第一章","text":"${'雨' * 60}"}]}'],
+      ),
+      maxToolChars: 250,
+    );
+
+    final tool = client.seen.last.lastWhere((m) => m.role == LlmRole.tool);
+    expect(tool.content, contains('skipped: budget'));
   });
 }

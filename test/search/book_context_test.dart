@@ -139,7 +139,7 @@ void main() {
     final narrow = await wide.build('b1');
     final wideOpen = await wide.build('b1', briefChars: 3600);
 
-    expect(narrow!.brief.length, lessThanOrEqualTo(2401));
+    expect(narrow!.brief.length, lessThanOrEqualTo(2400));
     expect(wideOpen!.brief.length, greaterThan(2400));
     expect(wideOpen.brief, contains('此处只列'));
   });
@@ -168,6 +168,38 @@ void main() {
     expect(context!.brief, contains('此处只列'));
     expect(context.brief, contains('共 300 章'));
     expect(context.brief, contains('只列 240 章'));
+  });
+
+  test('章节地图塞不下时，总数标注和要点都不会被挤掉', () async {
+    final digest = DistillDigest(
+      oneLiner: '一句话。',
+      synopsis: '梗概。',
+      themes: const ['主题'],
+      gists: {
+        for (var i = 0; i < 40; i++) i: '第$i章的要点' * 3,
+      },
+      cards: [
+        for (var i = 0; i < 6; i++)
+          DistillDigestCard(
+            slug: 'c$i',
+            title: '要点$i',
+            definition: '这里是第$i条要点的解释。' * 3,
+            sourceChapters: [i],
+          ),
+      ],
+    );
+
+    // 经典路径（2400 字）同样会被地图撑满：标注与要点都不能被挤掉。
+    final context = await builder(
+      bookOverride: book,
+      digestOverride: digest,
+      chapters: manyChapters(300),
+    ).build('b1');
+
+    expect(context!.brief, contains('共 300 章'));
+    expect(context.brief, contains('要点：'));
+    expect(context.brief, contains('要点0'));
+    expect(context.brief.length, lessThanOrEqualTo(2400));
   });
 }
 

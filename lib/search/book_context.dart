@@ -135,28 +135,11 @@ class BookContextBuilder {
 
     if (chapters.isNotEmpty) {
       buffer.writeln('章节目录：');
-      final withGists = chapters.take(maxGists).toList();
-      for (final chapter in withGists) {
+      for (final chapter in chapters.take(maxGists)) {
         final gist = digest?.gists[chapter.index] ?? '';
         final tail = gist.isEmpty ? '' : '：${_clip(gist, 60)}';
         buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}$tail');
       }
-      final titleOnly = chapters
-          .skip(withGists.length)
-          .take(maxTitleOnlyChapters)
-          .toList();
-      if (titleOnly.isNotEmpty) {
-        buffer.writeln('其余章节（仅标题）：');
-        for (final chapter in titleOnly) {
-          buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}');
-        }
-      }
-      final shown = withGists.length + titleOnly.length;
-      buffer.writeln(
-        shown < chapters.length
-            ? '（共 ${chapters.length} 章，此处只列 $shown 章）'
-            : '（共 ${chapters.length} 章）',
-      );
     }
 
     if (digest != null && digest.cards.isNotEmpty) {
@@ -172,8 +155,38 @@ class BookContextBuilder {
       }
     }
 
-    return _clip(buffer.toString(), maxChars);
+    if (chapters.isEmpty) return _clip(buffer.toString(), maxChars);
+
+    // Title-only chapters are the cheapest part of the map, so they are what
+    // gives way when the budget is tight: they are appended only while they fit
+    // next to a marker whose room is reserved up front. The marker itself is
+    // never clipped — without it the model cannot tell a partial map from a
+    // short book, which is exactly what makes it answer "没有写到" wrongly.
+    final listed = chapters.take(maxGists).length;
+    var titleOnly = 0;
+    for (final chapter in chapters.skip(listed)) {
+      if (titleOnly >= maxTitleOnlyChapters) break;
+      if (buffer.length + _markerLength(chapters.length) > maxChars) break;
+      if (titleOnly == 0) buffer.writeln('其余章节（仅标题）：');
+      buffer.writeln('第 ${chapter.index + 1} 章 ${chapter.title}');
+      titleOnly++;
+    }
+
+    final shown = listed + titleOnly;
+    final marker = shown < chapters.length
+        ? '（共 ${chapters.length} 章，此处只列 $shown 章）'
+        : '（共 ${chapters.length} 章）';
+    final room = maxChars - marker.length - 1;
+    final body = buffer.toString();
+    final head = body.length <= room
+        ? body
+        : '${body.substring(0, room > 1 ? room - 1 : 0)}…';
+    return '$head\n$marker';
   }
+
+  /// Longest marker this book could produce, used to reserve room for it.
+  static int _markerLength(int chapterCount) =>
+      '（共 $chapterCount 章，此处只列 $chapterCount 章）'.length + 1;
 
   Future<List<BookExcerpt>> _excerpts(
     String bookId,

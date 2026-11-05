@@ -123,6 +123,21 @@ void main() {
     expect(result.hits.first.text, contains('雨夜里的雨声'));
   });
 
+  test('单字查询会扫到前 maxChapters 章之外', () async {
+    final searcher = BookSearcher(
+      loadChapters: (_) async =>
+          [for (var i = 0; i < 20; i++) chapter(i, '第${i + 1}章')],
+      loadChapterText: (_, index) async =>
+          index == 19 ? '雨落在最后一章' : '风在吹',
+      digests: _NoDigest(),
+    );
+
+    final result = await searcher.search('b1', '雨');
+
+    expect(result.hits, isNotEmpty);
+    expect(result.hits.first.chapterIndex, 19);
+  });
+
   test('空 query 直接返回空结果', () async {
     final searcher = BookSearcher(
       loadChapters: (_) async => [chapter(0, '第一章')],

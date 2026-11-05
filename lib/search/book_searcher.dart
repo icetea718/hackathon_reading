@@ -85,7 +85,7 @@ class BookSearcher {
     final terms = bigrams(trimmed);
     final targets = chapter != null
         ? chapters.where((c) => c.index == chapter).toList()
-        : await _pickChapters(bookId, chapters, terms);
+        : await _pickChapters(bookId, chapters, terms, trimmed);
 
     final hits = <BookSnippet>[];
     var scanned = 0;
@@ -136,10 +136,16 @@ class BookSearcher {
   /// Chapters whose title or gist shares the most with the query. Falls back to
   /// the first few chapters when nothing scores — an undigested book has no
   /// gists, and answering "I found nothing" without reading is worse.
+  ///
+  /// A one-character query has no bigrams, so every chapter would score zero and
+  /// the fallback would silently read only the first [maxChapters] of them; that
+  /// case is scored by plain substring count instead and, when nothing matches,
+  /// walks the whole map — the scan budget and `truncated` then tell the truth.
   Future<List<Chapter>> _pickChapters(
     String bookId,
     List<Chapter> chapters,
     Set<String> terms,
+    String query,
   ) async {
     final digest = await digests.load(bookId);
     final scored = chapters
@@ -149,7 +155,7 @@ class BookSearcher {
           return (
             chapter: chapter,
             score: terms.isEmpty
-                ? 0
+                ? _countOf(haystack, query)
                 : bigrams(haystack).intersection(terms).length,
           );
         })
@@ -161,8 +167,11 @@ class BookSearcher {
       });
 
     final matched = scored.where((entry) => entry.score > 0).toList();
-    final pool = matched.isEmpty ? scored : matched;
-    return [for (final entry in pool.take(maxChapters)) entry.chapter];
+    if (matched.isNotEmpty) {
+      return [for (final entry in matched.take(maxChapters)) entry.chapter];
+    }
+    if (terms.isEmpty) return [for (final entry in scored) entry.chapter];
+    return [for (final entry in scored.take(maxChapters)) entry.chapter];
   }
 
   int _scoreOf(String piece, Set<String> terms, String query) {

@@ -429,4 +429,17 @@ void main() {
 
     expect(find.textContaining('当前模型报告不支持'), findsOneWidget);
   });
+
+  testWidgets('把开关重新打开会清掉「不支持」的记忆', (tester) async {
+    final store = SearchConfigStore(SettingsRepository(db));
+    await store.markToolsUnsupported('deepseek-chat');
+    await store.setToolsEnabled(false);
+    await pumpPage(tester, _FakeClient());
+
+    await reveal(tester, find.byKey(const Key('settings-tools-switch')));
+    await tapAt(tester, find.byKey(const Key('settings-tools-switch')));
+
+    expect(await store.toolsEnabled(), isTrue);
+    expect(await store.isToolsUnsupported('deepseek-chat'), isFalse);
+  });
 }

@@ -294,8 +294,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _setToolsEnabled(bool value) async {
-    setState(() => _toolsEnabled = value);
-    await ref.read(searchConfigStoreProvider).setToolsEnabled(value);
+    setState(() {
+      _toolsEnabled = value;
+      if (value) _toolsUnsupported = false;
+    });
+    final store = ref.read(searchConfigStoreProvider);
+    await store.setToolsEnabled(value);
+    // Turning the switch on is the user's way of saying "try again": drop the
+    // remembered "this model has no tools" verdict, otherwise the switch would
+    // look on while every question still skipped the loop.
+    if (value) await store.clearToolsUnsupported(_model.text.trim());
     ref.invalidate(searchConfigProvider);
   }
 
