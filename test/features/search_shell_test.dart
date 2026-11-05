@@ -1225,6 +1225,37 @@ void main() {
     await disposeShell(tester);
   });
 
+  testWidgets('工具步骤在流式过程中就显示出来', (tester) async {
+    final builder = _RecordingBookBuilder();
+    final gate = Completer<void>();
+    final agent = _GatedToolAgent(gate.future);
+    await seedBook(tester);
+    await pumpShell(
+      tester,
+      client: InstantClient('不该出现'),
+      book: builder,
+      tools: agent,
+    );
+    await tester.pumpAndSettle();
+    await pickBook(tester, 'b1');
+
+    await tester.enterText(
+      find.byKey(const Key('chat-input')),
+      '冬天湖上的冰有多厚？',
+    );
+    await tester.tap(find.byKey(const Key('chat-send')));
+    await tester.pump();
+    await tester.pump();
+
+    // The step is on screen while the loop is still running.
+    expect(find.textContaining('检索「冬天的湖」'), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('答案'), findsOneWidget);
+    await disposeShell(tester);
+  });
+
   testWidgets('没有章节正文的书不进工具路径', (tester) async {
     final builder = _RecordingBookBuilder();
     final agent = _FakeToolAgent();
@@ -1325,6 +1356,39 @@ class _FakeToolAgent extends SearchToolAgent {
     }
     onText('答案');
     return ToolRunResult(steps: steps, toolCalls: steps.length);
+  }
+}
+
+/// Emits one step, then waits for the test to open the gate, so the streaming
+/// state can be inspected before the answer arrives.
+class _GatedToolAgent extends SearchToolAgent {
+  _GatedToolAgent(this.gate) : super(client: InstantClient('ignored'));
+
+  final Future<void> gate;
+
+  @override
+  Future<ToolRunResult> run({
+    required List<LlmMessage> history,
+    required String userText,
+    required BookContext book,
+    required BookToolbox toolbox,
+    BookMemory? memory,
+    List<SearchHit> hits = const [],
+    required CancelToken cancel,
+    required TextSink onText,
+    required StepSink onStep,
+  }) async {
+    const step = SearchStep(
+      tool: 'search_in_book',
+      summary: '检索「冬天的湖」',
+      chapters: [1],
+      hits: 2,
+      ms: 12,
+    );
+    onStep(step);
+    await gate;
+    onText('答案');
+    return const ToolRunResult(steps: [step], toolCalls: 1);
   }
 }
 

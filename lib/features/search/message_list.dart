@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../data/db/app_database.dart';
 import '../../search/search_hit.dart';
+import '../../search/search_step.dart';
 import 'markdown_message.dart';
+import 'steps_bar.dart';
 
 /// Scrolling transcript for the 搜 shell.
 class MessageList extends StatelessWidget {
@@ -34,7 +36,9 @@ class MessageList extends StatelessWidget {
             (row) => row.role == 'assistant',
             orElse: () => messages.last,
           );
-    final showCaret = streaming && (lastAssistant?.content.isEmpty ?? true);
+    final showCaret = streaming &&
+        (lastAssistant?.content.isEmpty ?? true) &&
+        SearchStep.listFromJson(lastAssistant?.stepsJson).isEmpty;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -42,7 +46,7 @@ class MessageList extends StatelessWidget {
         for (final row in messages)
           if (row.role == 'user')
             _UserBubble(text: row.content)
-          else if (row.content.isNotEmpty)
+          else if (row.content.isNotEmpty || _stepsOf(row).isNotEmpty)
             _AssistantBlock(row: row),
         if (showCaret)
           Padding(
@@ -80,6 +84,9 @@ class MessageList extends StatelessWidget {
   }
 }
 
+List<SearchStep> _stepsOf(ChatMessageRow row) =>
+    SearchStep.listFromJson(row.stepsJson);
+
 class _UserBubble extends StatelessWidget {
   const _UserBubble({required this.text});
 
@@ -116,6 +123,7 @@ class _AssistantBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final steps = _stepsOf(row);
     final interrupted = row.status == 'interrupted';
     final failed = row.status == 'failed';
     return Padding(
@@ -123,7 +131,9 @@ class _AssistantBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MarkdownMessage(data: row.content),
+          if (steps.isNotEmpty)
+            StepsBar(steps: steps, streaming: row.status == 'streaming'),
+          if (row.content.isNotEmpty) MarkdownMessage(data: row.content),
           if (interrupted || failed)
             Padding(
               padding: const EdgeInsets.only(top: 6),

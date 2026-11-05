@@ -406,4 +406,27 @@ void main() {
     expect(find.textContaining('搜索失败'), findsOneWidget);
     expect(find.textContaining('HTTP 401'), findsOneWidget);
   });
+
+  testWidgets('书内检索工具默认打开，关掉后立即落库', (tester) async {
+    await pumpPage(tester, _FakeClient());
+
+    await reveal(tester, find.byKey(const Key('settings-tools-switch')));
+
+    final store = SearchConfigStore(SettingsRepository(db));
+    expect(await store.toolsEnabled(), isTrue);
+
+    await tapAt(tester, find.byKey(const Key('settings-tools-switch')));
+
+    expect(await store.toolsEnabled(), isFalse);
+  });
+
+  testWidgets('模型报告不支持时开关下面有提示', (tester) async {
+    await SearchConfigStore(SettingsRepository(db))
+        .markToolsUnsupported('deepseek-chat');
+    await pumpPage(tester, _FakeClient());
+
+    await reveal(tester, find.byKey(const Key('settings-tools-switch')));
+
+    expect(find.textContaining('当前模型报告不支持'), findsOneWidget);
+  });
 }

@@ -465,6 +465,7 @@ class ChatController extends Notifier<ChatState> {
               },
               onStep: (step) {
                 steps.add(step);
+                _patchSteps(assistantId, steps);
                 unawaited(persistSteps());
               },
             );
@@ -575,6 +576,18 @@ class ChatController extends Notifier<ChatState> {
       messages: [
         for (final row in state.messages)
           if (row.id == id) row.copyWith(content: content) else row,
+      ],
+    );
+  }
+
+  /// Shows a step as soon as it lands: the reader should see the book being
+  /// searched, not a blank bubble that suddenly fills with an answer.
+  void _patchSteps(String id, List<SearchStep> steps) {
+    final json = steps.isEmpty ? null : SearchStep.listToJson(steps);
+    state = state.copyWith(
+      messages: [
+        for (final row in state.messages)
+          if (row.id == id) row.copyWith(stepsJson: Value(json)) else row,
       ],
     );
   }

@@ -43,6 +43,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   final _searchKey = TextEditingController();
   String _searchProvider = SearchConfig.off;
+  bool _toolsEnabled = true;
+  bool _toolsUnsupported = false;
 
   bool _loaded = false;
   bool _testing = false;
@@ -81,6 +83,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         await ref.read(illustrationConfigStoreProvider).load();
     final voice = await ref.read(ttsConfigStoreProvider).load();
     final search = await ref.read(searchConfigStoreProvider).load();
+    final searchStore = ref.read(searchConfigStoreProvider);
+    final toolsEnabled = await searchStore.toolsEnabled();
+    final toolsUnsupported = config.model.isNotEmpty &&
+        await searchStore.isToolsUnsupported(config.model);
     if (!mounted) return;
     setState(() {
       _baseUrl.text = config.baseUrl;
@@ -100,6 +106,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _ttsAutoSpeak = voice.autoSpeak;
       _searchProvider = search.provider;
       _searchKey.text = search.apiKey;
+      _toolsEnabled = toolsEnabled;
+      _toolsUnsupported = toolsUnsupported;
       _loaded = true;
     });
     await _refreshVoices(voice.baseUrl);
@@ -285,6 +293,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
+  Future<void> _setToolsEnabled(bool value) async {
+    setState(() => _toolsEnabled = value);
+    await ref.read(searchConfigStoreProvider).setToolsEnabled(value);
+    ref.invalidate(searchConfigProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -339,6 +353,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     helperText: '2000–20000，默认 6000',
                   ),
                   keyboardType: TextInputType.number,
+                ),
+                SwitchListTile(
+                  key: const Key('settings-tools-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  value: _toolsEnabled,
+                  title: const Text('书内检索工具'),
+                  subtitle: Text(
+                    _toolsUnsupported
+                        ? '多一次请求，让模型自己在选中的书里翻找原文'
+                            '（当前模型报告不支持，已暂停）'
+                        : '多一次请求，让模型自己在选中的书里翻找原文',
+                  ),
+                  onChanged: _setToolsEnabled,
                 ),
                 const SizedBox(height: 24),
                 const Divider(),
